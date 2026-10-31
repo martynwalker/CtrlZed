@@ -105,10 +105,28 @@ public partial class MainWindow : Window
 
     void Editor_PreviewMouseDoubleClick(object sender,MouseButtonEventArgs e)
     {
-        if(e.OriginalSource is DependencyObject d){
-            while(d!=null && d is not Image)d=VisualTreeHelper.GetParent(d);
+        try
+        {
+            var d=e.OriginalSource as DependencyObject;
+            while(d!=null && d is not Image)d=GetSafeParent(d);
             if(d is Image img){ShowPictureProperties(img);e.Handled=true;}
         }
+        catch(Exception ex)
+        {
+            Status.Text="Picture properties could not be opened.";
+            MessageBox.Show(ex.Message,"Picture properties",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    static DependencyObject? GetSafeParent(DependencyObject d)
+    {
+        if(d is Visual || d is System.Windows.Media.Media3D.Visual3D)
+            return VisualTreeHelper.GetParent(d);
+        if(d is FrameworkContentElement fce)
+            return fce.Parent ?? ContentOperations.GetParent(fce);
+        if(d is ContentElement ce)
+            return ContentOperations.GetParent(ce);
+        return LogicalTreeHelper.GetParent(d);
     }
     void ShowPictureProperties(Image img)
     {
