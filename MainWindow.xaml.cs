@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     Thickness pageMargins = new(72);
     readonly DispatcherTimer recoveryTimer;
     readonly string recoveryFile;
+    readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase);
 
     sealed class CzdSettings
     {
@@ -39,6 +40,7 @@ public partial class MainWindow : Window
         public double Bottom { get; set; } = 72;
         public string Header { get; set; } = "";
         public string Footer { get; set; } = "";
+        public Dictionary<string,string> CustomFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     public MainWindow()
@@ -95,6 +97,7 @@ public partial class MainWindow : Window
         Editor.Document = new FlowDocument();
         currentFile = null;
         headerText = footerText = "";
+        customFields.Clear();
         RefreshHeaderFooter();
         suppressDirty = false;
         dirty = false;
@@ -235,7 +238,8 @@ public partial class MainWindow : Window
             {
                 PageWidth=pageWidth,PageHeight=pageHeight,
                 Left=pageMargins.Left,Top=pageMargins.Top,Right=pageMargins.Right,Bottom=pageMargins.Bottom,
-                Header=headerText,Footer=footerText
+                Header=headerText,Footer=footerText,
+                CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase)
             };
             using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
         }
@@ -260,6 +264,11 @@ public partial class MainWindow : Window
                 pageMargins=new Thickness(v.Left,v.Top,v.Right,v.Bottom);
                 headerText=v.Header??"";
                 footerText=v.Footer??"";
+                customFields.Clear();
+                if(v.CustomFields!=null)
+                    foreach(var pair in v.CustomFields)
+                        if(!string.IsNullOrWhiteSpace(pair.Key))
+                            customFields[pair.Key]=pair.Value??"";
                 ApplyPage();
             }
         }
@@ -318,14 +327,28 @@ public partial class MainWindow : Window
 
     string ExpandFields(string text,int page,int pages)
     {
+        return ExpandFieldsCore(text??"",page,pages,0);
+    }
+
+    string ExpandFieldsCore(string text,int page,int pages,int depth)
+    {
+        if(depth>8)return text;
         var now=DateTime.Now;
-        return text.Replace("{page}",page.ToString(),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{pages}",pages.ToString(),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{date}",now.ToString("dd MMMM yyyy"),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{time}",now.ToString("HH:mm"),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{filename}",currentFile==null?"Untitled":Path.GetFileName(currentFile),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{moonphase}",GetMoonPhaseName(now),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{moonicon}",GetMoonPhaseIcon(now),StringComparison.OrdinalIgnoreCase);
+        var result=text.Replace("{page}",page.ToString(),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{pages}",pages.ToString(),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{date}",now.ToString("dd MMMM yyyy"),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{time}",now.ToString("HH:mm"),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{filename}",currentFile==null?"Untitled":Path.GetFileName(currentFile),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{moonphase}",GetMoonPhaseName(now),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{moonicon}",GetMoonPhaseIcon(now),StringComparison.OrdinalIgnoreCase);
+
+        foreach(var pair in customFields)
+        {
+            var token="{field:"+pair.Key+"}";
+            if(result.Contains(token,StringComparison.OrdinalIgnoreCase))
+                result=result.Replace(token,ExpandFieldsCore(pair.Value,page,pages,depth+1),StringComparison.OrdinalIgnoreCase);
+        }
+        return result;
     }
 
     static double GetMoonAge(DateTime dt)
@@ -368,6 +391,95 @@ public partial class MainWindow : Window
         return "🌘";
     }
 
+    void Fields_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window{Title="CtrlZed Fields",Owner=this,Width=620,Height=430,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var root=new Grid{Margin=new Thickness(12)};
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(190)});
+        root.ColumnDefinitions.Add(new ColumnDefinition());
+        root.RowDefinitions.Add(new RowDefinition());
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+
+        var list=new ListBox{Margin=new Thickness(0,0,10,0)};
+        Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
+
+        var edit=new Grid();
+        edit.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        edit.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        edit.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        edit.RowDefinitions.Add(new RowDefinition());
+        edit.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        edit.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var name=new TextBox{Margin=new Thickness(0,3,0,8)};
+        var value=new TextBox{Margin=new Thickness(0,3,0,8),AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=110};
+        AddRow(edit,0,"Name",name);
+        AddRow(edit,1,"Template",value);
+        var hint=new TextBlock
+        {
+            Text="Use built-ins such as {date}, {filename}, {moonphase}, or another custom field as {field:name}. Insert it in a header/footer as {field:name}.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,4,0,8)
+        };
+        Grid.SetRow(hint,2);Grid.SetColumnSpan(hint,2);edit.Children.Add(hint);
+        Grid.SetColumn(edit,1);Grid.SetRow(edit,0);root.Children.Add(edit);
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+        var save=new Button{Content="Save field",Width=90,Margin=new Thickness(4)};
+        var remove=new Button{Content="Delete",Width=75,Margin=new Thickness(4)};
+        var moon=new Button{Content="Moon example",Width=105,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=75,Margin=new Thickness(4)};
+        buttons.Children.Add(moon);buttons.Children.Add(remove);buttons.Children.Add(save);buttons.Children.Add(close);
+        Grid.SetColumn(buttons,0);Grid.SetColumnSpan(buttons,2);Grid.SetRow(buttons,1);root.Children.Add(buttons);
+
+        void RefreshList()
+        {
+            list.ItemsSource=customFields.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        list.SelectionChanged+=(_,__)=>
+        {
+            if(list.SelectedItem is string key && customFields.TryGetValue(key,out var template))
+            {
+                name.Text=key;
+                value.Text=template;
+            }
+        };
+
+        save.Click+=(_,__)=>
+        {
+            var key=name.Text.Trim();
+            if(string.IsNullOrWhiteSpace(key) || key.Any(ch=>!(char.IsLetterOrDigit(ch)||ch=='_'||ch=='-')))
+            {
+                MessageBox.Show("Field names may contain letters, numbers, hyphens and underscores.","Invalid field",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            customFields[key]=value.Text;
+            RefreshList();
+            list.SelectedItem=key;
+            RefreshHeaderFooter();
+            MarkDirty("Custom field saved.");
+        };
+
+        remove.Click+=(_,__)=>
+        {
+            if(list.SelectedItem is string key && customFields.Remove(key))
+            {
+                name.Clear();value.Clear();RefreshList();RefreshHeaderFooter();MarkDirty("Custom field deleted.");
+            }
+        };
+
+        moon.Click+=(_,__)=>
+        {
+            name.Text="moon";
+            value.Text="{moonicon} {moonphase}";
+        };
+
+        close.Click+=(_,__)=>w.Close();
+        RefreshList();
+        w.Content=root;
+        w.ShowDialog();
+    }
+
     void HeaderFooter_Click(object s,RoutedEventArgs e)
     {
         var w=new Window{Title="Header and Footer",Owner=this,Width=520,Height=330,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
@@ -375,7 +487,7 @@ public partial class MainWindow : Window
         for(int i=0;i<6;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         var h=new TextBox{Text=headerText,Margin=new Thickness(0,4,0,10)};
         var ft=new TextBox{Text=footerText,Margin=new Thickness(0,4,0,10)};
-        var help=new TextBlock{Text="Available fields: {page}  {pages}  {date}  {time}  {filename}  {moonphase}  {moonicon}. Page fields are previewed as page 1 in the editor.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var help=new TextBlock{Text="Built-ins: {page}  {pages}  {date}  {time}  {filename}  {moonphase}  {moonicon}. Custom fields use {field:name}. Page fields are previewed as page 1 in the editor.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
         var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
 
         AddFullRow(grid,0,new TextBlock{Text="Header"});
