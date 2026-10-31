@@ -1,11 +1,12 @@
-<Window x:Class="CtrlZed.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="CtrlZed — beta 1" Width="1100" Height="760">
+<Window x:Class="CtrlZed.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="CtrlZed — beta 2" Width="1100" Height="760" PreviewKeyDown="Window_PreviewKeyDown">
 <DockPanel>
 <Menu DockPanel.Dock="Top">
-<MenuItem Header="_File"><MenuItem Header="_New" InputGestureText="Ctrl+N" Click="New_Click"/><MenuItem Header="_Open…" InputGestureText="Ctrl+O" Click="Open_Click"/><MenuItem Header="_Save" InputGestureText="Ctrl+S" Click="Save_Click"/><Separator/><MenuItem Header="_Print…" InputGestureText="Ctrl+P" Click="Print_Click"/><Separator/><MenuItem Header="E_xit" Click="Exit_Click"/></MenuItem>
+<MenuItem Header="_File"><MenuItem Header="_New" InputGestureText="Ctrl+N" Click="New_Click"/><MenuItem Header="_Open…" InputGestureText="Ctrl+O" Click="Open_Click"/><MenuItem Header="_Save" InputGestureText="Ctrl+S" Click="Save_Click"/><Separator/><MenuItem Header="Page Set_up…" Click="PageSetup_Click"/><MenuItem Header="_Print…" InputGestureText="Ctrl+P" Click="Print_Click"/><Separator/><MenuItem Header="E_xit" Click="Exit_Click"/></MenuItem>
 <MenuItem Header="_Edit"><MenuItem Header="_Undo" InputGestureText="Ctrl+Z" Command="ApplicationCommands.Undo" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Redo" InputGestureText="Ctrl+Y" Command="ApplicationCommands.Redo" CommandTarget="{Binding ElementName=Editor}"/><Separator/><MenuItem Header="Cu_t" Command="ApplicationCommands.Cut" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Copy" Command="ApplicationCommands.Copy" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Paste" Command="ApplicationCommands.Paste" CommandTarget="{Binding ElementName=Editor}"/></MenuItem>
 <MenuItem Header="_Insert"><MenuItem Header="_Picture…" Click="Picture_Click"/></MenuItem>
 <MenuItem Header="F_ormat"><MenuItem Header="_Bold" InputGestureText="Ctrl+B" Command="EditingCommands.ToggleBold" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Italic" InputGestureText="Ctrl+I" Command="EditingCommands.ToggleItalic" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Underline" InputGestureText="Ctrl+U" Command="EditingCommands.ToggleUnderline" CommandTarget="{Binding ElementName=Editor}"/></MenuItem>
-<MenuItem Header="_Keyboard"><MenuItem Header="Microsoft _Word" IsCheckable="True" IsChecked="True"/><MenuItem Header="Word_Perfect 5.1" IsCheckable="True"/><MenuItem Header="Word_Star 4.0" IsCheckable="True"/></MenuItem>
+<MenuItem Header="_Keyboard"><MenuItem x:Name="WordProfile" Header="Microsoft _Word" IsCheckable="True" IsChecked="True" Click="Keyboard_Click"/><MenuItem x:Name="WPProfile" Header="Word_Perfect 5.1" IsCheckable="True" Click="Keyboard_Click"/><MenuItem x:Name="WSProfile" Header="Word_Star 4.0" IsCheckable="True" Click="Keyboard_Click"/></MenuItem>
+<MenuItem Header="_Tools"><MenuItem Header="_Macro Library…" Click="MacroLibrary_Click"/></MenuItem>
 <MenuItem Header="_Help"><MenuItem Header="_About CtrlZed" Click="About_Click"/></MenuItem>
 </Menu>
 <ToolBarTray DockPanel.Dock="Top"><ToolBar>
@@ -14,8 +15,8 @@
 <Button Command="EditingCommands.ToggleUnderline" CommandTarget="{Binding ElementName=Editor}"><TextBlock Text="U" TextDecorations="Underline"/></Button>
 <Separator/><ComboBox x:Name="FontBox" Width="190" SelectionChanged="FontBox_SelectionChanged"/><ComboBox x:Name="SizeBox" Width="70" IsEditable="True" SelectionChanged="SizeBox_SelectionChanged"><ComboBoxItem>9</ComboBoxItem><ComboBoxItem>10</ComboBoxItem><ComboBoxItem>11</ComboBoxItem><ComboBoxItem IsSelected="True">12</ComboBoxItem><ComboBoxItem>14</ComboBoxItem><ComboBoxItem>18</ComboBoxItem><ComboBoxItem>24</ComboBoxItem></ComboBox>
 </ToolBar></ToolBarTray>
-<StatusBar DockPanel.Dock="Bottom"><TextBlock x:Name="Status" Text="Ready — RTF beta; use copies of important documents."/></StatusBar>
-<ScrollViewer VerticalScrollBarVisibility="Auto" Background="#D7D7D7"><Border Width="794" MinHeight="1123" Margin="30" Padding="72" Background="White" HorizontalAlignment="Center" VerticalAlignment="Top" Effect="{x:Null}">
+<StatusBar DockPanel.Dock="Bottom"><TextBlock x:Name="Status" Text="Ready — CtrlZed beta 2"/></StatusBar>
+<ScrollViewer VerticalScrollBarVisibility="Auto" Background="#D7D7D7"><Border x:Name="PageBorder" Width="794" MinHeight="1123" Margin="30" Padding="72" Background="White" HorizontalAlignment="Center" VerticalAlignment="Top">
 <RichTextBox x:Name="Editor" BorderThickness="0" AcceptsTab="True" SpellCheck.IsEnabled="True" FontFamily="Calibri" FontSize="16" VerticalScrollBarVisibility="Disabled"/>
 </Border></ScrollViewer>
 </DockPanel></Window>
