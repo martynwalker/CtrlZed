@@ -6,3 +6,5 @@ artifacts/
 *.suo
 *.bak
 *.tmp
+
+CtrlZed.generated.ico
