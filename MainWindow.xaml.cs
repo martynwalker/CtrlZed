@@ -530,6 +530,227 @@ public partial class MainWindow : Window
         PageGuides.InvalidateVisual();
     }
 
+    void FindReplace_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="Find and Replace",
+            Owner=this,
+            Width=500,
+            Height=255,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            ResizeMode=ResizeMode.NoResize
+        };
+
+        var g=new Grid{Margin=new Thickness(14)};
+        for(int i=0;i<5;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(90)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var find=new TextBox{Margin=new Thickness(0,3,0,7)};
+        var replace=new TextBox{Margin=new Thickness(0,3,0,7)};
+        var matchCase=new CheckBox{Content="Match case",Margin=new Thickness(0,5,0,5)};
+        AddRow(g,0,"Find",find);
+        AddRow(g,1,"Replace",replace);
+        Grid.SetRow(matchCase,2);Grid.SetColumn(matchCase,1);g.Children.Add(matchCase);
+
+        var status=new TextBlock{Margin=new Thickness(0,5,0,5),Foreground=Brushes.DimGray};
+        Grid.SetRow(status,3);Grid.SetColumnSpan(status,2);g.Children.Add(status);
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var findNext=new Button{Content="Find Next",Width=90,Margin=new Thickness(4)};
+        var replaceOne=new Button{Content="Replace",Width=80,Margin=new Thickness(4)};
+        var replaceAll=new Button{Content="Replace All",Width=90,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=70,Margin=new Thickness(4)};
+        buttons.Children.Add(findNext);buttons.Children.Add(replaceOne);buttons.Children.Add(replaceAll);buttons.Children.Add(close);
+        Grid.SetRow(buttons,4);Grid.SetColumnSpan(buttons,2);g.Children.Add(buttons);
+
+        bool FindNext()
+        {
+            var term=find.Text;
+            if(string.IsNullOrEmpty(term))return false;
+            var comparison=matchCase.IsChecked==true?StringComparison.CurrentCulture:StringComparison.CurrentCultureIgnoreCase;
+            var found=FindText(Editor.CaretPosition,term,comparison) ?? FindText(Editor.Document.ContentStart,term,comparison);
+            if(found==null){status.Text="Not found.";return false;}
+            Editor.Selection.Select(found.Value.Start,found.Value.End);
+            Editor.CaretPosition=found.Value.End;
+            Editor.Focus();
+            status.Text="Found.";
+            return true;
+        }
+
+        findNext.Click+=(_,__)=>FindNext();
+        replaceOne.Click+=(_,__)=>
+        {
+            var comparison=matchCase.IsChecked==true?StringComparison.CurrentCulture:StringComparison.CurrentCultureIgnoreCase;
+            if(!string.IsNullOrEmpty(find.Text) && string.Equals(Editor.Selection.Text,find.Text,comparison))
+            {
+                Editor.Selection.Text=replace.Text;
+                MarkDirty("Text replaced.");
+            }
+            FindNext();
+        };
+        replaceAll.Click+=(_,__)=>
+        {
+            if(string.IsNullOrEmpty(find.Text))return;
+            var comparison=matchCase.IsChecked==true?StringComparison.CurrentCulture:StringComparison.CurrentCultureIgnoreCase;
+            var count=0;
+            var start=Editor.Document.ContentStart;
+            while(true)
+            {
+                var found=FindText(start,find.Text,comparison);
+                if(found==null)break;
+                var range=new TextRange(found.Value.Start,found.Value.End);
+                range.Text=replace.Text;
+                start=range.End;
+                count++;
+                if(count>10000)break;
+            }
+            if(count>0)MarkDirty($"{count} replacement{(count==1?"":"s")} made.");
+            status.Text=$"{count} replacement{(count==1?"":"s")}.";
+        };
+        close.Click+=(_,__)=>w.Close();
+
+        w.Content=g;
+        w.ShowDialog();
+    }
+
+    (TextPointer Start,TextPointer End)? FindText(TextPointer start,string term,StringComparison comparison)
+    {
+        var nav=start;
+        var end=Editor.Document.ContentEnd;
+        while(nav!=null && nav.CompareTo(end)<0)
+        {
+            var context=nav.GetPointerContext(LogicalDirection.Forward);
+            if(context==TextPointerContext.Text)
+            {
+                var run=nav.GetTextInRun(LogicalDirection.Forward);
+                var index=run.IndexOf(term,comparison);
+                if(index>=0)
+                {
+                    var s=nav.GetPositionAtOffset(index,LogicalDirection.Forward);
+                    var e=s?.GetPositionAtOffset(term.Length,LogicalDirection.Forward);
+                    if(s!=null && e!=null)return(s,e);
+                }
+                nav=nav.GetPositionAtOffset(run.Length,LogicalDirection.Forward);
+            }
+            else
+            {
+                nav=nav.GetNextContextPosition(LogicalDirection.Forward);
+            }
+        }
+        return null;
+    }
+
+    void PageBreak_Click(object s,RoutedEventArgs e)
+    {
+        Editor.Focus();
+        EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+        var paragraph=Editor.CaretPosition.Paragraph;
+        if(paragraph!=null)
+        {
+            paragraph.BreakPageBefore=true;
+            MarkDirty("Page break inserted.");
+        }
+    }
+
+    void Table_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="Insert Table",
+            Owner=this,
+            Width=330,
+            Height=220,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            ResizeMode=ResizeMode.NoResize
+        };
+        var g=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<3;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var rows=new TextBox{Text="2",Margin=new Thickness(0,4,0,8)};
+        var cols=new TextBox{Text="2",Margin=new Thickness(0,4,0,8)};
+        AddRow(g,0,"Rows",rows);
+        AddRow(g,1,"Columns",cols);
+        var ok=new Button{Content="Insert",Width=85,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        Grid.SetRow(ok,2);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+
+        ok.Click+=(_,__)=>
+        {
+            if(!int.TryParse(rows.Text,out var r)||!int.TryParse(cols.Text,out var col)||r<1||r>50||col<1||col>20)
+            {
+                MessageBox.Show("Use 1–50 rows and 1–20 columns.","Insert Table",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+
+            var table=new Table
+            {
+                CellSpacing=0,
+                BorderBrush=Brushes.Gray,
+                BorderThickness=new Thickness(1),
+                Margin=new Thickness(0,8,0,8)
+            };
+            for(int i=0;i<col;i++)table.Columns.Add(new TableColumn());
+            var group=new TableRowGroup();
+            table.RowGroups.Add(group);
+
+            for(int ri=0;ri<r;ri++)
+            {
+                var row=new TableRow();
+                group.Rows.Add(row);
+                for(int ci=0;ci<col;ci++)
+                {
+                    var cell=new TableCell(new Paragraph(new Run("")))
+                    {
+                        BorderBrush=Brushes.LightGray,
+                        BorderThickness=new Thickness(0.5),
+                        Padding=new Thickness(5)
+                    };
+                    row.Cells.Add(cell);
+                }
+            }
+
+            InsertBlockAfterCaret(table);
+            MarkDirty($"Inserted {r} × {col} table.");
+            w.DialogResult=true;
+            Editor.Focus();
+        };
+
+        w.Content=g;
+        w.ShowDialog();
+    }
+
+    void InsertBlockAfterCaret(Block block)
+    {
+        var paragraph=Editor.CaretPosition.Paragraph;
+        if(paragraph==null)
+        {
+            Editor.Document.Blocks.Add(block);
+            return;
+        }
+
+        switch(paragraph.Parent)
+        {
+            case FlowDocument doc:
+                doc.Blocks.InsertAfter(paragraph,block);
+                break;
+            case Section section:
+                section.Blocks.InsertAfter(paragraph,block);
+                break;
+            case ListItem item:
+                item.Blocks.InsertAfter(paragraph,block);
+                break;
+            case TableCell cell:
+                cell.Blocks.InsertAfter(paragraph,block);
+                break;
+            default:
+                Editor.Document.Blocks.Add(block);
+                break;
+        }
+    }
+
     void Picture_Click(object s,RoutedEventArgs e)
     {
         var d=new OpenFileDialog{Filter="Pictures|*.png;*.jpg;*.jpeg;*.bmp;*.gif"};
@@ -1183,6 +1404,19 @@ INSERT_FIELD date
 
     void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
+        if(profile==KeyboardProfile.Word && Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.H)
+        {
+            FindReplace_Click(this,new RoutedEventArgs());
+            e.Handled=true;
+            return;
+        }
+        if(profile==KeyboardProfile.Word && Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.Enter)
+        {
+            PageBreak_Click(this,new RoutedEventArgs());
+            e.Handled=true;
+            return;
+        }
+
         if(profile==KeyboardProfile.WordStar40)
         {
             if(wordStarPrefix)
@@ -1251,6 +1485,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.5.3 beta 5.3\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5.3 adds a clearer visual gap between pages in the editor.",
+        "CtrlZed 0.6.0 beta 6\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 6 adds Find/Replace, tables, manual page breaks, lists and alignment tools.",
         "About CtrlZed");
 }
