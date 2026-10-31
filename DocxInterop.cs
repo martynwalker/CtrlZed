@@ -28,7 +28,7 @@ public static class DocxInterop
     {
         using var word=WordprocessingDocument.Open(path,false);
         var result=new FlowDocument();
-        var body=word.MainDocumentPart?.Document.Body;
+        var body=word.MainDocumentPart?.Document?.Body;
         if(body==null)return result;
 
         foreach(var child in body.ChildElements)
@@ -44,6 +44,8 @@ public static class DocxInterop
         var wp=new W.Paragraph();
         var pp=new W.ParagraphProperties();
 
+        var style=DetectStyleId(p);
+        if(style!=null)pp.ParagraphStyleId=new W.ParagraphStyleId{Val=style};
         if(p.BreakPageBefore) pp.Append(new W.PageBreakBefore());
         pp.Justification=new W.Justification{Val=p.TextAlignment switch
         {
@@ -173,6 +175,19 @@ public static class DocxInterop
             }
         }
         return t;
+    }
+
+    static string? DetectStyleId(Paragraph p)
+    {
+        var range=new TextRange(p.ContentStart,p.ContentEnd);
+        var sizeValue=range.GetPropertyValue(TextElement.FontSizeProperty);
+        var weightValue=range.GetPropertyValue(TextElement.FontWeightProperty);
+        var size=sizeValue is double d?d:0;
+        var weight=weightValue is FontWeight fw?fw.ToOpenTypeWeight():0;
+        if(size>=23 && weight>=600)return "Heading1";
+        if(size>=19 && weight>=600)return "Heading2";
+        if(size>=17 && weight>=550)return "Heading3";
+        return null;
     }
 
     static void ApplyImportedStyle(Paragraph p,string style)
