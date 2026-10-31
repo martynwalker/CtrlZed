@@ -219,7 +219,6 @@ public static class DocxInterop
             bitmap.CacheOption=BitmapCacheOption.OnLoad;
             bitmap.StreamSource=stream;
             bitmap.EndInit();
-            bitmap.Freeze();
         }
 
         var extent=drawing.Descendants<DW.Extent>().FirstOrDefault();
