@@ -132,7 +132,7 @@ public partial class MainWindow : Window
         var paper=new ComboBox{ItemsSource=new[]{"A4 Portrait","A4 Landscape","A5 Portrait","US Letter"},SelectedIndex=0,Margin=new Thickness(0,0,0,10)};
         p.Children.Add(new TextBlock{Text="Paper"});p.Children.Add(paper);
         TextBox Box(double dip)=>new(){Text=(dip*25.4/96).ToString("0.0"),Margin=new Thickness(0,2,0,6)};
-        var l=Box(pageMargins.Left),t=Box(pageMargins.Top),r=Box(pageMargins.Right),b=Box(pageMargins.Bottom);
+        TextBox l=Box(pageMargins.Left); TextBox t=Box(pageMargins.Top); TextBox r=Box(pageMargins.Right); TextBox b=Box(pageMargins.Bottom);
         foreach(var pair in new[]{("Left margin (mm)",l),("Top margin (mm)",t),("Right margin (mm)",r),("Bottom margin (mm)",b)}){p.Children.Add(new TextBlock{Text=pair.Item1});p.Children.Add(pair.Item2);}
         var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};p.Children.Add(ok);
         ok.Click+=(_,__)=>{(pageWidth,pageHeight)=paper.SelectedIndex switch{1=>(1123d,794d),2=>(559d,794d),3=>(816d,1056d),_=>(794d,1123d)};double mm(TextBox x)=>double.TryParse(x.Text,out var v)?v*96/25.4:72;pageMargins=new Thickness(mm(l),mm(t),mm(r),mm(b));ApplyPage();w.DialogResult=true;};
@@ -146,7 +146,7 @@ public partial class MainWindow : Window
         var w=new Window{Title="CtrlZed Macro Library — source only",Owner=this,Width=780,Height=560,WindowStartupLocation=WindowStartupLocation.CenterOwner};
         var grid=new Grid{Margin=new Thickness(10)};grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(190)});grid.ColumnDefinitions.Add(new ColumnDefinition());
         var left=new DockPanel{Margin=new Thickness(0,0,10,0)};var list=new ListBox();DockPanel.SetDock(list,Dock.Top);left.Children.Add(list);
-        var buttons=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,8,0,0)};var nv=new Button{Content="New VB",Margin=new Thickness(0,0,5,0)},nc=new Button{Content="New C#"};buttons.Children.Add(nv);buttons.Children.Add(nc);DockPanel.SetDock(buttons,Dock.Bottom);left.Children.Add(buttons);Grid.SetColumn(left,0);grid.Children.Add(left);
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,8,0,0)};Button nv=new(){Content="New VB",Margin=new Thickness(0,0,5,0)}; Button nc=new(){Content="New C#"};buttons.Children.Add(nv);buttons.Children.Add(nc);DockPanel.SetDock(buttons,Dock.Bottom);left.Children.Add(buttons);Grid.SetColumn(left,0);grid.Children.Add(left);
         var right=new DockPanel();var warning=new TextBlock{Text="Macro execution is disabled in beta 2. This editor stores source in your central library.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};DockPanel.SetDock(warning,Dock.Top);right.Children.Add(warning);
         var save=new Button{Content="Save source",Width=100,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};DockPanel.SetDock(save,Dock.Bottom);right.Children.Add(save);
         var code=new TextBox{AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas"),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto};right.Children.Add(code);Grid.SetColumn(right,1);grid.Children.Add(right);
