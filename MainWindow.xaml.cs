@@ -29,7 +29,6 @@ public partial class MainWindow : Window
         FontBox.SelectedItem = Fonts.SystemFontFamilies.FirstOrDefault(f => f.Source == "Calibri") ?? Fonts.SystemFontFamilies.First();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
-        Editor.PreviewMouseDoubleClick += Editor_PreviewMouseDoubleClick;
         ApplyPage();
     }
 
@@ -43,6 +42,7 @@ public partial class MainWindow : Window
             if(ext==".czd")LoadCzd(d.FileName);
             else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(d.FileName))));
             else using(var fs=File.OpenRead(d.FileName))new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
+            WirePictureHandlers();
             currentFile=d.FileName;Title=$"CtrlZed — {Path.GetFileName(currentFile)}";Status.Text="Opened "+currentFile;
         }catch(Exception ex){MessageBox.Show(ex.Message,"Open failed",MessageBoxButton.OK,MessageBoxImage.Error);}
     }
@@ -99,17 +99,26 @@ public partial class MainWindow : Window
         try{
             var b=new BitmapImage();b.BeginInit();b.CacheOption=BitmapCacheOption.OnLoad;b.UriSource=new Uri(d.FileName);b.EndInit();
             var img=new Image{Source=b,MaxWidth=Math.Max(100,pageWidth-pageMargins.Left-pageMargins.Right),Stretch=Stretch.Uniform,Margin=new Thickness(4),Tag="CtrlZedPicture"};
+            WirePicture(img);
             var ui=new InlineUIContainer(img,Editor.CaretPosition);Editor.CaretPosition=ui.ElementEnd;Editor.Focus();Status.Text="Picture inserted — double-click it for size and alignment.";
         }catch(Exception ex){MessageBox.Show(ex.Message,"Picture failed",MessageBoxButton.OK,MessageBoxImage.Error);}
     }
 
-    void Editor_PreviewMouseDoubleClick(object sender,MouseButtonEventArgs e)
+    void WirePicture(Image img)
     {
+        img.Cursor=Cursors.Hand;
+        img.ToolTip="Double-click for picture properties";
+        img.MouseLeftButtonDown-=Picture_MouseLeftButtonDown;
+        img.MouseLeftButtonDown+=Picture_MouseLeftButtonDown;
+    }
+
+    void Picture_MouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        if(e.ClickCount!=2 || sender is not Image img)return;
         try
         {
-            var d=e.OriginalSource as DependencyObject;
-            while(d!=null && d is not Image)d=GetSafeParent(d);
-            if(d is Image img){ShowPictureProperties(img);e.Handled=true;}
+            e.Handled=true;
+            ShowPictureProperties(img);
         }
         catch(Exception ex)
         {
@@ -118,16 +127,49 @@ public partial class MainWindow : Window
         }
     }
 
-    static DependencyObject? GetSafeParent(DependencyObject d)
+    void WirePictureHandlers()
     {
-        if(d is Visual || d is System.Windows.Media.Media3D.Visual3D)
-            return VisualTreeHelper.GetParent(d);
-        if(d is FrameworkContentElement fce)
-            return fce.Parent ?? ContentOperations.GetParent(fce);
-        if(d is ContentElement ce)
-            return ContentOperations.GetParent(ce);
-        return LogicalTreeHelper.GetParent(d);
+        foreach(var block in Editor.Document.Blocks)
+            WirePicturesInBlock(block);
     }
+
+    void WirePicturesInBlock(Block block)
+    {
+        if(block is Paragraph p)
+        {
+            foreach(var inline in p.Inlines)
+                WirePicturesInInline(inline);
+        }
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)
+                WirePicturesInBlock(child);
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)
+                    WirePicturesInBlock(child);
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)
+                            WirePicturesInBlock(child);
+        }
+    }
+
+    void WirePicturesInInline(Inline inline)
+    {
+        if(inline is InlineUIContainer ui && ui.Child is Image img)
+            WirePicture(img);
+        else if(inline is Span span)
+            foreach(var child in span.Inlines)
+                WirePicturesInInline(child);
+    }
+
     void ShowPictureProperties(Image img)
     {
         var w=new Window{Title="Picture Properties",Owner=this,Width=360,Height=260,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
@@ -200,5 +242,5 @@ public partial class MainWindow : Window
     void FontBox_SelectionChanged(object s,SelectionChangedEventArgs e){if(FontBox.SelectedItem is FontFamily f)Editor.Selection.ApplyPropertyValue(TextElement.FontFamilyProperty,f);}
     void SizeBox_SelectionChanged(object s,SelectionChangedEventArgs e){if(SizeBox.SelectedItem is ComboBoxItem i&&double.TryParse(i.Content?.ToString(),out var pt))Editor.Selection.ApplyPropertyValue(TextElement.FontSizeProperty,pt*96/72);}
     void Exit_Click(object s,RoutedEventArgs e)=>Close();
-    void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show("CtrlZed 0.2.0 beta 2\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.","About CtrlZed");
+    void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show("CtrlZed 0.2.2 beta 2.2\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.","About CtrlZed");
 }
