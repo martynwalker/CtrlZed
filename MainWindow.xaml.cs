@@ -842,43 +842,67 @@ public partial class MainWindow : Window
     {
         var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
         Directory.CreateDirectory(dir);
-        var w=new Window{Title="CtrlZed Macro Library — source only",Owner=this,Width=780,Height=560,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var w=new Window{Title="CtrlZed Macro Library",Owner=this,Width=820,Height=590,WindowStartupLocation=WindowStartupLocation.CenterOwner};
         var grid=new Grid{Margin=new Thickness(10)};
-        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(190)});
+        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(205)});
         grid.ColumnDefinitions.Add(new ColumnDefinition());
 
         var left=new DockPanel{Margin=new Thickness(0,0,10,0)};
         var list=new ListBox();
         DockPanel.SetDock(list,Dock.Top);
         left.Children.Add(list);
-        var buttons=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,8,0,0)};
-        Button nv=new(){Content="New VB",Margin=new Thickness(0,0,5,0)};
-        Button nc=new(){Content="New C#"};
-        buttons.Children.Add(nv);buttons.Children.Add(nc);
+
+        var buttons=new WrapPanel{Margin=new Thickness(0,8,0,0)};
+        var ns=new Button{Content="New Safe",Margin=new Thickness(0,0,5,5)};
+        var nv=new Button{Content="New VB",Margin=new Thickness(0,0,5,5)};
+        var nc=new Button{Content="New C#",Margin=new Thickness(0,0,5,5)};
+        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);
         DockPanel.SetDock(buttons,Dock.Bottom);
         left.Children.Add(buttons);
         Grid.SetColumn(left,0);
         grid.Children.Add(left);
 
         var right=new DockPanel();
-        var warning=new TextBlock{Text="Macro execution is still disabled in beta 4 while the sandbox is being designed. This editor stores source in your central library.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
+        var warning=new TextBlock
+        {
+            Text="Safe .czm macros can run because CtrlZed interprets a restricted command set. C# and VB.NET remain source-only: arbitrary .NET code is not sandboxed by Roslyn.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8),Foreground=Brushes.DimGray
+        };
         DockPanel.SetDock(warning,Dock.Top);
         right.Children.Add(warning);
-        var save=new Button{Content="Save source",Width=100,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
-        DockPanel.SetDock(save,Dock.Bottom);
-        right.Children.Add(save);
-        var code=new TextBox{AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas"),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto};
+
+        var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
+        var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
+        var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
+        actionBar.Children.Add(run);actionBar.Children.Add(save);
+        DockPanel.SetDock(actionBar,Dock.Bottom);
+        right.Children.Add(actionBar);
+
+        var code=new TextBox
+        {
+            AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas"),
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto
+        };
         right.Children.Add(code);
         Grid.SetColumn(right,1);
         grid.Children.Add(right);
 
         string? selected=null;
-        void refresh(){list.ItemsSource=Directory.GetFiles(dir).Select(Path.GetFileName).OrderBy(x=>x).ToList();}
+        void refresh()
+        {
+            list.ItemsSource=Directory.GetFiles(dir)
+                .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase))
+                .Select(Path.GetFileName).OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
         list.SelectionChanged+=(_,__)=>
         {
             selected=list.SelectedItem?.ToString();
             if(selected!=null)code.Text=File.ReadAllText(Path.Combine(dir,selected));
+            run.IsEnabled=selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
         };
+
         void make(string ext,string starter)
         {
             var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+ext;
@@ -886,8 +910,23 @@ public partial class MainWindow : Window
             refresh();
             list.SelectedItem=name;
         }
-        nv.Click+=(_,__)=>make(".vb","' CtrlZed VB.NET macro source\n' Execution is disabled in beta 4.\n");
-        nc.Click+=(_,__)=>make(".cs","// CtrlZed C# macro source\n// Execution is disabled in beta 4.\n");
+
+        ns.Click+=(_,__)=>make(".czm",
+@"# CtrlZed Safe Macro
+# Approved commands:
+# INSERT_TEXT text
+# INSERT_FIELD name
+# NEW_PARAGRAPH
+# APPLY_STYLE Normal|Heading 1|Heading 2|Heading 3|Quote|Caption
+# SET_HEADER text
+# SET_FOOTER text
+INSERT_TEXT Hello from a CtrlZed safe macro
+NEW_PARAGRAPH
+INSERT_FIELD date
+");
+        nv.Click+=(_,__)=>make(".vb","' CtrlZed VB.NET macro source\n' Stored only. Execution is disabled until a real OS sandbox exists.\n");
+        nc.Click+=(_,__)=>make(".cs","// CtrlZed C# macro source\n// Stored only. Execution is disabled until a real OS sandbox exists.\n");
+
         save.Click+=(_,__)=>
         {
             if(selected!=null)
@@ -896,9 +935,77 @@ public partial class MainWindow : Window
                 Status.Text="Macro source saved to central library.";
             }
         };
+
+        run.Click+=(_,__)=>
+        {
+            if(selected==null || !Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase))return;
+            File.WriteAllText(Path.Combine(dir,selected),code.Text);
+            try
+            {
+                RunSafeMacro(code.Text);
+                Status.Text="Safe macro completed.";
+            }
+            catch(Exception ex)
+            {
+                MessageBox.Show(ex.Message,"Safe macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);
+            }
+        };
+
         refresh();
+        run.IsEnabled=false;
         w.Content=grid;
         w.ShowDialog();
+    }
+
+    void RunSafeMacro(string source)
+    {
+        var lines=source.Replace("\r\n","\n").Split('\n');
+        var executed=0;
+        foreach(var raw in lines)
+        {
+            var line=raw.Trim();
+            if(line.Length==0 || line.StartsWith("#"))continue;
+            executed++;
+            if(executed>200)throw new InvalidOperationException("Safe macro exceeds the 200-command limit.");
+
+            var split=line.IndexOf(' ');
+            var command=(split<0?line:line[..split]).Trim().ToUpperInvariant();
+            var argument=split<0?"":line[(split+1)..];
+
+            switch(command)
+            {
+                case "INSERT_TEXT":
+                    Editor.CaretPosition.InsertTextInRun(argument.Replace("\\n","\n"));
+                    break;
+                case "INSERT_FIELD":
+                {
+                    var key=argument.Trim();
+                    var token=customFields.ContainsKey(key)?"{field:"+key+"}":"{"+key+"}";
+                    Editor.CaretPosition.InsertTextInRun(ExpandFields(token,1,1));
+                    break;
+                }
+                case "NEW_PARAGRAPH":
+                    EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+                    break;
+                case "APPLY_STYLE":
+                    ApplyParagraphStyle(argument.Trim());
+                    break;
+                case "SET_HEADER":
+                    headerText=argument;
+                    RefreshHeaderFooter();
+                    MarkDirty("Header changed by safe macro.");
+                    break;
+                case "SET_FOOTER":
+                    footerText=argument;
+                    RefreshHeaderFooter();
+                    MarkDirty("Footer changed by safe macro.");
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported safe macro command: {command}");
+            }
+        }
+        MarkDirty();
+        Editor.Focus();
     }
 
     void Keyboard_Click(object s,RoutedEventArgs e)
@@ -995,6 +1102,6 @@ public partial class MainWindow : Window
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.4.0 beta 4\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 4 adds paginated preview, repeating print headers/footers and calculated fields including moon phase.",
+        "CtrlZed 0.5.0 beta 5\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5 adds navigable page preview, custom fields and executable restricted safe macros.",
         "About CtrlZed");
 }
