@@ -7,6 +7,7 @@ namespace CtrlZed;
 public sealed class PageGuideLayer : FrameworkElement
 {
     public double PageContentHeight { get; set; } = 979;
+    public double PageGap { get; set; } = 24;
     public string Header { get; set; } = "";
     public string Footer { get; set; } = "";
     public Func<string,int,int,string>? Expand { get; set; }
@@ -17,23 +18,33 @@ public sealed class PageGuideLayer : FrameworkElement
         if(PageContentHeight < 100 || ActualWidth < 100 || ActualHeight < 100)return;
 
         var pages=Math.Max(1,(int)Math.Ceiling(ActualHeight/PageContentHeight));
-        var linePen=new Pen(new SolidColorBrush(Color.FromArgb(120,130,130,130)),1)
-        {
-            DashStyle=DashStyles.Dash
-        };
+        var edgePen=new Pen(new SolidColorBrush(Color.FromArgb(150,125,125,125)),1);
+        var gapBrush=new SolidColorBrush(Color.FromArgb(210,218,218,218));
+        var labelBrush=new SolidColorBrush(Color.FromRgb(105,105,105));
 
         for(int i=0;i<pages;i++)
         {
             var top=i*PageContentHeight;
             var bottom=(i+1)*PageContentHeight;
 
-            DrawText(dc,Expand?.Invoke(Header,i+1,pages)??Header,10,top+4,ActualWidth-20,TextAlignment.Center,Brushes.Gray);
+            var headerY=i==0?top+4:top+(PageGap/2)+5;
+            DrawText(dc,Expand?.Invoke(Header,i+1,pages)??Header,10,headerY,ActualWidth-20,TextAlignment.Center,Brushes.Gray);
 
             if(bottom<=ActualHeight+1)
             {
-                DrawText(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,bottom-24),ActualWidth-20,TextAlignment.Center,Brushes.Gray);
-                dc.DrawLine(linePen,new Point(0,bottom),new Point(ActualWidth,bottom));
-                DrawText(dc,$"End of page {i+1}",10,bottom-17,110,TextAlignment.Left,Brushes.DarkGray);
+                var half=PageGap/2;
+                var gapTop=Math.Max(top,bottom-half);
+                var gapBottom=Math.Min(ActualHeight,bottom+half);
+                var gapHeight=Math.Max(0,gapBottom-gapTop);
+
+                DrawText(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,gapTop-22),ActualWidth-20,TextAlignment.Center,Brushes.Gray);
+
+                dc.DrawLine(edgePen,new Point(0,gapTop),new Point(ActualWidth,gapTop));
+                if(gapHeight>0)
+                    dc.DrawRectangle(gapBrush,null,new Rect(0,gapTop,ActualWidth,gapHeight));
+                dc.DrawLine(edgePen,new Point(0,gapBottom),new Point(ActualWidth,gapBottom));
+
+                DrawText(dc,$"End of page {i+1}",10,gapTop+4,120,TextAlignment.Left,labelBrush);
             }
         }
     }
