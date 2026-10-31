@@ -4,42 +4,60 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 5
+## Beta 7
 
-Beta 5 adds:
+Beta 7 builds on the working `.czd` editor and adds:
 
-- native `.czd` documents, still compatible with earlier CtrlZed beta files
-- RTF and plain-text interchange
-- page setup, paragraph styles, images and captions
-- stored headers and footers with repeating paginated print/preview output
-- single-page preview navigation with Previous / Next and zoom controls
-- built-in fields: `{page}`, `{pages}`, `{date}`, `{time}`, `{filename}`, `{moonphase}`, `{moonicon}`
-- document-specific custom fields using `{field:name}`, including nested templates
-- a Fields manager with a moon-phase example
-- automatic recovery snapshots and save-before-discard prompts
-- initial WordStar 4.0 and WordPerfect 5.1 keyboard profiles
-- central macro library
+- headings navigation pane
+- Find/Replace across formatting runs within paragraphs
+- table row/column insertion and deletion
+- first-pass DOCX import/export
+- automated functional self-test mode used by CI
+- existing page guides, page gaps, page preview, headers/footers, fields, pictures, tables, lists, page breaks and recovery
 
-### Safe macros
+### DOCX interchange
 
-Beta 5 introduces executable `.czm` macros. These are **not arbitrary .NET code**. CtrlZed interprets a deliberately restricted command set:
+DOCX support uses the MIT-licensed Open XML SDK 3.5.1. It is deliberately conservative in Beta 7.
 
-- `INSERT_TEXT text`
-- `INSERT_FIELD name`
-- `NEW_PARAGRAPH`
-- `APPLY_STYLE style-name`
-- `SET_HEADER text`
-- `SET_FOOTER text`
+Currently targeted for round-trip:
 
-A safe macro is limited to 200 commands and has no command for filesystem access, network access, process launching or arbitrary code execution.
+- paragraphs and text
+- bold, italic and underline
+- basic font family and size
+- paragraph alignment
+- manual page breaks
+- basic Heading 1/2/3 import
+- tables
 
-C# and VB.NET macro source can still be stored and edited in the central macro library, but it remains non-executable. Roslyn compilation alone is not a security sandbox, so CtrlZed will not pretend otherwise.
+Not yet claimed as preserved in DOCX:
 
-## Important limitations
+- CtrlZed custom fields
+- CtrlZed header/footer field templates
+- embedded pictures
+- advanced Word styles/themes
+- tracked changes/comments
+- footnotes/endnotes
+- complex lists/numbering definitions
+- floating objects and Word-specific layout
 
-This remains beta software. Use copies of important documents.
+Use `.czd` as the canonical working format and DOCX as an interchange format.
 
-The WPF/FlowDocument layout is not a Microsoft Word rendering engine. DOCX import/export, floating DTP-style image wrapping, complete WordStar/WordPerfect emulation and cross-platform builds remain future work.
+### Functional release gate
+
+A release must now pass:
+
+1. compile on GitHub-hosted Windows
+2. self-contained Windows publish
+3. executable launch smoke test
+4. non-interactive `--self-test`
+5. RTF round-trip test
+6. DOCX creation/import test
+7. table preservation check
+8. packaging and prerelease publication
+
+## Safe macros
+
+Executable `.czm` macros remain restricted to CtrlZed's approved command language. C# and VB.NET source can be stored in the macro library but is not executed because Roslyn compilation is not a security sandbox.
 
 ## Development principles
 
@@ -53,4 +71,4 @@ The WPF/FlowDocument layout is not a Microsoft Word rendering engine. DOCX impor
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.md).
