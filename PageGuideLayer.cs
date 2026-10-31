@@ -11,6 +11,7 @@ public sealed class PageGuideLayer : FrameworkElement
     public string Header { get; set; } = "";
     public string Footer { get; set; } = "";
     public Func<string,int,int,string>? Expand { get; set; }
+    public IReadOnlyList<double> ManualBreakY { get; set; } = Array.Empty<double>();
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -40,12 +41,21 @@ public sealed class PageGuideLayer : FrameworkElement
                 DrawText(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,gapTop-22),ActualWidth-20,TextAlignment.Center,Brushes.Gray);
 
                 dc.DrawLine(edgePen,new Point(0,gapTop),new Point(ActualWidth,gapTop));
-                if(gapHeight>0)
-                    dc.DrawRectangle(gapBrush,null,new Rect(0,gapTop,ActualWidth,gapHeight));
+                if(gapHeight>0)dc.DrawRectangle(gapBrush,null,new Rect(0,gapTop,ActualWidth,gapHeight));
                 dc.DrawLine(edgePen,new Point(0,gapBottom),new Point(ActualWidth,gapBottom));
 
                 DrawText(dc,$"End of page {i+1}",10,gapTop+4,120,TextAlignment.Left,labelBrush);
             }
+        }
+
+        var manualBrush=new SolidColorBrush(Color.FromArgb(225,232,238,245));
+        var manualPen=new Pen(new SolidColorBrush(Color.FromRgb(115,135,160)),1){DashStyle=DashStyles.Dash};
+        foreach(var y in ManualBreakY.Where(y=>y>16 && y<ActualHeight-16))
+        {
+            var top=y-10;
+            dc.DrawRectangle(manualBrush,null,new Rect(0,top,ActualWidth,20));
+            dc.DrawLine(manualPen,new Point(0,y),new Point(ActualWidth,y));
+            DrawText(dc,"Manual page break",10,top+2,140,TextAlignment.Left,new SolidColorBrush(Color.FromRgb(85,105,130)));
         }
     }
 
