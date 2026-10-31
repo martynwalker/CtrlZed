@@ -55,8 +55,9 @@ public static class SelfTest
 
             return 0;
         }
-        catch
+        catch(Exception ex)
         {
+            try{File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestFailure.txt"),ex.ToString());}catch{}
             return 99;
         }
         finally
