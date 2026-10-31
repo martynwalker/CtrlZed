@@ -41,7 +41,7 @@ public static class SelfTest
             if(!new TextRange(rtfDoc.ContentStart,rtfDoc.ContentEnd).Text.Contains("CtrlZed self test"))return 11;
 
             var docx=Path.Combine(root,"test.docx");
-            DocxInterop.Save(docx,doc);
+            DocxInterop.Save(docx,doc,"Test {page} of {pages}","{filename}",794,1123,new System.Windows.Thickness(72));
             if(!File.Exists(docx)||new FileInfo(docx).Length<500)return 12;
             using(var zip=ZipFile.OpenRead(docx))
                 if(zip.GetEntry("word/document.xml")==null)return 13;
@@ -56,7 +56,12 @@ public static class SelfTest
                 }
             }
 
-            var imported=DocxInterop.Load(docx);
+            var layout=DocxInterop.LoadWithLayout(docx);
+            var imported=layout.Document;
+            if(!layout.Header.Contains("{page}")||!layout.Header.Contains("{pages}"))return 18;
+            if(!layout.Footer.Contains("{filename}"))return 19;
+            if(Math.Abs(layout.PageWidth-794)>2||Math.Abs(layout.PageHeight-1123)>2)return 20;
+            if(layout.Margins==null||Math.Abs(layout.Margins.Value.Left-72)>2)return 21;
             var text=new TextRange(imported.ContentStart,imported.ContentEnd).Text;
             if(!text.Contains("CtrlZed self test")||!text.Contains("A")||!text.Contains("B"))return 14;
             if(!imported.Blocks.OfType<Table>().Any())return 15;
