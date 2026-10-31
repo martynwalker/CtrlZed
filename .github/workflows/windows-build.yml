@@ -27,24 +27,24 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.zip
-          (Get-FileHash artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.sha256
+          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.3.0-beta.3-win-x64.zip
+          (Get-FileHash artifacts/CtrlZed-0.3.0-beta.3-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.3.0-beta.3-win-x64.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: CtrlZed-0.2.2-beta.2.2-win-x64
+          name: CtrlZed-0.3.0-beta.3-win-x64
           path: |
-            artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.zip
-            artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.sha256
+            artifacts/CtrlZed-0.3.0-beta.3-win-x64.zip
+            artifacts/CtrlZed-0.3.0-beta.3-win-x64.sha256
 
       - name: Publish GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.2.2-beta.2.2"
+          $tag = "v0.3.0-beta.3"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.zip artifacts/CtrlZed-0.2.2-beta.2.2-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.2.2 beta 2.2" --notes "Picture-properties hotfix: images now own their double-click handler, including images reloaded from RTF and CZD documents. Retains beta 2 features. Macro execution remains disabled. Use copies of important documents."
+            gh release create $tag artifacts/CtrlZed-0.3.0-beta.3-win-x64.zip artifacts/CtrlZed-0.3.0-beta.3-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.3.0 beta 3" --notes "Beta 3 adds safer close/recovery handling, paragraph styles, stored headers and footers, picture context-menu properties and captions. Macro execution remains disabled. Use copies of important documents."
           } else {
             Write-Host "Prerelease $tag already exists; leaving it unchanged."
           }
