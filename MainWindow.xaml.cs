@@ -126,7 +126,17 @@ public partial class MainWindow : Window
             var ext=Path.GetExtension(d.FileName).ToLowerInvariant();
             headerText = footerText = "";
             if(ext==".czd")LoadCzd(d.FileName);
-            else if(ext==".docx")Editor.Document=DocxInterop.Load(d.FileName);
+            else if(ext==".docx")
+            {
+                var imported=DocxInterop.LoadWithLayout(d.FileName);
+                Editor.Document=imported.Document;
+                headerText=imported.Header;
+                footerText=imported.Footer;
+                if(imported.PageWidth>0)pageWidth=imported.PageWidth;
+                if(imported.PageHeight>0)pageHeight=imported.PageHeight;
+                if(imported.Margins!=null)pageMargins=imported.Margins.Value;
+                ApplyPage();
+            }
             else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(d.FileName))));
             else
             {
@@ -166,7 +176,7 @@ public partial class MainWindow : Window
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
             if(ext==".czd")SaveCzd(currentFile);
-            else if(ext==".docx")DocxInterop.Save(currentFile,Editor.Document);
+            else if(ext==".docx")DocxInterop.Save(currentFile,Editor.Document,headerText,footerText,pageWidth,pageHeight,pageMargins);
             else if(ext==".txt")File.WriteAllText(currentFile,new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text);
             else SaveRtf(currentFile);
 
@@ -197,7 +207,7 @@ public partial class MainWindow : Window
         if(!suppressDirty)MarkDirty();
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            if(PageGuides!=null)PageGuides.InvalidateVisual();
+            UpdatePageGuideState();
             if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
         }),DispatcherPriority.Background);
     }
@@ -588,11 +598,33 @@ public partial class MainWindow : Window
 
     void RefreshHeaderFooter()
     {
+        UpdatePageGuideState();
+    }
+
+    void UpdatePageGuideState()
+    {
         if(PageGuides==null)return;
         PageGuides.Header=headerText;
         PageGuides.Footer=footerText;
         PageGuides.Expand=ExpandFields;
+        PageGuides.ManualBreakY=GetManualBreakPositions();
         PageGuides.InvalidateVisual();
+    }
+
+    IReadOnlyList<double> GetManualBreakPositions()
+    {
+        var points=new List<double>();
+        foreach(var p in EnumerateDocumentParagraphs())
+        {
+            if(!p.BreakPageBefore)continue;
+            try
+            {
+                var rect=p.ContentStart.GetCharacterRect(LogicalDirection.Forward);
+                if(!rect.IsEmpty && !double.IsNaN(rect.Top) && rect.Top>0)points.Add(rect.Top);
+            }
+            catch { }
+        }
+        return points;
     }
 
     void FindReplace_Click(object s,RoutedEventArgs e)
@@ -1364,10 +1396,7 @@ public partial class MainWindow : Window
         if(PageGuides!=null)
         {
             PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
-            PageGuides.Header=headerText;
-            PageGuides.Footer=footerText;
-            PageGuides.Expand=ExpandFields;
-            PageGuides.InvalidateVisual();
+            UpdatePageGuideState();
         }
     }
 
@@ -1707,6 +1736,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.7.1 beta 7.1\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 7.1 extends DOCX interchange to inline images and verifies image round-trips in CI.",
+        "CtrlZed 0.8.0 beta 8\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 8 improves page-break rendering and DOCX page layout, headers and footers.",
         "About CtrlZed");
 }
