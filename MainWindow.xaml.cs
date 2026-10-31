@@ -517,10 +517,11 @@ public partial class MainWindow : Window
 
     void RefreshHeaderFooter()
     {
-        HeaderPreview.Text=ExpandFields(headerText,1,1);
-        FooterPreview.Text=ExpandFields(footerText,1,1);
-        HeaderPreview.Visibility=string.IsNullOrWhiteSpace(headerText)?Visibility.Collapsed:Visibility.Visible;
-        FooterPreview.Visibility=string.IsNullOrWhiteSpace(footerText)?Visibility.Collapsed:Visibility.Visible;
+        if(PageGuides==null)return;
+        PageGuides.Header=headerText;
+        PageGuides.Footer=footerText;
+        PageGuides.Expand=ExpandFields;
+        PageGuides.InvalidateVisual();
     }
 
     void Picture_Click(object s,RoutedEventArgs e)
@@ -535,8 +536,8 @@ public partial class MainWindow : Window
             b.UriSource=new Uri(d.FileName);
             b.EndInit();
             var img=new Image{Source=b,MaxWidth=Math.Max(100,pageWidth-pageMargins.Left-pageMargins.Right),Stretch=Stretch.Uniform,Margin=new Thickness(4)};
-            WirePicture(img);
             var ui=new InlineUIContainer(img,Editor.CaretPosition);
+            WirePictureContainer(ui,img);
             Editor.CaretPosition=ui.ElementEnd;
             Editor.Focus();
             MarkDirty("Picture inserted — double-click or right-click it for properties.");
@@ -551,14 +552,42 @@ public partial class MainWindow : Window
     {
         img.Cursor=Cursors.Hand;
         img.ToolTip="Double-click or right-click for picture properties";
-        img.MouseLeftButtonDown-=Picture_MouseLeftButtonDown;
-        img.MouseLeftButtonDown+=Picture_MouseLeftButtonDown;
+        img.PreviewMouseLeftButtonDown-=Picture_MouseLeftButtonDown;
+        img.PreviewMouseLeftButtonDown+=Picture_MouseLeftButtonDown;
 
         var menu=new ContextMenu();
         var properties=new MenuItem{Header="Picture Properties…"};
         properties.Click+=(_,__)=>ShowPictureProperties(img);
         menu.Items.Add(properties);
         img.ContextMenu=menu;
+    }
+
+    void WirePictureContainer(InlineUIContainer ui,Image img)
+    {
+        WirePicture(img);
+        ui.PreviewMouseLeftButtonDown-=PictureContainer_PreviewMouseLeftButtonDown;
+        ui.PreviewMouseLeftButtonDown+=PictureContainer_PreviewMouseLeftButtonDown;
+
+        var menu=new ContextMenu();
+        var properties=new MenuItem{Header="Picture Properties…"};
+        properties.Click+=(_,__)=>ShowPictureProperties(img);
+        menu.Items.Add(properties);
+        ui.ContextMenu=menu;
+    }
+
+    void PictureContainer_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        if(e.ClickCount!=2 || sender is not InlineUIContainer ui || ui.Child is not Image img)return;
+        try
+        {
+            e.Handled=true;
+            ShowPictureProperties(img);
+        }
+        catch(Exception ex)
+        {
+            Status.Text="Picture properties could not be opened.";
+            MessageBox.Show(ex.Message,"Picture properties",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
     }
 
     void Picture_MouseLeftButtonDown(object sender,MouseButtonEventArgs e)
@@ -607,7 +636,7 @@ public partial class MainWindow : Window
 
     void WirePicturesInInline(Inline inline)
     {
-        if(inline is InlineUIContainer ui && ui.Child is Image img)WirePicture(img);
+        if(inline is InlineUIContainer ui && ui.Child is Image img)WirePictureContainer(ui,img);
         else if(inline is Span span)
             foreach(var child in span.Inlines)WirePicturesInInline(child);
     }
@@ -777,6 +806,14 @@ public partial class MainWindow : Window
         Editor.Document.PageWidth=pageWidth;
         Editor.Document.PageHeight=pageHeight;
         Editor.Document.PagePadding=pageMargins;
+        if(PageGuides!=null)
+        {
+            PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
+            PageGuides.Header=headerText;
+            PageGuides.Footer=footerText;
+            PageGuides.Expand=ExpandFields;
+            PageGuides.InvalidateVisual();
+        }
     }
 
     void StyleMenu_Click(object s,RoutedEventArgs e)
@@ -1102,6 +1139,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.5.0 beta 5\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5 adds navigable page preview, custom fields and executable restricted safe macros.",
+        "CtrlZed 0.5.1 beta 5.1\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5.1 adds visible end-of-page guides and stronger picture double-click handling.",
         "About CtrlZed");
 }
