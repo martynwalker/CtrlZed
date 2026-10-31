@@ -39,23 +39,23 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.zip
-          (Get-FileHash artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.sha256
+          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip
+          (Get-FileHash artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.10.0-beta.10-win-x64.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: CtrlZed-0.9.1-beta.9.1-win-x64
+          name: CtrlZed-0.10.0-beta.10-win-x64
           path: |
-            artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.zip
-            artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.sha256
+            artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip
+            artifacts/CtrlZed-0.10.0-beta.10-win-x64.sha256
 
       - name: Publish GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.9.1-beta.9.1"
+          $tag = "v0.10.0-beta.10"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) {
             gh release delete $tag --yes --cleanup-tag
           }
-          gh release create $tag artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.zip artifacts/CtrlZed-0.9.1-beta.9.1-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.9.1 beta 9.1" --notes "Beta 9.1 adds the CtrlZed navy/gold/white brand identity, backward-motion Z icon, branded About box and generated Windows executable icon. All Beta 9 document-polish features and functional gates remain."
+          gh release create $tag artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip artifacts/CtrlZed-0.10.0-beta.10-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.10.0 beta 10" --notes "Beta 10 expands safe macros with page breaks, tables, find/replace, alignment, lists and document properties; adds document-embedded macros and keyboard shortcuts; and introduces an AI Macro Manager for ChatGPT, Copilot, Claude and Gemini browser workflows."
