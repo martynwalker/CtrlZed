@@ -64,6 +64,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Icon=Branding.CreateIconImageSource();
         FontBox.ItemsSource = Fonts.SystemFontFamilies.OrderBy(f => f.Source);
         FontBox.SelectedItem = Fonts.SystemFontFamilies.FirstOrDefault(f => f.Source == "Calibri") ?? Fonts.SystemFontFamilies.First();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
@@ -1915,7 +1916,8 @@ INSERT_FIELD date
         closingApproved=true;
     }
 
-    void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.9.0 beta 9\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 9 adds Save As, recent files, metadata, zoom and live document statistics.",
-        "About CtrlZed");
+    void About_Click(object s,RoutedEventArgs e)
+    {
+        Branding.CreateAboutWindow(this,"0.9.1 beta 9.1").ShowDialog();
+    }
 }
