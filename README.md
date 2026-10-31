@@ -4,14 +4,14 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 7
+## Beta 7.1
 
 Beta 7 builds on the working `.czd` editor and adds:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
 - table row/column insertion and deletion
-- first-pass DOCX import/export
+- first-pass DOCX import/export, including inline pictures
 - automated functional self-test mode used by CI
 - existing page guides, page gaps, page preview, headers/footers, fields, pictures, tables, lists, page breaks and recovery
 
@@ -33,7 +33,6 @@ Not yet claimed as preserved in DOCX:
 
 - CtrlZed custom fields
 - CtrlZed header/footer field templates
-- embedded pictures
 - advanced Word styles/themes
 - tracked changes/comments
 - footnotes/endnotes
@@ -53,7 +52,9 @@ A release must now pass:
 5. RTF round-trip test
 6. DOCX creation/import test
 7. table preservation check
-8. packaging and prerelease publication
+8. inline-image round-trip check
+9. Open XML schema validation
+10. packaging and prerelease publication
 
 ## Safe macros
 
