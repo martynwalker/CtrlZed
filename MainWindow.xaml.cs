@@ -1168,6 +1168,93 @@ public partial class MainWindow : Window
         g.Children.Add(t);g.Children.Add(control);
     }
 
+    TableCell? CurrentTableCell()
+    {
+        DependencyObject? node=Editor.CaretPosition.Parent;
+        while(node!=null)
+        {
+            if(node is TableCell cell)return cell;
+            node=node switch
+            {
+                FrameworkContentElement fce=>fce.Parent,
+                _=>null
+            };
+        }
+        return null;
+    }
+
+    void TableAddRow_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow row || row.Parent is not TableRowGroup group)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        var newRow=new TableRow();
+        var cols=row.Cells.Count;
+        for(int i=0;i<cols;i++)
+            newRow.Cells.Add(new TableCell(new Paragraph(new Run(""))){BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)});
+        group.Rows.InsertAfter(row,newRow);
+        MarkDirty("Table row added.");
+    }
+
+    void TableAddColumn_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow currentRow || currentRow.Parent is not TableRowGroup group || group.Parent is not Table table)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        var index=currentRow.Cells.IndexOf(cell)+1;
+        table.Columns.Insert(index,new TableColumn());
+        foreach(var row in group.Rows)
+        {
+            var newCell=new TableCell(new Paragraph(new Run(""))){BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)};
+            if(index>=row.Cells.Count)row.Cells.Add(newCell);
+            else row.Cells.Insert(index,newCell);
+        }
+        MarkDirty("Table column added.");
+    }
+
+    void TableDeleteRow_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow row || row.Parent is not TableRowGroup group)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        if(group.Rows.Count<=1)
+        {
+            Status.Text="A table must retain at least one row.";
+            return;
+        }
+        group.Rows.Remove(row);
+        MarkDirty("Table row deleted.");
+    }
+
+    void TableDeleteColumn_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow currentRow || currentRow.Parent is not TableRowGroup group || group.Parent is not Table table)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        if(table.Columns.Count<=1)
+        {
+            Status.Text="A table must retain at least one column.";
+            return;
+        }
+        var index=currentRow.Cells.IndexOf(cell);
+        foreach(var row in group.Rows)
+            if(index>=0 && index<row.Cells.Count)row.Cells.Remove(row.Cells[index]);
+        if(index>=0 && index<table.Columns.Count)table.Columns.RemoveAt(index);
+        MarkDirty("Table column deleted.");
+    }
+
     void PageSetup_Click(object s,RoutedEventArgs e)
     {
         var w=new Window{Title="Page Setup",Owner=this,Width=390,Height=350,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
