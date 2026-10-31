@@ -153,6 +153,9 @@ public static class DocxInterop
             new W.InsideHorizontalBorder{Val=W.BorderValues.Single,Size=2},
             new W.InsideVerticalBorder{Val=W.BorderValues.Single,Size=2});
         wt.AppendChild(new W.TableProperties(borders));
+        var grid=new W.TableGrid();
+        foreach(var _ in table.Columns)grid.Append(new W.GridColumn());
+        wt.Append(grid);
 
         foreach(var group in table.RowGroups)
         foreach(var row in group.Rows)
