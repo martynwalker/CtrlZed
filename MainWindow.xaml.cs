@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     readonly DispatcherTimer recoveryTimer;
     readonly string recoveryFile;
     readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string,string> embeddedMacros = new(StringComparer.OrdinalIgnoreCase);
     readonly List<string> recentFiles = new();
     readonly string settingsFile;
     string documentTitle = "";
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
         public string Header { get; set; } = "";
         public string Footer { get; set; } = "";
         public Dictionary<string,string> CustomFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string,string> EmbeddedMacros { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public string Title { get; set; } = "";
         public string Author { get; set; } = "";
         public string Subject { get; set; } = "";
@@ -124,6 +126,7 @@ public partial class MainWindow : Window
         currentFile = null;
         headerText = footerText = "";
         customFields.Clear();
+        embeddedMacros.Clear();
         documentTitle=documentAuthor=documentSubject=documentKeywords="";
         RefreshHeaderFooter();
         suppressDirty = false;
@@ -248,6 +251,7 @@ public partial class MainWindow : Window
                 Left=pageMargins.Left,Top=pageMargins.Top,Right=pageMargins.Right,Bottom=pageMargins.Bottom,
                 Header=headerText,Footer=footerText,
                 CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
+                EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
                 Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords
             };
             using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
@@ -278,6 +282,11 @@ public partial class MainWindow : Window
                 documentSubject=v.Subject??"";
                 documentKeywords=v.Keywords??"";
                 customFields.Clear();
+                embeddedMacros.Clear();
+                if(v.EmbeddedMacros!=null)
+                    foreach(var pair in v.EmbeddedMacros)
+                        if(!string.IsNullOrWhiteSpace(pair.Key))
+                            embeddedMacros[pair.Key]=pair.Value??"";
                 if(v.CustomFields!=null)
                     foreach(var pair in v.CustomFields)
                         if(!string.IsNullOrWhiteSpace(pair.Key))
@@ -1635,13 +1644,18 @@ public partial class MainWindow : Window
         Editor.Focus();
     }
 
+    void AiManager_Click(object s,RoutedEventArgs e)
+    {
+        AiManager.Show(this,SafeMacroLanguage.Reference);
+    }
+
     void MacroLibrary_Click(object s,RoutedEventArgs e)
     {
         var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
         Directory.CreateDirectory(dir);
-        var w=new Window{Title="CtrlZed Macro Library",Owner=this,Width=820,Height=590,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var w=new Window{Title="CtrlZed Macro Manager",Owner=this,Width=900,Height=640,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
         var grid=new Grid{Margin=new Thickness(10)};
-        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(205)});
+        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(240)});
         grid.ColumnDefinitions.Add(new ColumnDefinition());
 
         var left=new DockPanel{Margin=new Thickness(0,0,10,0)};
@@ -1653,27 +1667,27 @@ public partial class MainWindow : Window
         var ns=new Button{Content="New Safe",Margin=new Thickness(0,0,5,5)};
         var nv=new Button{Content="New VB",Margin=new Thickness(0,0,5,5)};
         var nc=new Button{Content="New C#",Margin=new Thickness(0,0,5,5)};
-        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);
+        var embed=new Button{Content="Embed",Margin=new Thickness(0,0,5,5)};
+        var extract=new Button{Content="Extract",Margin=new Thickness(0,0,5,5)};
+        var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
+        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(ai);
         DockPanel.SetDock(buttons,Dock.Bottom);
         left.Children.Add(buttons);
-        Grid.SetColumn(left,0);
-        grid.Children.Add(left);
+        Grid.SetColumn(left,0);grid.Children.Add(left);
 
         var right=new DockPanel();
         var warning=new TextBlock
         {
-            Text="Safe .czm macros can run because CtrlZed interprets a restricted command set. C# and VB.NET remain source-only: arbitrary .NET code is not sandboxed by Roslyn.",
+            Text="Safe .czm macros run through CtrlZed's restricted command interpreter. C# and VB.NET remain source-only until a genuine OS sandbox exists.",
             TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8),Foreground=Brushes.DimGray
         };
-        DockPanel.SetDock(warning,Dock.Top);
-        right.Children.Add(warning);
+        DockPanel.SetDock(warning,Dock.Top);right.Children.Add(warning);
 
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
         actionBar.Children.Add(run);actionBar.Children.Add(save);
-        DockPanel.SetDock(actionBar,Dock.Bottom);
-        right.Children.Add(actionBar);
+        DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
         var code=new TextBox
         {
@@ -1681,42 +1695,55 @@ public partial class MainWindow : Window
             VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility=ScrollBarVisibility.Auto
         };
-        right.Children.Add(code);
-        Grid.SetColumn(right,1);
-        grid.Children.Add(right);
+        right.Children.Add(code);Grid.SetColumn(right,1);grid.Children.Add(right);
 
         string? selected=null;
+        bool selectedEmbedded=false;
+
         void refresh()
         {
-            list.ItemsSource=Directory.GetFiles(dir)
+            var items=new List<string>();
+            items.AddRange(Directory.GetFiles(dir)
                 .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase))
-                .Select(Path.GetFileName).OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+                .Select(p=>"Central | "+Path.GetFileName(p)));
+            items.AddRange(embeddedMacros.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).Select(x=>"Document | "+x));
+            list.ItemsSource=items.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         list.SelectionChanged+=(_,__)=>
         {
-            selected=list.SelectedItem?.ToString();
-            if(selected!=null)code.Text=File.ReadAllText(Path.Combine(dir,selected));
+            var item=list.SelectedItem?.ToString();
+            if(string.IsNullOrWhiteSpace(item)){selected=null;return;}
+            selectedEmbedded=item.StartsWith("Document | ",StringComparison.OrdinalIgnoreCase);
+            selected=item[(item.IndexOf('|')+1)..].Trim();
+            if(selectedEmbedded)
+                code.Text=embeddedMacros.TryGetValue(selected,out var src)?src:"";
+            else
+            {
+                var path=Path.Combine(dir,selected);
+                code.Text=File.Exists(path)?File.ReadAllText(path):"";
+            }
             run.IsEnabled=selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
+            embed.IsEnabled=!selectedEmbedded && selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
+            extract.IsEnabled=selectedEmbedded && selected!=null;
         };
 
         void make(string ext,string starter)
         {
             var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+ext;
             File.WriteAllText(Path.Combine(dir,name),starter);
-            refresh();
-            list.SelectedItem=name;
+            refresh();list.SelectedItem="Central | "+name;
         }
 
         ns.Click+=(_,__)=>make(".czm",
-@"# CtrlZed Safe Macro
-# Approved commands:
-# INSERT_TEXT text
-# INSERT_FIELD name
-# NEW_PARAGRAPH
-# APPLY_STYLE Normal|Heading 1|Heading 2|Heading 3|Quote|Caption
-# SET_HEADER text
-# SET_FOOTER text
+$@"# CtrlZed Safe Macro
+# NAME: New Macro
+# DESCRIPTION: Describe what this macro does.
+# SHORTCUT:
+#
+# Supported commands:
+{SafeMacroLanguage.Reference}
+
 INSERT_TEXT Hello from a CtrlZed safe macro
 NEW_PARAGRAPH
 INSERT_FIELD date
@@ -1726,32 +1753,46 @@ INSERT_FIELD date
 
         save.Click+=(_,__)=>
         {
-            if(selected!=null)
+            if(selected==null)return;
+            if(selectedEmbedded)
             {
-                File.WriteAllText(Path.Combine(dir,selected),code.Text);
-                Status.Text="Macro source saved to central library.";
+                embeddedMacros[selected]=code.Text;
+                MarkDirty("Embedded macro updated.");
             }
+            else File.WriteAllText(Path.Combine(dir,selected),code.Text);
+            Status.Text="Macro source saved.";
         };
 
         run.Click+=(_,__)=>
         {
             if(selected==null || !Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase))return;
-            File.WriteAllText(Path.Combine(dir,selected),code.Text);
-            try
-            {
-                RunSafeMacro(code.Text);
-                Status.Text="Safe macro completed.";
-            }
-            catch(Exception ex)
-            {
-                MessageBox.Show(ex.Message,"Safe macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);
-            }
+            if(selectedEmbedded)embeddedMacros[selected]=code.Text;
+            else File.WriteAllText(Path.Combine(dir,selected),code.Text);
+            try{RunSafeMacro(code.Text);Status.Text="Safe macro completed.";}
+            catch(Exception ex){MessageBox.Show(ex.Message,"Safe macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);}
         };
 
-        refresh();
-        run.IsEnabled=false;
-        w.Content=grid;
-        w.ShowDialog();
+        embed.Click+=(_,__)=>
+        {
+            if(selected==null||selectedEmbedded)return;
+            embeddedMacros[selected]=code.Text;
+            MarkDirty("Macro embedded in document.");
+            refresh();list.SelectedItem="Document | "+selected;
+        };
+
+        extract.Click+=(_,__)=>
+        {
+            if(selected==null||!selectedEmbedded)return;
+            var path=Path.Combine(dir,selected);
+            File.WriteAllText(path,code.Text);
+            Status.Text="Embedded macro copied to central library.";
+            refresh();list.SelectedItem="Central | "+selected;
+        };
+
+        ai.Click+=(_,__)=>AiManager.Show(w,SafeMacroLanguage.Reference);
+
+        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;
+        w.Content=grid;w.ShowDialog();
     }
 
     void RunSafeMacro(string source)
@@ -1784,25 +1825,156 @@ INSERT_FIELD date
                 case "NEW_PARAGRAPH":
                     EditingCommands.EnterParagraphBreak.Execute(null,Editor);
                     break;
+                case "PAGE_BREAK":
+                    PageBreak_Click(this,new RoutedEventArgs());
+                    break;
                 case "APPLY_STYLE":
                     ApplyParagraphStyle(argument.Trim());
                     break;
+                case "ALIGN":
+                {
+                    var a=argument.Trim().ToUpperInvariant();
+                    var cmd=a switch
+                    {
+                        "LEFT"=>EditingCommands.AlignLeft,
+                        "CENTRE"=>EditingCommands.AlignCenter,
+                        "CENTER"=>EditingCommands.AlignCenter,
+                        "RIGHT"=>EditingCommands.AlignRight,
+                        "JUSTIFY"=>EditingCommands.AlignJustify,
+                        _=>null
+                    };
+                    if(cmd==null)throw new InvalidOperationException("ALIGN expects LEFT, CENTRE, RIGHT or JUSTIFY.");
+                    cmd.Execute(null,Editor);
+                    break;
+                }
+                case "BULLETS":
+                    EditingCommands.ToggleBullets.Execute(null,Editor);
+                    break;
+                case "NUMBERING":
+                    EditingCommands.ToggleNumbering.Execute(null,Editor);
+                    break;
+                case "SELECT_ALL":
+                    Editor.SelectAll();
+                    break;
+                case "FIND_REPLACE":
+                {
+                    var parts=argument.Split(new[]{"||"},2,StringSplitOptions.None);
+                    if(parts.Length!=2)throw new InvalidOperationException("FIND_REPLACE expects: find text || replacement text");
+                    ReplaceAllText(parts[0].Trim(),parts[1].Trim());
+                    break;
+                }
+                case "INSERT_TABLE":
+                {
+                    var pieces=argument.Split(' ',StringSplitOptions.RemoveEmptyEntries);
+                    if(pieces.Length!=2||!int.TryParse(pieces[0],out var rows)||!int.TryParse(pieces[1],out var cols)||rows<1||rows>50||cols<1||cols>20)
+                        throw new InvalidOperationException("INSERT_TABLE expects rows columns (1–50 rows, 1–20 columns).");
+                    InsertTable(rows,cols);
+                    break;
+                }
                 case "SET_HEADER":
-                    headerText=argument;
-                    RefreshHeaderFooter();
-                    MarkDirty("Header changed by safe macro.");
+                    headerText=argument;RefreshHeaderFooter();MarkDirty("Header changed by safe macro.");
                     break;
                 case "SET_FOOTER":
-                    footerText=argument;
-                    RefreshHeaderFooter();
-                    MarkDirty("Footer changed by safe macro.");
+                    footerText=argument;RefreshHeaderFooter();MarkDirty("Footer changed by safe macro.");
                     break;
+                case "SET_PROPERTY":
+                {
+                    var pos=argument.IndexOf(' ');
+                    if(pos<1)throw new InvalidOperationException("SET_PROPERTY expects PROPERTY value.");
+                    var name=argument[..pos].Trim().ToUpperInvariant();
+                    var value=argument[(pos+1)..];
+                    switch(name)
+                    {
+                        case "TITLE":documentTitle=value;break;
+                        case "AUTHOR":documentAuthor=value;break;
+                        case "SUBJECT":documentSubject=value;break;
+                        case "KEYWORDS":documentKeywords=value;break;
+                        default:throw new InvalidOperationException("Unknown document property: "+name);
+                    }
+                    MarkDirty("Document property changed by safe macro.");
+                    break;
+                }
                 default:
                     throw new InvalidOperationException($"Unsupported safe macro command: {command}");
             }
         }
-        MarkDirty();
-        Editor.Focus();
+        MarkDirty();UpdateDocumentStats();Editor.Focus();
+    }
+
+    void ReplaceAllText(string find,string replacement)
+    {
+        if(string.IsNullOrEmpty(find))return;
+        var start=Editor.Document.ContentStart;
+        var count=0;
+        while(true)
+        {
+            var found=FindText(start,find,StringComparison.CurrentCultureIgnoreCase);
+            if(found==null)break;
+            var range=new TextRange(found.Value.Start,found.Value.End);
+            range.Text=replacement;
+            start=range.End;
+            if(++count>10000)break;
+        }
+        if(count>0)MarkDirty($"{count} replacement{(count==1?"":"s")} made by macro.");
+    }
+
+    void InsertTable(int rows,int cols)
+    {
+        var table=new Table{CellSpacing=0,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(0,8,0,8)};
+        for(int i=0;i<cols;i++)table.Columns.Add(new TableColumn());
+        var group=new TableRowGroup();table.RowGroups.Add(group);
+        for(int ri=0;ri<rows;ri++)
+        {
+            var row=new TableRow();group.Rows.Add(row);
+            for(int ci=0;ci<cols;ci++)
+                row.Cells.Add(new TableCell(new Paragraph(new Run(""))){BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)});
+        }
+        InsertBlockAfterCaret(table);
+        MarkDirty($"Inserted {rows} × {cols} table.");
+    }
+
+    bool TryRunMacroShortcut(KeyEventArgs e)
+    {
+        if(e.IsRepeat)return false;
+        var pressed=BuildShortcutString(e);
+        if(string.IsNullOrWhiteSpace(pressed))return false;
+
+        IEnumerable<(string Name,string Source)> Sources()
+        {
+            var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
+            if(Directory.Exists(dir))
+                foreach(var path in Directory.GetFiles(dir,"*.czm"))
+                    yield return (Path.GetFileName(path),File.ReadAllText(path));
+            foreach(var pair in embeddedMacros)yield return (pair.Key,pair.Value);
+        }
+
+        foreach(var macro in Sources())
+        {
+            var configured=macro.Source.Replace("\r\n","\n").Split('\n')
+                .FirstOrDefault(x=>x.TrimStart().StartsWith("# SHORTCUT:",StringComparison.OrdinalIgnoreCase));
+            if(configured==null)continue;
+            var shortcut=configured[(configured.IndexOf(':')+1)..].Trim();
+            if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
+            {
+                try{RunSafeMacro(macro.Source);Status.Text="Macro: "+macro.Name;}
+                catch(Exception ex){MessageBox.Show(ex.Message,"Macro shortcut",MessageBoxButton.OK,MessageBoxImage.Error);}
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static string BuildShortcutString(KeyEventArgs e)
+    {
+        var parts=new List<string>();
+        if(Keyboard.Modifiers.HasFlag(ModifierKeys.Control))parts.Add("Ctrl");
+        if(Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))parts.Add("Alt");
+        if(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))parts.Add("Shift");
+        if(parts.Count==0)return "";
+        var key=e.Key==Key.System?e.SystemKey:e.Key;
+        if(key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift)return "";
+        parts.Add(key.ToString());
+        return string.Join("+",parts);
     }
 
     void Keyboard_Click(object s,RoutedEventArgs e)
@@ -1831,6 +2003,7 @@ INSERT_FIELD date
 
     void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
+        if(TryRunMacroShortcut(e)){e.Handled=true;return;}
         if(profile==KeyboardProfile.Word && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift) && e.Key==Key.S)
         {
             SaveAs_Click(this,new RoutedEventArgs());e.Handled=true;return;
