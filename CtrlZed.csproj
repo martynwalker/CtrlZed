@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CtrlZed</AssemblyName>
-    <Version>0.5.2-beta.5.2</Version>
+    <Version>0.5.3-beta.5.3</Version>
   </PropertyGroup>
 </Project>
