@@ -4,35 +4,42 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 3
+## Beta 5
 
-Beta 3 builds on the verified WPF/RTF editor and adds:
+Beta 5 adds:
 
-- native `.czd` document files with page settings, header and footer metadata
+- native `.czd` documents, still compatible with earlier CtrlZed beta files
 - RTF and plain-text interchange
-- traditional menus and Word-style shortcuts
+- page setup, paragraph styles, images and captions
+- stored headers and footers with repeating paginated print/preview output
+- single-page preview navigation with Previous / Next and zoom controls
+- built-in fields: `{page}`, `{pages}`, `{date}`, `{time}`, `{filename}`, `{moonphase}`, `{moonicon}`
+- document-specific custom fields using `{field:name}`, including nested templates
+- a Fields manager with a moon-phase example
+- automatic recovery snapshots and save-before-discard prompts
 - initial WordStar 4.0 and WordPerfect 5.1 keyboard profiles
-- paragraph styles: Normal, Heading 1/2/3, Quote and Caption
-- page setup for A4, A5, US Letter, portrait/landscape and margins
-- inline pictures with double-click and right-click Picture Properties
-- picture width, alignment and optional caption insertion
-- visible header/footer preview with `{page}`, `{pages}`, `{date}` and `{filename}` fields
-- save prompts on close/new/open when the document has changed
-- automatic recovery snapshot while an unsaved document is dirty
-- central C# / VB.NET macro source library; execution remains disabled
-- self-contained Windows x64 build produced and smoke-tested by GitHub Actions
+- central macro library
+
+### Safe macros
+
+Beta 5 introduces executable `.czm` macros. These are **not arbitrary .NET code**. CtrlZed interprets a deliberately restricted command set:
+
+- `INSERT_TEXT text`
+- `INSERT_FIELD name`
+- `NEW_PARAGRAPH`
+- `APPLY_STYLE style-name`
+- `SET_HEADER text`
+- `SET_FOOTER text`
+
+A safe macro is limited to 200 commands and has no command for filesystem access, network access, process launching or arbitrary code execution.
+
+C# and VB.NET macro source can still be stored and edited in the central macro library, but it remains non-executable. Roslyn compilation alone is not a security sandbox, so CtrlZed will not pretend otherwise.
 
 ## Important limitations
 
-This remains an early beta. Use copies of important documents.
+This remains beta software. Use copies of important documents.
 
-Headers and footers are stored in `.czd` and shown in the editor, but pagination is still WPF FlowDocument-based rather than Word-compatible. Beta 3 print output treats them as simple document header/footer material rather than a full repeating per-page layout engine.
-
-Pictures remain inline. Full floating text wrap and DTP positioning are deliberately deferred.
-
-DOCX import/export, executable macros, complete WordStar/WordPerfect emulation, custom keyboard remapping and non-Windows builds are not yet implemented.
-
-RTF remains the initial Microsoft Word interchange format because Word can open it and save it as DOCX.
+The WPF/FlowDocument layout is not a Microsoft Word rendering engine. DOCX import/export, floating DTP-style image wrapping, complete WordStar/WordPerfect emulation and cross-platform builds remain future work.
 
 ## Development principles
 
