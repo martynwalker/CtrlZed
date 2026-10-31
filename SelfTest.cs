@@ -1,6 +1,9 @@
 using System.IO;
 using System.IO.Compression;
-using System.Windows.Documents;\nusing System.Windows.Controls;\nusing System.Windows.Media;\nusing System.Windows.Media.Imaging;
+using System.Windows.Documents;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace CtrlZed;
 
