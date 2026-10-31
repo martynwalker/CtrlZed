@@ -682,29 +682,98 @@ public partial class MainWindow : Window
 
     (TextPointer Start,TextPointer End)? FindText(TextPointer start,string term,StringComparison comparison)
     {
-        var nav=start;
-        var end=Editor.Document.ContentEnd;
-        while(nav!=null && nav.CompareTo(end)<0)
+        var paragraphs=EnumerateDocumentParagraphs().ToList();
+        if(paragraphs.Count==0)return null;
+
+        var startIndex=0;
+        var startOffset=0;
+        for(int i=0;i<paragraphs.Count;i++)
         {
-            var context=nav.GetPointerContext(LogicalDirection.Forward);
-            if(context==TextPointerContext.Text)
+            var p=paragraphs[i];
+            if(start.CompareTo(p.ContentStart)>=0 && start.CompareTo(p.ContentEnd)<=0)
             {
-                var run=nav.GetTextInRun(LogicalDirection.Forward);
-                var index=run.IndexOf(term,comparison);
-                if(index>=0)
-                {
-                    var s=nav.GetPositionAtOffset(index,LogicalDirection.Forward);
-                    var e=s?.GetPositionAtOffset(term.Length,LogicalDirection.Forward);
-                    if(s!=null && e!=null)return(s,e);
-                }
-                nav=nav.GetPositionAtOffset(run.Length,LogicalDirection.Forward);
+                startIndex=i;
+                startOffset=new TextRange(p.ContentStart,start).Text.Length;
+                break;
             }
-            else
+            if(start.CompareTo(p.ContentEnd)>0)startIndex=Math.Min(i+1,paragraphs.Count-1);
+        }
+
+        for(int pass=0;pass<2;pass++)
+        {
+            var first=pass==0?startIndex:0;
+            var last=pass==0?paragraphs.Count:startIndex+1;
+            for(int i=first;i<last;i++)
             {
-                nav=nav.GetNextContextPosition(LogicalDirection.Forward);
+                var p=paragraphs[i];
+                var text=new TextRange(p.ContentStart,p.ContentEnd).Text;
+                var from=pass==0&&i==startIndex?Math.Clamp(startOffset,0,text.Length):0;
+                var index=text.IndexOf(term,from,comparison);
+                if(index<0)continue;
+
+                var s=PointerAtTextOffset(p.ContentStart,p.ContentEnd,index);
+                var e=PointerAtTextOffset(p.ContentStart,p.ContentEnd,index+term.Length);
+                if(s!=null&&e!=null)return(s,e);
             }
         }
         return null;
+    }
+
+    IEnumerable<Paragraph> EnumerateDocumentParagraphs()
+    {
+        foreach(var block in Editor.Document.Blocks)
+            foreach(var p in EnumerateParagraphsInBlock(block))
+                yield return p;
+    }
+
+    IEnumerable<Paragraph> EnumerateParagraphsInBlock(Block block)
+    {
+        if(block is Paragraph p)yield return p;
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)
+                foreach(var paragraph in EnumerateParagraphsInBlock(child))
+                    yield return paragraph;
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)
+                    foreach(var paragraph in EnumerateParagraphsInBlock(child))
+                        yield return paragraph;
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)
+                            foreach(var paragraph in EnumerateParagraphsInBlock(child))
+                                yield return paragraph;
+        }
+    }
+
+    TextPointer? PointerAtTextOffset(TextPointer start,TextPointer end,int target)
+    {
+        var p=start;
+        var count=0;
+        while(p!=null && p.CompareTo(end)<=0)
+        {
+            var context=p.GetPointerContext(LogicalDirection.Forward);
+            if(context==TextPointerContext.Text)
+            {
+                var text=p.GetTextInRun(LogicalDirection.Forward);
+                if(count+text.Length>=target)
+                    return p.GetPositionAtOffset(target-count,LogicalDirection.Forward);
+                count+=text.Length;
+                p=p.GetPositionAtOffset(text.Length,LogicalDirection.Forward);
+            }
+            else
+            {
+                p=p.GetNextContextPosition(LogicalDirection.Forward);
+            }
+        }
+        return target==count?end:null;
     }
 
     void PageBreak_Click(object s,RoutedEventArgs e)
