@@ -18,6 +18,8 @@ public static class SelfTest
         Directory.CreateDirectory(root);
         try
         {
+            if(Branding.CreateIconImageSource()==null)return 26;
+
             var doc=new FlowDocument();
             doc.Blocks.Add(new Paragraph(new Run("CtrlZed self test")){FontSize=24,FontWeight=System.Windows.FontWeights.Bold});
             doc.Blocks.Add(new Paragraph(new Run("Find across ordinary text.")));
