@@ -22,19 +22,28 @@ public sealed class DocxLoadResult
     public double PageWidth { get; init; }
     public double PageHeight { get; init; }
     public Thickness? Margins { get; init; }
+    public string Title { get; init; } = "";
+    public string Author { get; init; } = "";
+    public string Subject { get; init; } = "";
+    public string Keywords { get; init; } = "";
 }
 
 public static class DocxInterop
 {
     public static void Save(string path,FlowDocument document)
-        => Save(path,document,"","",794,1123,new Thickness(72));
+        => Save(path,document,"","",794,1123,new Thickness(72),"","","","");
 
-    public static void Save(string path,FlowDocument document,string header,string footer,double pageWidth,double pageHeight,Thickness margins)
+    public static void Save(string path,FlowDocument document,string header,string footer,double pageWidth,double pageHeight,Thickness margins,string title,string author,string subject,string keywords)
     {
         using var word=WordprocessingDocument.Create(path,WordprocessingDocumentType.Document);
         var main=word.AddMainDocumentPart();
         main.Document=new W.Document(new W.Body());
         var body=main.Document.Body ?? main.Document.AppendChild(new W.Body());
+        word.PackageProperties.Title=title??"";
+        word.PackageProperties.Creator=author??"";
+        word.PackageProperties.Subject=subject??"";
+        word.PackageProperties.Keywords=keywords??"";
+        EnsureNumbering(main);
         uint imageId=1;
 
         foreach(var block in document.Blocks)
@@ -93,9 +102,28 @@ public static class DocxInterop
         var body=main?.Document?.Body;
         if(main==null || body==null)return new DocxLoadResult{Document=result};
 
-        foreach(var child in body.ChildElements)
+        var children=body.ChildElements.ToList();
+        for(int i=0;i<children.Count;i++)
         {
-            if(child is W.Paragraph p)result.Blocks.Add(FromWordParagraph(main,p));
+            var child=children[i];
+            if(child is W.Paragraph p)
+            {
+                var numId=GetNumberingId(p);
+                if(numId!=null)
+                {
+                    var list=new List{MarkerStyle=numId==2?TextMarkerStyle.Decimal:TextMarkerStyle.Disc};
+                    while(i<children.Count && children[i] is W.Paragraph lp && GetNumberingId(lp)==numId)
+                    {
+                        var item=new ListItem();
+                        item.Blocks.Add(FromWordParagraph(main,lp));
+                        list.ListItems.Add(item);
+                        i++;
+                    }
+                    i--;
+                    result.Blocks.Add(list);
+                }
+                else result.Blocks.Add(FromWordParagraph(main,p));
+            }
             else if(child is W.Table t)result.Blocks.Add(FromWordTable(main,t));
         }
 
@@ -138,7 +166,11 @@ public static class DocxInterop
             Footer=footer,
             PageWidth=width,
             PageHeight=height,
-            Margins=margins
+            Margins=margins,
+            Title=word.PackageProperties.Title??"",
+            Author=word.PackageProperties.Creator??"",
+            Subject=word.PackageProperties.Subject??"",
+            Keywords=word.PackageProperties.Keywords??""
         };
     }
 
@@ -245,20 +277,59 @@ public static class DocxInterop
         return wp;
     }
 
+    static void EnsureNumbering(MainDocumentPart main)
+    {
+        var part=main.NumberingDefinitionsPart ?? main.AddNewPart<NumberingDefinitionsPart>();
+        if(part.Numbering!=null)return;
+
+        var bulletAbstract=new W.AbstractNum{AbstractNumberId=1};
+        bulletAbstract.Append(new W.MultiLevelType{Val=W.MultiLevelValues.SingleLevel});
+        bulletAbstract.Append(new W.Level(
+            new W.StartNumberingValue{Val=1},
+            new W.NumberingFormat{Val=W.NumberFormatValues.Bullet},
+            new W.LevelText{Val="•"},
+            new W.LevelJustification{Val=W.LevelJustificationValues.Left},
+            new W.PreviousParagraphProperties(new W.Indentation{Left="720",Hanging="360"})
+        ){LevelIndex=0});
+
+        var decimalAbstract=new W.AbstractNum{AbstractNumberId=2};
+        decimalAbstract.Append(new W.MultiLevelType{Val=W.MultiLevelValues.SingleLevel});
+        decimalAbstract.Append(new W.Level(
+            new W.StartNumberingValue{Val=1},
+            new W.NumberingFormat{Val=W.NumberFormatValues.Decimal},
+            new W.LevelText{Val="%1."},
+            new W.LevelJustification{Val=W.LevelJustificationValues.Left},
+            new W.PreviousParagraphProperties(new W.Indentation{Left="720",Hanging="360"})
+        ){LevelIndex=0});
+
+        part.Numbering=new W.Numbering(
+            bulletAbstract,
+            decimalAbstract,
+            new W.NumberingInstance(new W.AbstractNumId{Val=1}){NumberID=1},
+            new W.NumberingInstance(new W.AbstractNumId{Val=2}){NumberID=2});
+        part.Numbering.Save();
+    }
+
+    static int? GetNumberingId(W.Paragraph p)
+    {
+        return p.ParagraphProperties?.NumberingProperties?.NumberingId?.Val?.Value;
+    }
+
     static void AppendList(MainDocumentPart main,W.Body body,List list,ref uint imageId)
     {
-        var index=1;
+        var numId=list.MarkerStyle==TextMarkerStyle.Decimal?2:1;
         foreach(var item in list.ListItems)
         {
             foreach(var block in item.Blocks)
             {
                 if(block is not Paragraph p)continue;
                 var wp=ToWordParagraph(main,p,ref imageId);
-                var prefix=list.MarkerStyle==TextMarkerStyle.Decimal?$"{index}. ":"• ";
-                wp.InsertAfter(new W.Run(new W.Text(prefix){Space=SpaceProcessingModeValues.Preserve}),wp.ParagraphProperties);
+                wp.ParagraphProperties ??= new W.ParagraphProperties();
+                wp.ParagraphProperties.NumberingProperties=new W.NumberingProperties(
+                    new W.NumberingLevelReference{Val=0},
+                    new W.NumberingId{Val=numId});
                 body.Append(wp);
             }
-            index++;
         }
     }
 
