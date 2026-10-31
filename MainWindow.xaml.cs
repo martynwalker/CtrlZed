@@ -29,6 +29,13 @@ public partial class MainWindow : Window
     readonly DispatcherTimer recoveryTimer;
     readonly string recoveryFile;
     readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase);
+    readonly List<string> recentFiles = new();
+    readonly string settingsFile;
+    string documentTitle = "";
+    string documentAuthor = "";
+    string documentSubject = "";
+    string documentKeywords = "";
+    double zoomPercent = 100;
 
     sealed class CzdSettings
     {
@@ -41,6 +48,10 @@ public partial class MainWindow : Window
         public string Header { get; set; } = "";
         public string Footer { get; set; } = "";
         public Dictionary<string,string> CustomFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public string Title { get; set; } = "";
+        public string Author { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string Keywords { get; set; } = "";
     }
 
     sealed class HeadingItem
@@ -63,6 +74,9 @@ public partial class MainWindow : Window
         var recoveryDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
         Directory.CreateDirectory(recoveryDir);
         recoveryFile = Path.Combine(recoveryDir,"Recovery.rtf");
+        settingsFile = Path.Combine(recoveryDir,"settings.json");
+        LoadAppSettings();
+        RefreshRecentFilesMenu();
         recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         recoveryTimer.Tick += (_,__) => WriteRecoverySnapshot();
         recoveryTimer.Start();
@@ -70,6 +84,8 @@ public partial class MainWindow : Window
         ApplyPage();
         RefreshHeaderFooter();
         suppressDirty = false;
+        ApplyZoom();
+        UpdateDocumentStats();
 
         if(File.Exists(recoveryFile))
         {
@@ -107,6 +123,7 @@ public partial class MainWindow : Window
         currentFile = null;
         headerText = footerText = "";
         customFields.Clear();
+        documentTitle=documentAuthor=documentSubject=documentKeywords="";
         RefreshHeaderFooter();
         suppressDirty = false;
         dirty = false;
@@ -119,46 +136,7 @@ public partial class MainWindow : Window
     {
         if(!CanDiscardChanges())return;
         var d=new OpenFileDialog{Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt|All files (*.*)|*.*"};
-        if(d.ShowDialog()!=true)return;
-        try
-        {
-            suppressDirty = true;
-            var ext=Path.GetExtension(d.FileName).ToLowerInvariant();
-            headerText = footerText = "";
-            if(ext==".czd")LoadCzd(d.FileName);
-            else if(ext==".docx")
-            {
-                var imported=DocxInterop.LoadWithLayout(d.FileName);
-                Editor.Document=imported.Document;
-                headerText=imported.Header;
-                footerText=imported.Footer;
-                if(imported.PageWidth>0)pageWidth=imported.PageWidth;
-                if(imported.PageHeight>0)pageHeight=imported.PageHeight;
-                if(imported.Margins!=null)pageMargins=imported.Margins.Value;
-                ApplyPage();
-            }
-            else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(d.FileName))));
-            else
-            {
-                Editor.Document = new FlowDocument();
-                using var fs=File.OpenRead(d.FileName);
-                new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
-            }
-            WirePictureHandlers();
-            RefreshNavigation();
-            currentFile=d.FileName;
-            dirty=false;
-            suppressDirty=false;
-            RefreshHeaderFooter();
-            UpdateTitle();
-            Status.Text="Opened "+currentFile;
-            TryDeleteRecovery();
-        }
-        catch(Exception ex)
-        {
-            suppressDirty=false;
-            MessageBox.Show(ex.Message,"Open failed",MessageBoxButton.OK,MessageBoxImage.Error);
-        }
+        if(d.ShowDialog()==true)OpenPath(d.FileName);
     }
 
     void Save_Click(object s,RoutedEventArgs e) => SaveCurrent();
@@ -176,13 +154,14 @@ public partial class MainWindow : Window
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
             if(ext==".czd")SaveCzd(currentFile);
-            else if(ext==".docx")DocxInterop.Save(currentFile,Editor.Document,headerText,footerText,pageWidth,pageHeight,pageMargins);
+            else if(ext==".docx")DocxInterop.Save(currentFile,Editor.Document,headerText,footerText,pageWidth,pageHeight,pageMargins,documentTitle,documentAuthor,documentSubject,documentKeywords);
             else if(ext==".txt")File.WriteAllText(currentFile,new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text);
             else SaveRtf(currentFile);
 
             dirty=false;
             UpdateTitle();
             Status.Text="Saved "+currentFile;
+            AddRecentFile(currentFile);
             TryDeleteRecovery();
             return true;
         }
@@ -208,6 +187,7 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(new Action(() =>
         {
             UpdatePageGuideState();
+            UpdateDocumentStats();
             if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
         }),DispatcherPriority.Background);
     }
@@ -266,7 +246,8 @@ public partial class MainWindow : Window
                 PageWidth=pageWidth,PageHeight=pageHeight,
                 Left=pageMargins.Left,Top=pageMargins.Top,Right=pageMargins.Right,Bottom=pageMargins.Bottom,
                 Header=headerText,Footer=footerText,
-                CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase)
+                CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
+                Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords
             };
             using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
         }
@@ -291,6 +272,10 @@ public partial class MainWindow : Window
                 pageMargins=new Thickness(v.Left,v.Top,v.Right,v.Bottom);
                 headerText=v.Header??"";
                 footerText=v.Footer??"";
+                documentTitle=v.Title??"";
+                documentAuthor=v.Author??"";
+                documentSubject=v.Subject??"";
+                documentKeywords=v.Keywords??"";
                 customFields.Clear();
                 if(v.CustomFields!=null)
                     foreach(var pair in v.CustomFields)
@@ -625,6 +610,196 @@ public partial class MainWindow : Window
             catch { }
         }
         return points;
+    }
+
+    sealed class AppSettings
+    {
+        public List<string> RecentFiles { get; set; } = new();
+        public double ZoomPercent { get; set; } = 100;
+    }
+
+    void LoadAppSettings()
+    {
+        try
+        {
+            if(!File.Exists(settingsFile))return;
+            var settings=JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(settingsFile));
+            if(settings==null)return;
+            recentFiles.Clear();
+            recentFiles.AddRange(settings.RecentFiles.Where(File.Exists).Take(10));
+            zoomPercent=Math.Clamp(settings.ZoomPercent,50,150);
+            ApplyZoom();
+        }
+        catch { }
+    }
+
+    void SaveAppSettings()
+    {
+        try
+        {
+            File.WriteAllText(settingsFile,JsonSerializer.Serialize(new AppSettings
+            {
+                RecentFiles=recentFiles.Take(10).ToList(),
+                ZoomPercent=zoomPercent
+            }));
+        }
+        catch { }
+    }
+
+    void AddRecentFile(string? path)
+    {
+        if(string.IsNullOrWhiteSpace(path))return;
+        recentFiles.RemoveAll(x=>string.Equals(x,path,StringComparison.OrdinalIgnoreCase));
+        recentFiles.Insert(0,path);
+        if(recentFiles.Count>10)recentFiles.RemoveRange(10,recentFiles.Count-10);
+        SaveAppSettings();
+        RefreshRecentFilesMenu();
+    }
+
+    void RefreshRecentFilesMenu()
+    {
+        if(RecentFilesMenu==null)return;
+        RecentFilesMenu.Items.Clear();
+        if(recentFiles.Count==0)
+        {
+            RecentFilesMenu.Items.Add(new MenuItem{Header="(None)",IsEnabled=false});
+            return;
+        }
+        foreach(var path in recentFiles.ToList())
+        {
+            var item=new MenuItem{Header=System.IO.Path.GetFileName(path),ToolTip=path,Tag=path};
+            item.Click+=RecentFile_Click;
+            RecentFilesMenu.Items.Add(item);
+        }
+        RecentFilesMenu.Items.Add(new Separator());
+        var clear=new MenuItem{Header="Clear Recent Files"};
+        clear.Click+=(_,__)=>{recentFiles.Clear();SaveAppSettings();RefreshRecentFilesMenu();};
+        RecentFilesMenu.Items.Add(clear);
+    }
+
+    void RecentFile_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is not MenuItem {Tag:string path})return;
+        if(!File.Exists(path))
+        {
+            recentFiles.Remove(path);SaveAppSettings();RefreshRecentFilesMenu();
+            MessageBox.Show("That recent file no longer exists.","Recent Files",MessageBoxButton.OK,MessageBoxImage.Information);
+            return;
+        }
+        if(!CanDiscardChanges())return;
+        OpenPath(path);
+    }
+
+    void OpenPath(string path)
+    {
+        try
+        {
+            suppressDirty=true;
+            var ext=Path.GetExtension(path).ToLowerInvariant();
+            headerText=footerText="";
+            documentTitle=documentAuthor=documentSubject=documentKeywords="";
+            if(ext==".czd")LoadCzd(path);
+            else if(ext==".docx")
+            {
+                var imported=DocxInterop.LoadWithLayout(path);
+                Editor.Document=imported.Document;
+                headerText=imported.Header;footerText=imported.Footer;
+                if(imported.PageWidth>0)pageWidth=imported.PageWidth;
+                if(imported.PageHeight>0)pageHeight=imported.PageHeight;
+                if(imported.Margins!=null)pageMargins=imported.Margins.Value;
+                documentTitle=imported.Title;documentAuthor=imported.Author;
+                documentSubject=imported.Subject;documentKeywords=imported.Keywords;
+                ApplyPage();
+            }
+            else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(path))));
+            else
+            {
+                Editor.Document=new FlowDocument();
+                using var fs=File.OpenRead(path);
+                new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
+            }
+            WirePictureHandlers();RefreshNavigation();
+            currentFile=path;dirty=false;suppressDirty=false;
+            RefreshHeaderFooter();UpdateTitle();UpdateDocumentStats();
+            Status.Text="Opened "+currentFile;AddRecentFile(currentFile);TryDeleteRecovery();
+        }
+        catch(Exception ex)
+        {
+            suppressDirty=false;
+            MessageBox.Show(ex.Message,"Open failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void SaveAs_Click(object s,RoutedEventArgs e)
+    {
+        var old=currentFile;
+        var d=new SaveFileDialog
+        {
+            Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt",
+            DefaultExt=old==null?".czd":Path.GetExtension(old),
+            FileName=old==null?"":Path.GetFileName(old),
+            AddExtension=true
+        };
+        if(d.ShowDialog()!=true)return;
+        currentFile=d.FileName;
+        if(!SaveCurrent())currentFile=old;
+    }
+
+    void DocumentProperties_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window{Title="Document Properties",Owner=this,Width=520,Height=365,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var g=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<6;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+        var title=new TextBox{Text=documentTitle,Margin=new Thickness(0,3,0,8)};
+        var author=new TextBox{Text=documentAuthor,Margin=new Thickness(0,3,0,8)};
+        var subject=new TextBox{Text=documentSubject,Margin=new Thickness(0,3,0,8)};
+        var keywords=new TextBox{Text=documentKeywords,Margin=new Thickness(0,3,0,8)};
+        AddRow(g,0,"Title",title);AddRow(g,1,"Author",author);AddRow(g,2,"Subject",subject);AddRow(g,3,"Keywords",keywords);
+        var info=new TextBlock{Text="Stored in .czd and mapped to DOCX core properties.",Foreground=Brushes.DimGray,Margin=new Thickness(0,5,0,5)};
+        Grid.SetRow(info,4);Grid.SetColumnSpan(info,2);g.Children.Add(info);
+        var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+        Grid.SetRow(ok,5);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+        ok.Click+=(_,__)=>
+        {
+            documentTitle=title.Text;documentAuthor=author.Text;documentSubject=subject.Text;documentKeywords=keywords.Text;
+            MarkDirty("Document properties updated.");w.DialogResult=true;
+        };
+        w.Content=g;w.ShowDialog();
+    }
+
+    void Zoom_Click(object s,RoutedEventArgs e)
+    {
+        if(s is MenuItem item && double.TryParse(item.Tag?.ToString(),out var value))
+        {
+            zoomPercent=Math.Clamp(value,50,150);
+            ApplyZoom();SaveAppSettings();
+        }
+    }
+
+    void ApplyZoom()
+    {
+        if(PageBorder==null)return;
+        PageBorder.LayoutTransform=new ScaleTransform(zoomPercent/100.0,zoomPercent/100.0);
+        if(ZoomStatus!=null)ZoomStatus.Text=$"{zoomPercent:0}%";
+    }
+
+    void UpdateDocumentStats()
+    {
+        if(DocumentStats==null)return;
+        var text=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text;
+        var chars=text.TrimEnd('\r','\n').Length;
+        var words=System.Text.RegularExpressions.Regex.Matches(text,@"\b[\p{L}\p{N}’'-]+\b").Count;
+        var pages=1;
+        try
+        {
+            var paginator=CreatePreviewPaginator();
+            paginator.ComputePageCount();
+            pages=Math.Max(1,paginator.PageCount);
+        }
+        catch { }
+        DocumentStats.Text=$"{words:N0} words · {chars:N0} characters · {pages:N0} page{(pages==1?"":"s")}";
     }
 
     void FindReplace_Click(object s,RoutedEventArgs e)
@@ -1655,6 +1830,10 @@ INSERT_FIELD date
 
     void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
+        if(profile==KeyboardProfile.Word && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift) && e.Key==Key.S)
+        {
+            SaveAs_Click(this,new RoutedEventArgs());e.Handled=true;return;
+        }
         if(profile==KeyboardProfile.Word && Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.H)
         {
             FindReplace_Click(this,new RoutedEventArgs());
@@ -1731,11 +1910,12 @@ INSERT_FIELD date
         if(closingApproved)return;
         if(!CanDiscardChanges()){e.Cancel=true;return;}
         recoveryTimer.Stop();
+        SaveAppSettings();
         TryDeleteRecovery();
         closingApproved=true;
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.8.0 beta 8\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 8 improves page-break rendering and DOCX page layout, headers and footers.",
+        "CtrlZed 0.9.0 beta 9\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 9 adds Save As, recent files, metadata, zoom and live document statistics.",
         "About CtrlZed");
 }
