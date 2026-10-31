@@ -1,6 +1,6 @@
 using System.IO;
 using System.IO.Compression;
-using System.Windows.Documents;
+using System.Windows.Documents;\nusing System.Windows.Controls;\nusing System.Windows.Media;\nusing System.Windows.Media.Imaging;
 
 namespace CtrlZed;
 
@@ -15,6 +15,11 @@ public static class SelfTest
             var doc=new FlowDocument();
             doc.Blocks.Add(new Paragraph(new Run("CtrlZed self test")){FontSize=24,FontWeight=System.Windows.FontWeights.Bold});
             doc.Blocks.Add(new Paragraph(new Run("Find across ordinary text.")));
+
+            var pixels=new byte[]{0,0,255,255,0,255,0,255,255,0,0,255,255,255,255,255};
+            var bitmap=new WriteableBitmap(2,2,96,96,PixelFormats.Bgra32,null);
+            bitmap.WritePixels(new System.Windows.Int32Rect(0,0,2,2),pixels,8,0);
+            doc.Blocks.Add(new Paragraph(new InlineUIContainer(new Image{Source=bitmap,Width=32,Height=32})));
 
             var table=new Table();
             table.Columns.Add(new TableColumn());table.Columns.Add(new TableColumn());
@@ -40,6 +45,10 @@ public static class SelfTest
             var text=new TextRange(imported.ContentStart,imported.ContentEnd).Text;
             if(!text.Contains("CtrlZed self test")||!text.Contains("A")||!text.Contains("B"))return 14;
             if(!imported.Blocks.OfType<Table>().Any())return 15;
+            var importedImage=imported.Blocks.OfType<Paragraph>()
+                .SelectMany(p=>p.Inlines.OfType<InlineUIContainer>())
+                .Any(ui=>ui.Child is Image);
+            if(!importedImage)return 16;
 
             return 0;
         }
