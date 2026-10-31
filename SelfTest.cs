@@ -34,6 +34,16 @@ public static class SelfTest
             row.Cells.Add(new TableCell(new Paragraph(new Run("B"))));
             doc.Blocks.Add(table);
 
+            var bulletList=new List{MarkerStyle=TextMarkerStyle.Disc};
+            bulletList.ListItems.Add(new ListItem(new Paragraph(new Run("Bullet one"))));
+            bulletList.ListItems.Add(new ListItem(new Paragraph(new Run("Bullet two"))));
+            doc.Blocks.Add(bulletList);
+
+            var numberedList=new List{MarkerStyle=TextMarkerStyle.Decimal};
+            numberedList.ListItems.Add(new ListItem(new Paragraph(new Run("Number one"))));
+            numberedList.ListItems.Add(new ListItem(new Paragraph(new Run("Number two"))));
+            doc.Blocks.Add(numberedList);
+
             var rtf=Path.Combine(root,"test.rtf");
             using(var fs=File.Create(rtf))new TextRange(doc.ContentStart,doc.ContentEnd).Save(fs,System.Windows.DataFormats.Rtf);
             var rtfDoc=new FlowDocument();
@@ -41,7 +51,7 @@ public static class SelfTest
             if(!new TextRange(rtfDoc.ContentStart,rtfDoc.ContentEnd).Text.Contains("CtrlZed self test"))return 11;
 
             var docx=Path.Combine(root,"test.docx");
-            DocxInterop.Save(docx,doc,"Test {page} of {pages}","{filename}",794,1123,new System.Windows.Thickness(72));
+            DocxInterop.Save(docx,doc,"Test {page} of {pages}","{filename}",794,1123,new System.Windows.Thickness(72),"Test Title","Test Author","Test Subject","alpha, beta");
             if(!File.Exists(docx)||new FileInfo(docx).Length<500)return 12;
             using(var zip=ZipFile.OpenRead(docx))
                 if(zip.GetEntry("word/document.xml")==null)return 13;
@@ -62,6 +72,11 @@ public static class SelfTest
             if(!layout.Footer.Contains("{filename}"))return 19;
             if(Math.Abs(layout.PageWidth-794)>2||Math.Abs(layout.PageHeight-1123)>2)return 20;
             if(layout.Margins==null||Math.Abs(layout.Margins.Value.Left-72)>2)return 21;
+            if(layout.Title!="Test Title"||layout.Author!="Test Author"||layout.Subject!="Test Subject")return 22;
+            if(!layout.Keywords.Contains("alpha"))return 23;
+            var lists=imported.Blocks.OfType<List>().ToList();
+            if(lists.Count<2)return 24;
+            if(lists[0].MarkerStyle!=TextMarkerStyle.Disc||lists[1].MarkerStyle!=TextMarkerStyle.Decimal)return 25;
             var text=new TextRange(imported.ContentStart,imported.ContentEnd).Text;
             if(!text.Contains("CtrlZed self test")||!text.Contains("A")||!text.Contains("B"))return 14;
             if(!imported.Blocks.OfType<Table>().Any())return 15;
