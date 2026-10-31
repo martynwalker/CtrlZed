@@ -1,0 +1,32 @@
+namespace CtrlZed;
+
+public static class SafeMacroLanguage
+{
+    public const string Reference =
+@"INSERT_TEXT text
+INSERT_FIELD name
+NEW_PARAGRAPH
+PAGE_BREAK
+APPLY_STYLE Normal|Heading 1|Heading 2|Heading 3|Quote|Caption
+ALIGN LEFT|CENTRE|RIGHT|JUSTIFY
+BULLETS
+NUMBERING
+SELECT_ALL
+FIND_REPLACE find text || replacement text
+INSERT_TABLE rows columns
+SET_HEADER text
+SET_FOOTER text
+SET_PROPERTY TITLE|AUTHOR|SUBJECT|KEYWORDS value
+
+Metadata comments:
+# NAME: Friendly macro name
+# DESCRIPTION: What the macro does
+# SHORTCUT: Ctrl+Alt+M
+
+Notes:
+- Lines beginning # are comments/metadata.
+- FIND_REPLACE uses || to separate search and replacement text.
+- INSERT_TABLE accepts integer row/column counts from 1 to 50 / 20.
+- Safe macros cannot access files, the network, processes, credentials or arbitrary .NET code.
+- Maximum 200 executable commands per run.";
+}
