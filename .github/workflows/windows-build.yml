@@ -31,7 +31,11 @@ jobs:
         shell: pwsh
         run: |
           $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($t.ExitCode -ne 0) { throw "CtrlZed self-test failed with code $($t.ExitCode)" }
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "CtrlZed self-test failed with code $($t.ExitCode)"
+          }
       - name: Package
         shell: pwsh
         run: |
