@@ -275,40 +275,97 @@ public partial class MainWindow : Window
     {
         var pd=new PrintDialog();
         if(pd.ShowDialog()!=true)return;
+        var paginator=CreatePreviewPaginator();
+        pd.PrintDocument(paginator,"CtrlZed document");
+    }
 
-        Paragraph? header=null, footer=null;
+    void PagePreview_Click(object s,RoutedEventArgs e)
+    {
         try
         {
-            Editor.Document.PageWidth=pageWidth;
-            Editor.Document.PageHeight=pageHeight;
-            Editor.Document.PagePadding=pageMargins;
-
-            if(!string.IsNullOrWhiteSpace(headerText))
-            {
-                header=new Paragraph(new Run(ExpandFields(headerText,1,1))){TextAlignment=TextAlignment.Center,FontSize=10*96/72,Foreground=Brushes.DimGray};
-                Editor.Document.Blocks.InsertBefore(Editor.Document.Blocks.FirstBlock,header);
-            }
-            if(!string.IsNullOrWhiteSpace(footerText))
-            {
-                footer=new Paragraph(new Run(ExpandFields(footerText,1,1))){TextAlignment=TextAlignment.Center,FontSize=10*96/72,Foreground=Brushes.DimGray};
-                Editor.Document.Blocks.Add(footer);
-            }
-
-            pd.PrintDocument(((IDocumentPaginatorSource)Editor.Document).DocumentPaginator,"CtrlZed document");
+            var preview=new PagePreviewWindow(CreatePreviewPaginator()){Owner=this};
+            preview.ShowDialog();
         }
-        finally
+        catch(Exception ex)
         {
-            if(header!=null)Editor.Document.Blocks.Remove(header);
-            if(footer!=null)Editor.Document.Blocks.Remove(footer);
+            MessageBox.Show(ex.Message,"Page preview failed",MessageBoxButton.OK,MessageBoxImage.Error);
         }
+    }
+
+    HeaderFooterPaginator CreatePreviewPaginator()
+    {
+        var clone=CloneDocument();
+        clone.PageWidth=pageWidth;
+        clone.PageHeight=pageHeight;
+        clone.PagePadding=pageMargins;
+        clone.ColumnWidth=double.PositiveInfinity;
+        var inner=((IDocumentPaginatorSource)clone).DocumentPaginator;
+        inner.PageSize=new Size(pageWidth,pageHeight);
+        inner.ComputePageCount();
+        return new HeaderFooterPaginator(inner,headerText,footerText,ExpandFields);
+    }
+
+    FlowDocument CloneDocument()
+    {
+        using var stream=new MemoryStream();
+        var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
+        source.Save(stream,DataFormats.Rtf);
+        stream.Position=0;
+        var clone=new FlowDocument();
+        new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
+        return clone;
     }
 
     string ExpandFields(string text,int page,int pages)
     {
+        var now=DateTime.Now;
         return text.Replace("{page}",page.ToString(),StringComparison.OrdinalIgnoreCase)
                    .Replace("{pages}",pages.ToString(),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{date}",DateTime.Now.ToString("dd MMMM yyyy"),StringComparison.OrdinalIgnoreCase)
-                   .Replace("{filename}",currentFile==null?"Untitled":Path.GetFileName(currentFile),StringComparison.OrdinalIgnoreCase);
+                   .Replace("{date}",now.ToString("dd MMMM yyyy"),StringComparison.OrdinalIgnoreCase)
+                   .Replace("{time}",now.ToString("HH:mm"),StringComparison.OrdinalIgnoreCase)
+                   .Replace("{filename}",currentFile==null?"Untitled":Path.GetFileName(currentFile),StringComparison.OrdinalIgnoreCase)
+                   .Replace("{moonphase}",GetMoonPhaseName(now),StringComparison.OrdinalIgnoreCase)
+                   .Replace("{moonicon}",GetMoonPhaseIcon(now),StringComparison.OrdinalIgnoreCase);
+    }
+
+    static double GetMoonAge(DateTime dt)
+    {
+        var y=dt.Year;
+        var m=dt.Month;
+        var d=dt.Day;
+        if(m<=2){y-=1;m+=12;}
+        m+=1;
+        var age=((11*(y%19))%30)+m+d-3.5;
+        if(y>2000)age-=0.83;
+        age%=29.53059;
+        if(age<0)age+=29.53059;
+        return age;
+    }
+
+    static string GetMoonPhaseName(DateTime dt)
+    {
+        var age=GetMoonAge(dt);
+        if(age<1.0||age>28.53)return "New Moon";
+        if(age<6.38)return "Waxing Crescent";
+        if(age<8.38)return "First Quarter";
+        if(age<13.77)return "Waxing Gibbous";
+        if(age<15.77)return "Full Moon";
+        if(age<21.15)return "Waning Gibbous";
+        if(age<23.15)return "Third Quarter";
+        return "Waning Crescent";
+    }
+
+    static string GetMoonPhaseIcon(DateTime dt)
+    {
+        var age=GetMoonAge(dt);
+        if(age<1.0||age>28.53)return "🌑";
+        if(age<6.38)return "🌒";
+        if(age<8.38)return "🌓";
+        if(age<13.77)return "🌔";
+        if(age<15.77)return "🌕";
+        if(age<21.15)return "🌖";
+        if(age<23.15)return "🌗";
+        return "🌘";
     }
 
     void HeaderFooter_Click(object s,RoutedEventArgs e)
@@ -318,7 +375,7 @@ public partial class MainWindow : Window
         for(int i=0;i<6;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         var h=new TextBox{Text=headerText,Margin=new Thickness(0,4,0,10)};
         var ft=new TextBox{Text=footerText,Margin=new Thickness(0,4,0,10)};
-        var help=new TextBlock{Text="Available fields: {page}  {pages}  {date}  {filename}. Page fields are previewed as page 1 in this beta.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var help=new TextBlock{Text="Available fields: {page}  {pages}  {date}  {time}  {filename}  {moonphase}  {moonicon}. Page fields are previewed as page 1 in the editor.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
         var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
 
         AddFullRow(grid,0,new TextBlock{Text="Header"});
@@ -524,7 +581,7 @@ public partial class MainWindow : Window
         var align=new ComboBox{ItemsSource=new[]{"Left","Centre","Right"},SelectedIndex=currentAlignment==TextAlignment.Left?0:currentAlignment==TextAlignment.Right?2:1,Margin=new Thickness(0,5,0,5)};
         var keep=new CheckBox{Content="Keep aspect ratio",IsChecked=true,Margin=new Thickness(0,8,0,8)};
         var caption=new TextBox{Margin=new Thickness(0,4,0,8)};
-        var note=new TextBlock{Text="Beta 3 keeps pictures inline. Alignment applies to the containing paragraph; full floating text wrap is deliberately deferred.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var note=new TextBlock{Text="Pictures remain inline. Alignment applies to the containing paragraph; full floating text wrap is deliberately deferred.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
         var ok=new Button{Content="Apply",Width=85,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
 
         AddRow(g,0,"Width (pixels)",width);
@@ -692,7 +749,7 @@ public partial class MainWindow : Window
         grid.Children.Add(left);
 
         var right=new DockPanel();
-        var warning=new TextBlock{Text="Macro execution is disabled in beta 3. This editor stores source in your central library.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
+        var warning=new TextBlock{Text="Macro execution is still disabled in beta 4 while the sandbox is being designed. This editor stores source in your central library.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
         DockPanel.SetDock(warning,Dock.Top);
         right.Children.Add(warning);
         var save=new Button{Content="Save source",Width=100,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
@@ -717,8 +774,8 @@ public partial class MainWindow : Window
             refresh();
             list.SelectedItem=name;
         }
-        nv.Click+=(_,__)=>make(".vb","' CtrlZed VB.NET macro source\n' Execution is disabled in beta 3.\n");
-        nc.Click+=(_,__)=>make(".cs","// CtrlZed C# macro source\n// Execution is disabled in beta 3.\n");
+        nv.Click+=(_,__)=>make(".vb","' CtrlZed VB.NET macro source\n' Execution is disabled in beta 4.\n");
+        nc.Click+=(_,__)=>make(".cs","// CtrlZed C# macro source\n// Execution is disabled in beta 4.\n");
         save.Click+=(_,__)=>
         {
             if(selected!=null)
@@ -826,6 +883,6 @@ public partial class MainWindow : Window
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.3.0 beta 3\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 3 adds headers/footers, paragraph styles, recovery snapshots and safer document closing.",
+        "CtrlZed 0.4.0 beta 4\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 4 adds paginated preview, repeating print headers/footers and calculated fields including moon phase.",
         "About CtrlZed");
 }
