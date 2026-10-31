@@ -1264,7 +1264,7 @@ public partial class MainWindow : Window
         var cols=row.Cells.Count;
         for(int i=0;i<cols;i++)
             newRow.Cells.Add(new TableCell(new Paragraph(new Run(""))){BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)});
-        group.Rows.InsertAfter(row,newRow);
+        var rowIndex=group.Rows.IndexOf(row);\n        group.Rows.Insert(Math.Min(rowIndex+1,group.Rows.Count),newRow);
         MarkDirty("Table row added.");
     }
 
