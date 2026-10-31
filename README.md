@@ -4,7 +4,7 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 9.1
+## Beta 10
 
 Beta 7 builds on the working `.czd` editor and adds:
 
@@ -83,3 +83,18 @@ Executable `.czm` macros remain restricted to CtrlZed's approved command languag
 ## Licence
 
 MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.md).
+
+
+## Beta 10 macro and AI manager
+
+Safe .czm macros now support document text, fields, page breaks, styles, alignment, bullets, numbering, find/replace, table insertion, headers/footers and document properties. Macros may live in the central user library or be embedded in a .czd document.
+
+A macro can declare a shortcut using:
+
+```
+# SHORTCUT: Ctrl+Alt+M
+```
+
+Tools -> AI Manager prepares a provider-neutral macro-authoring prompt and copies it to the clipboard. The user can open ChatGPT (default), Copilot, Claude or Gemini either in a private/free browser session where practical or in their normal signed-in browser. CtrlZed does not store provider passwords or scrape browser sessions.
+
+Direct provider API/OAuth integration is deliberately deferred until each provider can be integrated without storing raw browser credentials.
