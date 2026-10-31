@@ -50,6 +50,8 @@ public partial class MainWindow : Window
         FontBox.SelectedItem = Fonts.SystemFontFamilies.FirstOrDefault(f => f.Source == "Calibri") ?? Fonts.SystemFontFamilies.First();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
+        Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;
+        Editor.PreviewMouseRightButtonDown += Editor_PreviewMouseRightButtonDown;
 
         var recoveryDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
         Directory.CreateDirectory(recoveryDir);
@@ -183,6 +185,10 @@ public partial class MainWindow : Window
     void Editor_TextChanged(object sender,TextChangedEventArgs e)
     {
         if(!suppressDirty)MarkDirty();
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if(PageGuides!=null)PageGuides.InvalidateVisual();
+        }),DispatcherPriority.Background);
     }
 
     void MarkDirty(string? message=null)
@@ -548,6 +554,112 @@ public partial class MainWindow : Window
         }
     }
 
+    void Editor_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        var img=FindPictureAtPoint(e.GetPosition(Editor));
+        if(img==null)return;
+        if(e.ClickCount==2)
+        {
+            e.Handled=true;
+            ShowPicturePropertiesSafely(img);
+        }
+    }
+
+    void Editor_PreviewMouseRightButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        var img=FindPictureAtPoint(e.GetPosition(Editor));
+        if(img==null)return;
+
+        e.Handled=true;
+        var menu=new ContextMenu();
+        var properties=new MenuItem{Header="Picture Properties…"};
+        properties.Click+=(_,__)=>ShowPicturePropertiesSafely(img);
+        menu.Items.Add(properties);
+        menu.PlacementTarget=Editor;
+        menu.IsOpen=true;
+    }
+
+    Image? FindPictureAtPoint(Point point)
+    {
+        foreach(var img in EnumeratePictures())
+        {
+            if(!img.IsVisible || img.ActualWidth<=0 || img.ActualHeight<=0)continue;
+            try
+            {
+                var origin=img.TranslatePoint(new Point(0,0),Editor);
+                var rect=new Rect(origin,new Size(img.ActualWidth,img.ActualHeight));
+                if(rect.Contains(point))return img;
+            }
+            catch(InvalidOperationException)
+            {
+                // The image is not currently connected to Editor's visual tree.
+            }
+        }
+        return null;
+    }
+
+    IEnumerable<Image> EnumeratePictures()
+    {
+        foreach(var block in Editor.Document.Blocks)
+            foreach(var image in EnumeratePicturesInBlock(block))
+                yield return image;
+    }
+
+    IEnumerable<Image> EnumeratePicturesInBlock(Block block)
+    {
+        if(block is Paragraph p)
+        {
+            foreach(var inline in p.Inlines)
+                foreach(var image in EnumeratePicturesInInline(inline))
+                    yield return image;
+        }
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)
+                foreach(var image in EnumeratePicturesInBlock(child))
+                    yield return image;
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)
+                    foreach(var image in EnumeratePicturesInBlock(child))
+                        yield return image;
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)
+                            foreach(var image in EnumeratePicturesInBlock(child))
+                                yield return image;
+        }
+    }
+
+    IEnumerable<Image> EnumeratePicturesInInline(Inline inline)
+    {
+        if(inline is InlineUIContainer ui && ui.Child is Image img)
+            yield return img;
+        else if(inline is Span span)
+            foreach(var child in span.Inlines)
+                foreach(var image in EnumeratePicturesInInline(child))
+                    yield return image;
+    }
+
+    void ShowPicturePropertiesSafely(Image img)
+    {
+        try
+        {
+            ShowPictureProperties(img);
+        }
+        catch(Exception ex)
+        {
+            Status.Text="Picture properties could not be opened.";
+            MessageBox.Show(ex.Message,"Picture properties",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
     void WirePicture(Image img)
     {
         img.Cursor=Cursors.Hand;
@@ -596,7 +708,7 @@ public partial class MainWindow : Window
         try
         {
             e.Handled=true;
-            ShowPictureProperties(img);
+            ShowPicturePropertiesSafely(img);
         }
         catch(Exception ex)
         {
@@ -1139,6 +1251,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.5.1 beta 5.1\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5.1 adds visible end-of-page guides and stronger picture double-click handling.",
+        "CtrlZed 0.5.2 beta 5.2\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5.2 fixes editor page-guide visibility and uses geometry-based picture hit testing.",
         "About CtrlZed");
 }
