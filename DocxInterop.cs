@@ -13,7 +13,7 @@ public static class DocxInterop
         using var word=WordprocessingDocument.Create(path,DocumentFormat.OpenXml.WordprocessingDocumentType.Document);
         var main=word.AddMainDocumentPart();
         main.Document=new W.Document(new W.Body());
-        var body=main.Document.Body!;
+        var body=main.Document.Body ?? main.Document.AppendChild(new W.Body());
 
         foreach(var block in document.Blocks)
         {
@@ -116,14 +116,14 @@ public static class DocxInterop
         var result=new Paragraph();
         var pp=p.ParagraphProperties;
         if(pp?.PageBreakBefore!=null)result.BreakPageBefore=true;
-        if(pp?.Justification?.Val?.Value is W.JustificationValues j)
-            result.TextAlignment=j switch
-            {
-                W.JustificationValues.Center=>TextAlignment.Center,
-                W.JustificationValues.Right=>TextAlignment.Right,
-                W.JustificationValues.Both=>TextAlignment.Justify,
-                _=>TextAlignment.Left
-            };
+        var justification=pp?.Justification?.Val?.Value;
+        if(justification!=null)
+        {
+            if(justification==W.JustificationValues.Center)result.TextAlignment=TextAlignment.Center;
+            else if(justification==W.JustificationValues.Right)result.TextAlignment=TextAlignment.Right;
+            else if(justification==W.JustificationValues.Both)result.TextAlignment=TextAlignment.Justify;
+            else result.TextAlignment=TextAlignment.Left;
+        }
 
         var style=pp?.ParagraphStyleId?.Val?.Value;
         if(style!=null)ApplyImportedStyle(result,style);
@@ -145,7 +145,8 @@ public static class DocxInterop
         var rp=source.RunProperties;
         if(rp?.Bold!=null)r.FontWeight=FontWeights.Bold;
         if(rp?.Italic!=null)r.FontStyle=FontStyles.Italic;
-        if(rp?.Underline?.Val?.Value is not null and not W.UnderlineValues.None)r.TextDecorations=TextDecorations.Underline;
+        var underline=rp?.Underline?.Val?.Value;
+        if(underline!=null && underline!=W.UnderlineValues.None)r.TextDecorations=TextDecorations.Underline;
         var font=rp?.RunFonts?.Ascii?.Value??rp?.RunFonts?.HighAnsi?.Value;
         if(!string.IsNullOrWhiteSpace(font))r.FontFamily=new FontFamily(font);
         if(double.TryParse(rp?.FontSize?.Val?.Value,out var halfPoints))r.FontSize=halfPoints/2*96/72;
