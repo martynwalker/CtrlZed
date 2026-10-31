@@ -1,9 +1,11 @@
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using W = DocumentFormat.OpenXml.Wordprocessing;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -12,11 +14,24 @@ using System.Windows.Media.Imaging;
 
 namespace CtrlZed;
 
+public sealed class DocxLoadResult
+{
+    public FlowDocument Document { get; init; } = new();
+    public string Header { get; init; } = "";
+    public string Footer { get; init; } = "";
+    public double PageWidth { get; init; }
+    public double PageHeight { get; init; }
+    public Thickness? Margins { get; init; }
+}
+
 public static class DocxInterop
 {
-    public static void Save(string path, FlowDocument document)
+    public static void Save(string path,FlowDocument document)
+        => Save(path,document,"","",794,1123,new Thickness(72));
+
+    public static void Save(string path,FlowDocument document,string header,string footer,double pageWidth,double pageHeight,Thickness margins)
     {
-        using var word=WordprocessingDocument.Create(path,DocumentFormat.OpenXml.WordprocessingDocumentType.Document);
+        using var word=WordprocessingDocument.Create(path,WordprocessingDocumentType.Document);
         var main=word.AddMainDocumentPart();
         main.Document=new W.Document(new W.Body());
         var body=main.Document.Body ?? main.Document.AppendChild(new W.Body());
@@ -24,27 +39,189 @@ public static class DocxInterop
 
         foreach(var block in document.Blocks)
         {
-            if(block is Paragraph p) body.Append(ToWordParagraph(main,p,ref imageId));
-            else if(block is Table t) body.Append(ToWordTable(main,t,ref imageId));
+            if(block is Paragraph p)body.Append(ToWordParagraph(main,p,ref imageId));
+            else if(block is Table t)body.Append(ToWordTable(main,t,ref imageId));
+            else if(block is List list)AppendList(main,body,list,ref imageId);
         }
 
+        var section=new W.SectionProperties();
+
+        if(!string.IsNullOrWhiteSpace(header))
+        {
+            var part=main.AddNewPart<HeaderPart>();
+            part.Header=new W.Header(BuildHeaderFooterParagraph(header));
+            part.Header.Save();
+            section.Append(new W.HeaderReference{Type=W.HeaderFooterValues.Default,Id=main.GetIdOfPart(part)});
+        }
+
+        if(!string.IsNullOrWhiteSpace(footer))
+        {
+            var part=main.AddNewPart<FooterPart>();
+            part.Footer=new W.Footer(BuildHeaderFooterParagraph(footer));
+            part.Footer.Save();
+            section.Append(new W.FooterReference{Type=W.HeaderFooterValues.Default,Id=main.GetIdOfPart(part)});
+        }
+
+        section.Append(new W.PageSize
+        {
+            Width=(UInt32Value)(uint)Math.Max(1,Math.Round(pageWidth*15)),
+            Height=(UInt32Value)(uint)Math.Max(1,Math.Round(pageHeight*15))
+        });
+
+        section.Append(new W.PageMargin
+        {
+            Top=(Int32Value)(int)Math.Round(margins.Top*15),
+            Right=(UInt32Value)(uint)Math.Max(0,Math.Round(margins.Right*15)),
+            Bottom=(Int32Value)(int)Math.Round(margins.Bottom*15),
+            Left=(UInt32Value)(uint)Math.Max(0,Math.Round(margins.Left*15)),
+            Header=(UInt32Value)360U,
+            Footer=(UInt32Value)360U,
+            Gutter=(UInt32Value)0U
+        });
+
+        body.Append(section);
         main.Document.Save();
     }
 
-    public static FlowDocument Load(string path)
+    public static FlowDocument Load(string path)=>LoadWithLayout(path).Document;
+
+    public static DocxLoadResult LoadWithLayout(string path)
     {
         using var word=WordprocessingDocument.Open(path,false);
         var result=new FlowDocument();
         var main=word.MainDocumentPart;
         var body=main?.Document?.Body;
-        if(main==null || body==null)return result;
+        if(main==null || body==null)return new DocxLoadResult{Document=result};
 
         foreach(var child in body.ChildElements)
         {
-            if(child is W.Paragraph p) result.Blocks.Add(FromWordParagraph(main,p));
-            else if(child is W.Table t) result.Blocks.Add(FromWordTable(main,t));
+            if(child is W.Paragraph p)result.Blocks.Add(FromWordParagraph(main,p));
+            else if(child is W.Table t)result.Blocks.Add(FromWordTable(main,t));
         }
-        return result;
+
+        var section=body.Descendants<W.SectionProperties>().LastOrDefault() ?? body.Elements<W.SectionProperties>().LastOrDefault();
+        string header="",footer="";
+        double width=0,height=0;
+        Thickness? margins=null;
+
+        if(section!=null)
+        {
+            var headerRef=section.Elements<W.HeaderReference>().FirstOrDefault(h=>h.Type?.Value==W.HeaderFooterValues.Default)
+                          ?? section.Elements<W.HeaderReference>().FirstOrDefault();
+            if(headerRef?.Id?.Value is string headerId && main.GetPartById(headerId) is HeaderPart hp && hp.Header!=null)
+                header=ReadHeaderFooter(hp.Header);
+
+            var footerRef=section.Elements<W.FooterReference>().FirstOrDefault(h=>h.Type?.Value==W.HeaderFooterValues.Default)
+                          ?? section.Elements<W.FooterReference>().FirstOrDefault();
+            if(footerRef?.Id?.Value is string footerId && main.GetPartById(footerId) is FooterPart fp && fp.Footer!=null)
+                footer=ReadHeaderFooter(fp.Footer);
+
+            var size=section.GetFirstChild<W.PageSize>();
+            if(size?.Width?.Value is uint w && w>0)width=w/15.0;
+            if(size?.Height?.Value is uint h && h>0)height=h/15.0;
+
+            var pm=section.GetFirstChild<W.PageMargin>();
+            if(pm!=null)
+            {
+                margins=new Thickness(
+                    (pm.Left?.Value??1440U)/15.0,
+                    (pm.Top?.Value??1440)/15.0,
+                    (pm.Right?.Value??1440U)/15.0,
+                    (pm.Bottom?.Value??1440)/15.0);
+            }
+        }
+
+        return new DocxLoadResult
+        {
+            Document=result,
+            Header=header,
+            Footer=footer,
+            PageWidth=width,
+            PageHeight=height,
+            Margins=margins
+        };
+    }
+
+    static W.Paragraph BuildHeaderFooterParagraph(string template)
+    {
+        var p=new W.Paragraph();
+        var props=new W.ParagraphProperties(new W.Justification{Val=W.JustificationValues.Center});
+        p.Append(props);
+
+        var tokens=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["{page}"]="PAGE",
+            ["{pages}"]="NUMPAGES",
+            ["{filename}"]="FILENAME",
+            ["{date}"]="DATE \\@ \"dd MMMM yyyy\"",
+            ["{time}"]="TIME \\@ \"HH:mm\""
+        };
+
+        var i=0;
+        while(i<template.Length)
+        {
+            var match=tokens
+                .Select(kv=>(Index:template.IndexOf(kv.Key,i,StringComparison.OrdinalIgnoreCase),Token:kv.Key,Field:kv.Value))
+                .Where(x=>x.Index>=0)
+                .OrderBy(x=>x.Index)
+                .FirstOrDefault();
+
+            if(match.Token==null)
+            {
+                AppendPlainText(p,template[i..]);
+                break;
+            }
+
+            if(match.Index>i)AppendPlainText(p,template[i..match.Index]);
+            AppendField(p,match.Field,match.Token);
+            i=match.Index+match.Token.Length;
+        }
+        return p;
+    }
+
+    static void AppendPlainText(W.Paragraph p,string text)
+    {
+        if(text.Length==0)return;
+        p.Append(new W.Run(new W.Text(text){Space=SpaceProcessingModeValues.Preserve}));
+    }
+
+    static void AppendField(W.Paragraph p,string instruction,string fallback)
+    {
+        p.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.Begin}));
+        p.Append(new W.Run(new W.FieldCode(" "+instruction+" "){Space=SpaceProcessingModeValues.Preserve}));
+        p.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.Separate}));
+        p.Append(new W.Run(new W.Text(fallback)));
+        p.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.End}));
+    }
+
+    static string ReadHeaderFooter(OpenXmlElement root)
+    {
+        var sb=new StringBuilder();
+        var inField=false;
+        var fieldCode="";
+
+        foreach(var element in root.Descendants())
+        {
+            if(element is W.FieldChar fc)
+            {
+                var type=fc.FieldCharType?.Value;
+                if(type==W.FieldCharValues.Begin){inField=true;fieldCode="";}
+                else if(type==W.FieldCharValues.End)
+                {
+                    var code=fieldCode.Trim().ToUpperInvariant();
+                    if(code.StartsWith("NUMPAGES"))sb.Append("{pages}");
+                    else if(code.StartsWith("PAGE"))sb.Append("{page}");
+                    else if(code.StartsWith("FILENAME"))sb.Append("{filename}");
+                    else if(code.StartsWith("DATE"))sb.Append("{date}");
+                    else if(code.StartsWith("TIME"))sb.Append("{time}");
+                    inField=false;
+                    fieldCode="";
+                }
+            }
+            else if(element is W.FieldCode code && inField)fieldCode+=code.Text;
+            else if(element is W.Text text && !inField)sb.Append(text.Text);
+        }
+        return sb.ToString();
     }
 
     static W.Paragraph ToWordParagraph(MainDocumentPart main,Paragraph p,ref uint imageId)
@@ -66,6 +243,23 @@ public static class DocxInterop
         wp.Append(pp);
         AppendInlines(main,wp,p.Inlines,ref imageId);
         return wp;
+    }
+
+    static void AppendList(MainDocumentPart main,W.Body body,List list,ref uint imageId)
+    {
+        var index=1;
+        foreach(var item in list.ListItems)
+        {
+            foreach(var block in item.Blocks)
+            {
+                if(block is not Paragraph p)continue;
+                var wp=ToWordParagraph(main,p,ref imageId);
+                var prefix=list.MarkerStyle==TextMarkerStyle.Decimal?$"{index}. ":"• ";
+                wp.InsertAfter(new W.Run(new W.Text(prefix){Space=SpaceProcessingModeValues.Preserve}),wp.ParagraphProperties);
+                body.Append(wp);
+            }
+            index++;
+        }
     }
 
     static void AppendInlines(MainDocumentPart main,W.Paragraph target,InlineCollection inlines,ref uint imageId)
@@ -91,7 +285,7 @@ public static class DocxInterop
         if(!double.IsNaN(run.FontSize) && run.FontSize>0)
             props.FontSize=new W.FontSize{Val=((int)Math.Round(run.FontSize*72/96*2)).ToString()};
 
-        return new W.Run(props,new W.Text(run.Text??""){Space=DocumentFormat.OpenXml.SpaceProcessingModeValues.Preserve});
+        return new W.Run(props,new W.Text(run.Text??""){Space=SpaceProcessingModeValues.Preserve});
     }
 
     static W.Run ToWordImageRun(MainDocumentPart main,BitmapSource bitmap,Image image,ref uint imageId)
