@@ -27,24 +27,24 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.zip
-          (Get-FileHash artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.sha256
+          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.zip
+          (Get-FileHash artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: CtrlZed-0.5.1-beta.5.1-win-x64
+          name: CtrlZed-0.5.2-beta.5.2-win-x64
           path: |
-            artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.zip
-            artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.sha256
+            artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.zip
+            artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.sha256
 
       - name: Publish GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.5.1-beta.5.1"
+          $tag = "v0.5.2-beta.5.2"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.zip artifacts/CtrlZed-0.5.1-beta.5.1-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.5.1 beta 5.1" --notes "Beta 5.1 fixes image double-click handling at the InlineUIContainer level and adds repeated editor page guides with end-of-page markers plus repeated header/footer previews. Use copies of important documents."
+            gh release create $tag artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.zip artifacts/CtrlZed-0.5.2-beta.5.2-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.5.2 beta 5.2" --notes "Beta 5.2 fixes editor page-guide visibility by rendering above the editor and switches picture selection to geometry-based hit testing for double-click and right-click. Use copies of important documents."
           } else {
             Write-Host "Prerelease $tag already exists; leaving it unchanged."
           }
