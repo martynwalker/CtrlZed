@@ -30,8 +30,8 @@ jobs:
       - name: Functional self-test
         shell: pwsh
         run: |
-          & "artifacts/CtrlZed/CtrlZed.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "CtrlZed self-test failed with code $LASTEXITCODE" }
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($t.ExitCode -ne 0) { throw "CtrlZed self-test failed with code $($t.ExitCode)" }
       - name: Package
         shell: pwsh
         run: |
