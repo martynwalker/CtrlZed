@@ -24,6 +24,11 @@ jobs:
           Start-Sleep -Seconds 4
           if ($p.HasExited) { throw "CtrlZed exited during smoke launch with code $($p.ExitCode)" }
           Stop-Process -Id $p.Id -Force
+      - name: Functional self-test
+        shell: pwsh
+        run: |
+          & "artifacts/CtrlZed/CtrlZed.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "CtrlZed self-test failed with code $LASTEXITCODE" }
       - name: Package
         shell: pwsh
         run: |
