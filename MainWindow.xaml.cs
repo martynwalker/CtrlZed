@@ -43,6 +43,13 @@ public partial class MainWindow : Window
         public Dictionary<string,string> CustomFields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
+    sealed class HeadingItem
+    {
+        public string Text { get; init; } = "";
+        public Paragraph Paragraph { get; init; } = null!;
+        public override string ToString() => Text;
+    }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -111,7 +118,7 @@ public partial class MainWindow : Window
     void Open_Click(object s,RoutedEventArgs e)
     {
         if(!CanDiscardChanges())return;
-        var d=new OpenFileDialog{Filter="CtrlZed documents (*.czd)|*.czd|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt|All files (*.*)|*.*"};
+        var d=new OpenFileDialog{Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt|All files (*.*)|*.*"};
         if(d.ShowDialog()!=true)return;
         try
         {
@@ -119,6 +126,7 @@ public partial class MainWindow : Window
             var ext=Path.GetExtension(d.FileName).ToLowerInvariant();
             headerText = footerText = "";
             if(ext==".czd")LoadCzd(d.FileName);
+            else if(ext==".docx")Editor.Document=DocxInterop.Load(d.FileName);
             else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(d.FileName))));
             else
             {
@@ -127,6 +135,7 @@ public partial class MainWindow : Window
                 new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
             }
             WirePictureHandlers();
+            RefreshNavigation();
             currentFile=d.FileName;
             dirty=false;
             suppressDirty=false;
@@ -148,7 +157,7 @@ public partial class MainWindow : Window
     {
         if(currentFile==null)
         {
-            var d=new SaveFileDialog{Filter="CtrlZed documents (*.czd)|*.czd|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt",DefaultExt=".czd",AddExtension=true};
+            var d=new SaveFileDialog{Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt",DefaultExt=".czd",AddExtension=true};
             if(d.ShowDialog()!=true)return false;
             currentFile=d.FileName;
         }
@@ -157,6 +166,7 @@ public partial class MainWindow : Window
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
             if(ext==".czd")SaveCzd(currentFile);
+            else if(ext==".docx")DocxInterop.Save(currentFile,Editor.Document);
             else if(ext==".txt")File.WriteAllText(currentFile,new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text);
             else SaveRtf(currentFile);
 
@@ -188,6 +198,7 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(new Action(() =>
         {
             if(PageGuides!=null)PageGuides.InvalidateVisual();
+            if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
         }),DispatcherPriority.Background);
     }
 
@@ -292,6 +303,60 @@ public partial class MainWindow : Window
         if(pd.ShowDialog()!=true)return;
         var paginator=CreatePreviewPaginator();
         pd.PrintDocument(paginator,"CtrlZed document");
+    }
+
+    void NavigationPane_Click(object s,RoutedEventArgs e)
+    {
+        var show=NavigationPane.Visibility!=Visibility.Visible;
+        NavigationPane.Visibility=show?Visibility.Visible:Visibility.Collapsed;
+        if(show)RefreshNavigation();
+    }
+
+    void RefreshNavigation_Click(object s,RoutedEventArgs e)=>RefreshNavigation();
+
+    void RefreshNavigation()
+    {
+        if(NavigationList==null)return;
+        var items=new List<HeadingItem>();
+        foreach(var block in Editor.Document.Blocks)
+            CollectHeadings(block,items);
+        NavigationList.ItemsSource=items;
+        if(items.Count==0)NavigationList.ItemsSource=new[]{new HeadingItem{Text="(No headings found)",Paragraph=Editor.Document.Blocks.OfType<Paragraph>().FirstOrDefault()??new Paragraph()}};
+    }
+
+    void CollectHeadings(Block block,List<HeadingItem> items)
+    {
+        if(block is Paragraph p)
+        {
+            var text=new TextRange(p.ContentStart,p.ContentEnd).Text.Trim();
+            if(text.Length==0)return;
+            var range=new TextRange(p.ContentStart,p.ContentEnd);
+            var sizeValue=range.GetPropertyValue(TextElement.FontSizeProperty);
+            var weightValue=range.GetPropertyValue(TextElement.FontWeightProperty);
+            var size=sizeValue is double d?d:0;
+            var weight=weightValue is FontWeight fw?fw.ToOpenTypeWeight():0;
+            if(size>=17 || weight>=600 && size>=15)
+            {
+                var level=size>=23?1:size>=19?2:3;
+                items.Add(new HeadingItem{Text=$"{new string(' ',(level-1)*2)}{text}",Paragraph=p});
+            }
+        }
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)CollectHeadings(child,items);
+        }
+    }
+
+    void NavigationList_SelectionChanged(object s,SelectionChangedEventArgs e)
+    {
+        if(NavigationList.SelectedItem is not HeadingItem item || item.Paragraph.Parent==null)return;
+        try
+        {
+            item.Paragraph.BringIntoView();
+            Editor.CaretPosition=item.Paragraph.ContentStart;
+            Editor.Focus();
+        }
+        catch { }
     }
 
     void PagePreview_Click(object s,RoutedEventArgs e)
@@ -1485,6 +1550,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.6.0 beta 6\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 6 adds Find/Replace, tables, manual page breaks, lists and alignment tools.",
+        "CtrlZed 0.7.0 beta 7\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 7 adds headings navigation, improved interchange testing and first-pass DOCX import/export.",
         "About CtrlZed");
 }
