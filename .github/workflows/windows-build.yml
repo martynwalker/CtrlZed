@@ -35,3 +35,16 @@ jobs:
           path: |
             artifacts/CtrlZed-0.1.0-beta.1-win-x64.zip
             artifacts/CtrlZed-0.1.0-beta.1-win-x64.sha256
+
+      - name: Publish GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v0.1.0-beta.1"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag artifacts/CtrlZed-0.1.0-beta.1-win-x64.zip artifacts/CtrlZed-0.1.0-beta.1-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.1.0 beta 1" --notes "First public Windows test build. Compile, self-contained publish and launch smoke-test passed on GitHub's Windows runner. Early beta: use copies of important documents."
+          } else {
+            Write-Host "Prerelease $tag already exists; leaving it unchanged."
+          }
