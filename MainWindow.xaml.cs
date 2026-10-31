@@ -1707,6 +1707,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.7.0 beta 7\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 7 adds headings navigation, cross-format Find/Replace, table editing, DOCX interchange and functional self-tests.",
+        "CtrlZed 0.7.1 beta 7.1\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 7.1 extends DOCX interchange to inline images and verifies image round-trips in CI.",
         "About CtrlZed");
 }
