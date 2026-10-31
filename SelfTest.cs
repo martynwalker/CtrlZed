@@ -1,3 +1,5 @@
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Validation;
 using System.IO;
 using System.IO.Compression;
 using System.Windows.Documents;
@@ -43,6 +45,16 @@ public static class SelfTest
             if(!File.Exists(docx)||new FileInfo(docx).Length<500)return 12;
             using(var zip=ZipFile.OpenRead(docx))
                 if(zip.GetEntry("word/document.xml")==null)return 13;
+
+            using(var validationDoc=WordprocessingDocument.Open(docx,false))
+            {
+                var validationErrors=new OpenXmlValidator().Validate(validationDoc).Take(1).ToList();
+                if(validationErrors.Count>0)
+                {
+                    try{File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestFailure.txt"),validationErrors[0].Description??"Open XML validation error");}catch{}
+                    return 17;
+                }
+            }
 
             var imported=DocxInterop.Load(docx);
             var text=new TextRange(imported.ContentStart,imported.ContentEnd).Text;
