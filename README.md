@@ -4,29 +4,35 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 1
+## Beta 3
 
-The first test build targets Windows x64 and deliberately keeps the scope small:
+Beta 3 builds on the verified WPF/RTF editor and adds:
 
-- native WPF application
-- traditional menus and keyboard shortcuts
-- rich text editing
-- system fonts and common text sizes
-- bold, italic and underline
-- inline picture insertion
-- RTF open/save for Microsoft Word interchange
-- plain-text open/save
-- printing
-- undo/redo, cut/copy/paste
-- visible Word, WordPerfect 5.1 and WordStar 4.0 profile choices (profile remapping is not yet complete)
-
-The GitHub Actions workflow compiles and publishes a self-contained Windows executable, then launches it as a smoke test before packaging the downloadable ZIP.
+- native `.czd` document files with page settings, header and footer metadata
+- RTF and plain-text interchange
+- traditional menus and Word-style shortcuts
+- initial WordStar 4.0 and WordPerfect 5.1 keyboard profiles
+- paragraph styles: Normal, Heading 1/2/3, Quote and Caption
+- page setup for A4, A5, US Letter, portrait/landscape and margins
+- inline pictures with double-click and right-click Picture Properties
+- picture width, alignment and optional caption insertion
+- visible header/footer preview with `{page}`, `{pages}`, `{date}` and `{filename}` fields
+- save prompts on close/new/open when the document has changed
+- automatic recovery snapshot while an unsaved document is dirty
+- central C# / VB.NET macro source library; execution remains disabled
+- self-contained Windows x64 build produced and smoke-tested by GitHub Actions
 
 ## Important limitations
 
-This is an early beta. Use copies of important documents. It does not yet provide DOCX support, page-layout fidelity comparable with Word, floating image wrapping, macro execution, headers/footers, custom keyboard remapping, or cross-platform builds.
+This remains an early beta. Use copies of important documents.
 
-RTF is the initial interchange format because Microsoft Word can open it and resave as DOCX.
+Headers and footers are stored in `.czd` and shown in the editor, but pagination is still WPF FlowDocument-based rather than Word-compatible. Beta 3 print output treats them as simple document header/footer material rather than a full repeating per-page layout engine.
+
+Pictures remain inline. Full floating text wrap and DTP positioning are deliberately deferred.
+
+DOCX import/export, executable macros, complete WordStar/WordPerfect emulation, custom keyboard remapping and non-Windows builds are not yet implemented.
+
+RTF remains the initial Microsoft Word interchange format because Word can open it and save it as DOCX.
 
 ## Development principles
 
