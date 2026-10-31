@@ -6,9 +6,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CtrlZed</AssemblyName>
-    <Version>0.9.0-beta.9</Version>
+    <Version>0.9.1-beta.9.1</Version>
+      <ApplicationIcon>CtrlZed.generated.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
   </ItemGroup>
+  <Target Name="GenerateCtrlZedBrandIcon" BeforeTargets="CoreCompile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\scripts\create-brand-icon.ps1&quot; -OutputPath &quot;$(MSBuildProjectDirectory)\CtrlZed.generated.ico&quot;" />
+  </Target>
 </Project>
