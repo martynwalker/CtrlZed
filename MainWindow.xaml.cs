@@ -1251,6 +1251,6 @@ INSERT_FIELD date
     }
 
     void About_Click(object s,RoutedEventArgs e)=>MessageBox.Show(
-        "CtrlZed 0.5.2 beta 5.2\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5.2 fixes editor page-guide visibility and uses geometry-based picture hit testing.",
+        "CtrlZed 0.5.3 beta 5.3\n\nThe word processor that knows its place.\n\nHuman-directed. AI-authored project code. Open source under MIT.\n\nBeta 5.3 adds a clearer visual gap between pages in the editor.",
         "About CtrlZed");
 }
