@@ -1862,8 +1862,9 @@ public partial class MainWindow : Window
         var embed=new Button{Content="Embed",Margin=new Thickness(0,0,5,5)};
         var extract=new Button{Content="Extract",Margin=new Thickness(0,0,5,5)};
         var rename=new Button{Content="Rename",Margin=new Thickness(0,0,5,5)};
+        var delete=new Button{Content="Delete",Margin=new Thickness(0,0,5,5)};
         var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
-        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(ai);
+        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(delete);buttons.Children.Add(ai);
         DockPanel.SetDock(buttons,Dock.Bottom);
         left.Children.Add(buttons);
         Grid.SetColumn(left,0);grid.Children.Add(left);
@@ -1983,6 +1984,7 @@ public partial class MainWindow : Window
             embed.IsEnabled=!selectedEmbedded && selected!=null && selectedExt==".czm";
             extract.IsEnabled=selectedEmbedded && selected!=null;
             rename.IsEnabled=!selectedEmbedded && selected!=null;
+            delete.IsEnabled=selected!=null;
         };
 
         void make(string ext,string starter)
@@ -2102,6 +2104,48 @@ public static class CtrlZedMacro
             refresh(newName,false);
         };
 
+        delete.Click+=(_,__)=>
+        {
+            if(selected==null)return;
+
+            var source=code.Text;
+            var friendly=GetMacroFriendlyName(source,Path.GetExtension(selected));
+            var display=string.IsNullOrWhiteSpace(friendly)?selected:$"{friendly} ({selected})";
+            var scope=selectedEmbedded?"embedded document macro":"central macro file";
+
+            var choice=MessageBox.Show(
+                $"Delete {scope}:\n\n{display}?\n\nThis cannot be undone from CtrlZed.",
+                "Delete macro",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if(choice!=MessageBoxResult.Yes)return;
+
+            try
+            {
+                if(selectedEmbedded)
+                {
+                    if(embeddedMacros.Remove(selected))
+                        MarkDirty("Embedded macro removed from document.");
+                }
+                else
+                {
+                    var path=Path.Combine(dir,selected);
+                    if(File.Exists(path))File.Delete(path);
+                    Status.Text="Macro file deleted.";
+                }
+
+                selected=null;
+                code.Clear();
+                refresh();
+                run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+            }
+            catch(Exception ex)
+            {
+                MessageBox.Show(ex.Message,"Delete macro failed",MessageBoxButton.OK,MessageBoxImage.Error);
+            }
+        };
+
         ai.Click+=(_,__)=>
         {
             var ext=selected==null?".czm":Path.GetExtension(selected).ToLowerInvariant();
@@ -2116,7 +2160,7 @@ public static class CtrlZedMacro
             });
         };
 
-        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;
+        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
     }
 
