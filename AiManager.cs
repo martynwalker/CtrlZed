@@ -38,18 +38,18 @@ public static class AiManager
         return Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT";
     }
 
-    public static void ShowForMacro(Window owner,string macroReference,string existingCode,Action<string> applyResult)
+    public static void ShowForMacro(Window owner,string macroExtension,string macroReference,string existingCode,Action<string> applyResult)
     {
-        ShowCore(owner,true,macroReference,existingCode,"","",result=>applyResult(result.Trim()),null);
+        ShowCore(owner,true,macroExtension,macroReference,existingCode,"","",result=>applyResult(result.Trim()),null);
     }
 
     public static void ShowForDocument(Window owner,string selectedText,string documentText,Action<string,bool> applyResult)
     {
-        ShowCore(owner,false,"","",selectedText,documentText,null,applyResult);
+        ShowCore(owner,false,"","","",selectedText,documentText,null,applyResult);
     }
 
     static void ShowCore(
-        Window owner,bool macroMode,string macroReference,string existingCode,
+        Window owner,bool macroMode,string macroExtension,string macroReference,string existingCode,
         string selectedText,string documentText,
         Action<string>? applyMacro,Action<string,bool>? applyDocument)
     {
@@ -129,7 +129,7 @@ public static class AiManager
         string BuildPrompt()
         {
             var text=instruction.Text.Trim();
-            if(macroMode)return AiResultRenderer.MacroPrompt(text,macroReference,existingCode);
+            if(macroMode)return AiResultRenderer.MacroPrompt(text,macroExtension,macroReference,existingCode);
             return AiResultRenderer.DocumentPrompt(text,selectedText,documentText,true);
         }
 
