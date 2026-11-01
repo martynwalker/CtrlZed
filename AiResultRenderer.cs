@@ -153,8 +153,66 @@ For current or time-sensitive requests, use live web/search capability when avai
 Return only the material suitable for insertion into the document.";
     }
 
-    public static string MacroPrompt(string instruction,string macroReference,string existingCode)
+    public static string MacroPrompt(string instruction,string macroExtension,string macroReference,string existingCode)
     {
+        macroExtension=(macroExtension??".czm").ToLowerInvariant();
+
+        if(macroExtension==".cs")
+        {
+            return
+$@"You are writing a LIVE C# macro for CtrlZed, a Windows WPF word processor.
+This is NOT the safe .czm language. Full C#/.NET code is allowed because the user has selected a compiled C# macro.
+
+User request:
+{instruction}
+
+Current macro editor content, if any:
+---
+{existingCode}
+---
+
+Requirements:
+- Return ONLY complete C# source. No Markdown fences or commentary.
+- The macro must expose a public static entry point exactly compatible with:
+  public static void Run(System.Windows.Controls.RichTextBox Editor)
+  or an async Task-returning equivalent with the same RichTextBox parameter.
+- CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
+- Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
+- If the macro should appear in the document right-click Macros submenu, use language-native constants:
+  public const int MENU_OPTION = 1;
+  public const string MENU_NAME = ""Macro Name"";
+- Do not claim that C#, .NET, Clipboard or system APIs are unavailable.
+- Use British English in user-facing strings unless the request says otherwise.";
+        }
+
+        if(macroExtension==".vb")
+        {
+            return
+$@"You are writing a LIVE VB.NET macro for CtrlZed, a Windows WPF word processor.
+This is NOT the safe .czm language. Full VB.NET/.NET code is allowed because the user has selected a compiled VB.NET macro.
+
+User request:
+{instruction}
+
+Current macro editor content, if any:
+---
+{existingCode}
+---
+
+Requirements:
+- Return ONLY complete VB.NET source. No Markdown fences or commentary.
+- The macro must expose a public shared entry point compatible with:
+  Public Sub Run(Editor As System.Windows.Controls.RichTextBox)
+  or an Async Function Run(Editor As System.Windows.Controls.RichTextBox) As Task.
+- CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
+- Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
+- If the macro should appear in the document right-click Macros submenu, use language-native constants:
+  Public Const MENU_OPTION As Integer = 1
+  Public Const MENU_NAME As String = ""Macro Name""
+- Do not claim that VB.NET, .NET, Clipboard or system APIs are unavailable.
+- Use British English in user-facing strings unless the request says otherwise.";
+        }
+
         var extended=macroReference.Contains("EXTENDED MACROS ARE ENABLED",StringComparison.OrdinalIgnoreCase);
         var mode=extended
             ?@"You are writing an EXTENDED CtrlZed .czm macro. Extended macro mode is enabled in the application.
