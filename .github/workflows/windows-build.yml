@@ -36,26 +36,41 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             throw "CtrlZed self-test failed with code $($t.ExitCode)"
           }
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$proj = Get-Content CtrlZed.csproj
+          $version = $proj.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "CtrlZed.csproj has no Version value." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "filename=CtrlZed-$version-win-x64" >> $env:GITHUB_OUTPUT
+
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip
-          (Get-FileHash artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.11.0-beta.11-win-x64.sha256
+          $base = "${{ steps.version.outputs.filename }}"
+          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath "artifacts/$base.zip"
+          (Get-FileHash "artifacts/$base.zip" -Algorithm SHA256).Hash | Out-File "artifacts/$base.sha256"
+
       - uses: actions/upload-artifact@v7
         with:
-          name: CtrlZed-0.11.0-beta.11-win-x64
+          name: ${{ steps.version.outputs.filename }}
           path: |
-            artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip
-            artifacts/CtrlZed-0.11.0-beta.11-win-x64.sha256
+            artifacts/${{ steps.version.outputs.filename }}.zip
+            artifacts/${{ steps.version.outputs.filename }}.sha256
 
       - name: Publish GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.11.0-beta.11"
+          $version = "${{ steps.version.outputs.version }}"
+          $base = "${{ steps.version.outputs.filename }}"
+          $tag = "v$version"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) {
             gh release delete $tag --yes --cleanup-tag
           }
-          gh release create $tag artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip artifacts/CtrlZed-0.11.0-beta.11-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.11.0 beta 11" --notes "Beta 11 adds direct AI return into the macro editor and document, preview/insert/replace workflows, secure per-user API credentials, AI_REWRITE/AI_INSERT safe macro commands, and native CtrlZed chart rendering for AI comparison data. Browser fallbacks remain for ChatGPT, Copilot, Claude and Gemini."
+          $display = $version -replace '-beta\.', ' beta '
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 12 adds opt-in extended macros in Macro Manager, including interactive prompts and local QR-code generation/insertion at the current cursor position. Safe macro mode remains the default."
