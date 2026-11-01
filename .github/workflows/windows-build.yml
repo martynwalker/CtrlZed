@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 14 enables opt-in live VB.NET and C# macros using Roslyn compilation, supports Run(RichTextBox) entry points, and includes compiled macros in the right-click Macros submenu when MENU_OPTION and MENU_NAME constants are present."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 14.1 fixes AI macro authoring so C# and VB.NET files receive compiled-macro prompts instead of the restricted .czm language prompt, including Clipboard and standard .NET/WPF APIs."
