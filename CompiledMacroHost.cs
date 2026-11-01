@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
+using System.IO;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Windows;
@@ -116,6 +117,6 @@ public static class CompiledMacroHost
         paths.Add(typeof(RichTextBox).Assembly.Location);
         paths.Add(typeof(Window).Assembly.Location);
 
-        return paths.Select(MetadataReference.CreateFromFile).ToList();
+        return paths.Select(path=>(MetadataReference)MetadataReference.CreateFromFile(path)).ToList();
     }
 }
