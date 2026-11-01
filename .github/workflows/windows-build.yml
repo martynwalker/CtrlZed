@@ -73,4 +73,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 12.1 fixes AI macro generation in extended mode so implemented PROMPT and INSERT_QR commands are treated as available rather than incorrectly rejected as safe-mode limitations."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 13 adds MENU_OPTION and MENU_NAME macro metadata and a dynamic right-click Macros submenu on the document canvas, while retaining extended macro support."
