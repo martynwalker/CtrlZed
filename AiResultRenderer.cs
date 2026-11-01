@@ -240,6 +240,27 @@ Treat every command explicitly listed in the reference as implemented and availa
 Only return an unsupported-capability explanation when the required capability is genuinely absent from the supplied reference.";
     }
 
+    public static string EmbedMacroPrompt(string source,string macroExtension,string instruction,string provider)
+    {
+        source=(source??"").Trim();
+        instruction=(instruction??"").Trim();
+        if(string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(instruction))return source;
+        if(source.Contains("CTRLZED AI PROMPT",StringComparison.OrdinalIgnoreCase))return source;
+
+        macroExtension=(macroExtension??".czm").ToLowerInvariant();
+        var prefix=macroExtension==".vb"?"'":macroExtension==".cs"?"//":"#";
+        var lines=instruction.Replace("\r\n","\n").Replace('\r','\n').Split('\n');
+        var header=new List<string>
+        {
+            $"{prefix} CTRLZED AI PROMPT",
+            $"{prefix} Provider: {provider}",
+        };
+        foreach(var line in lines)header.Add($"{prefix} {line}");
+        header.Add($"{prefix} END CTRLZED AI PROMPT");
+        header.Add("");
+        return string.Join(Environment.NewLine,header)+source;
+    }
+
     static string TrimContext(string text,int max)
     {
         if(string.IsNullOrEmpty(text))return "";
