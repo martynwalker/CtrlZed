@@ -73,4 +73,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 12 adds opt-in extended macros in Macro Manager, including interactive prompts and local QR-code generation/insertion at the current cursor position. Safe macro mode remains the default."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 12.1 fixes AI macro generation in extended mode so implemented PROMPT and INSERT_QR commands are treated as available rather than incorrectly rejected as safe-mode limitations."
