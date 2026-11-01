@@ -1289,7 +1289,7 @@ public partial class MainWindow : Window
                 }
                 catch(Exception ex)
                 {
-                    MessageBox.Show(ex.Message,"Macro",MessageBoxButton.OK,MessageBoxImage.Error);
+                    ShowMacroError(macro.Name,ex);
                 }
             };
             macros.Items.Add(item);
@@ -2056,7 +2056,7 @@ public static class CtrlZedMacro
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message,"Macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);
+                ShowMacroError(selected,ex);
             }
         };
 
@@ -2297,6 +2297,56 @@ public static class CtrlZedMacro
         MarkDirty();UpdateDocumentStats();Editor.Focus();
     }
 
+    void ShowMacroError(string macroName,Exception ex)
+    {
+        var stage=ex is CompiledMacroException cme?cme.Stage:"Execution";
+        var details=new System.Text.StringBuilder();
+        details.AppendLine("CtrlZed Macro Diagnostic");
+        details.AppendLine($"Macro: {macroName}");
+        details.AppendLine($"Type: {Path.GetExtension(macroName).TrimStart('.').ToUpperInvariant()}");
+        details.AppendLine($"Stage: {stage}");
+        details.AppendLine($"Exception: {ex.GetType().FullName}");
+        details.AppendLine($"Message: {ex.Message}");
+        if(ex.InnerException!=null)
+        {
+            details.AppendLine();
+            details.AppendLine($"Inner exception: {ex.InnerException.GetType().FullName}");
+            details.AppendLine($"Inner message: {ex.InnerException.Message}");
+        }
+        if(!string.IsNullOrWhiteSpace(ex.StackTrace))
+        {
+            details.AppendLine();
+            details.AppendLine("Stack trace:");
+            details.AppendLine(ex.StackTrace);
+        }
+
+        var w=new Window{Title="Macro Error",Owner=this,Width=720,Height=430,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
+        var root=new DockPanel{Margin=new Thickness(12)};
+        var summary=new TextBlock
+        {
+            Text=$"{macroName}\n{stage}: {ex.Message}",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10),FontWeight=FontWeights.SemiBold
+        };
+        DockPanel.SetDock(summary,Dock.Top);root.Children.Add(summary);
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+        var copy=new Button{Content="Copy Details",Width=100,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=80,Margin=new Thickness(4),IsDefault=true};
+        copy.Click+=(_,__)=>{try{Clipboard.SetText(details.ToString());Status.Text="Macro diagnostic copied.";}catch{}};
+        close.Click+=(_,__)=>w.Close();
+        buttons.Children.Add(copy);buttons.Children.Add(close);
+        DockPanel.SetDock(buttons,Dock.Bottom);root.Children.Add(buttons);
+
+        var box=new TextBox
+        {
+            Text=details.ToString(),IsReadOnly=true,AcceptsReturn=true,TextWrapping=TextWrapping.NoWrap,
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+            FontFamily=new FontFamily("Consolas")
+        };
+        root.Children.Add(box);
+        w.Content=root;w.ShowDialog();
+    }
+
     string? ShowMacroInput(string prompt,string initialValue="")
     {
         var w=new Window{Title="CtrlZed Macro",Owner=this,Width=500,Height=180,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
@@ -2383,7 +2433,7 @@ public static class CtrlZedMacro
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
                 try{await RunMacroSourceAsync(macro.Name,macro.Source);Status.Text="Macro: "+macro.Name;}
-                catch(Exception ex){MessageBox.Show(ex.Message,"Macro shortcut",MessageBoxButton.OK,MessageBoxImage.Error);}
+                catch(Exception ex){ShowMacroError(macro.Name,ex);}
                 return true;
             }
         }
@@ -2517,6 +2567,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.14.1 beta 14.1").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.14.2 beta 14.2").ShowDialog();
     }
 }
