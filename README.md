@@ -4,9 +4,9 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 11
+## Current release: Beta 13.1
 
-Beta 7 builds on the working `.czd` editor and adds:
+Beta 13.1 builds on the working `.czd` editor and adds or retains:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
@@ -23,11 +23,18 @@ Beta 7 builds on the working `.czd` editor and adds:
 - backward-motion CtrlZed brand icon in navy, gold and white
 - branded About box and Windows window/taskbar identity
 - automated functional self-test mode used by CI
-- existing page guides, page gaps, page preview, headers/footers, fields, pictures, tables, lists, page breaks and recovery
+- page guides, page gaps, page preview, headers/footers, fields, pictures, tables, lists, page breaks and recovery
+- AI Manager with direct and browser-assisted provider workflows
+- safe and extended `.czm` macros
+- interactive macro prompts and QR-code insertion in extended mode
+- right-click **Macros** submenu on the document canvas
+- `MENU_OPTION` and `MENU_NAME` metadata for context-menu macros
+- friendly macro names in Macro Manager
+- explicit rename support for central macro files
 
 ### DOCX interchange
 
-DOCX support uses the MIT-licensed Open XML SDK 3.5.1. It is deliberately conservative in Beta 7.
+DOCX support uses the MIT-licensed Open XML SDK 3.5.1. It remains deliberately conservative.
 
 Currently targeted for round-trip:
 
@@ -53,7 +60,7 @@ Use `.czd` as the canonical working format and DOCX as an interchange format.
 
 ### Functional release gate
 
-A release must now pass:
+A release must pass:
 
 1. compile on GitHub-hosted Windows
 2. self-contained Windows publish
@@ -66,9 +73,60 @@ A release must now pass:
 9. Open XML schema validation
 10. packaging and prerelease publication
 
-## Safe macros
+## Macros
 
-Executable `.czm` macros remain restricted to CtrlZed's approved command language. C# and VB.NET source can be stored in the macro library but is not executed because Roslyn compilation is not a security sandbox.
+Executable `.czm` macros use CtrlZed's approved command language. Extended mode can additionally allow interactive prompts and locally generated document images such as QR codes.
+
+A `.czm` macro may declare:
+
+```text
+# SHORTCUT: Ctrl+Alt+M
+MENU_OPTION=1
+MENU_NAME="Insert QR Code"
+```
+
+When both `MENU_OPTION` and `MENU_NAME` are present, the macro appears in the document's right-click **Macros** submenu. `MENU_OPTION` controls ordering.
+
+VB.NET and C# macro source can also be stored in the Macro Library. CtrlZed recognises language-native friendly-name constants for display:
+
+```vbnet
+Public Const MENU_OPTION As Integer = 1
+Public Const MENU_NAME As String = "Clipboard to Two Columns"
+```
+
+```csharp
+public const int MENU_OPTION = 1;
+public const string MENU_NAME = "Clipboard to Two Columns";
+```
+
+VB.NET and C# source remain non-executable for now; they are retained in preparation for a future compiled macro host.
+
+## AI workflows
+
+The AI Manager can return generated material directly into CtrlZed when a direct provider connection is configured.
+
+Document workflow:
+
+- send the instruction plus selected text / document context to the chosen provider
+- preview the returned material
+- Insert at Cursor or Replace Selection
+- recognised CTRLZED_CHART blocks are rendered as document charts
+
+Macro workflow:
+
+- Ask AI from the Macro Manager
+- generated `.czm` source returns directly into the macro editing field for review
+- nothing is saved or run automatically
+- in extended mode, AI is explicitly informed that implemented commands such as `PROMPT` and `INSERT_QR` are available
+
+Safe macros also support:
+
+- `AI_REWRITE instruction` — sends the current selection to the configured default AI and replaces it
+- `AI_INSERT instruction` — asks the configured AI for new material and inserts the result
+
+Direct API credentials are encrypted with Windows DPAPI for the current Windows user and never stored inside `.czd` files. ChatGPT/OpenAI, Claude and Gemini support direct mode. Copilot Chat remains a browser handoff because Microsoft does not expose a general consumer Copilot Chat API.
+
+Browser/free and signed-in handoff remain available for all four providers, with Paste Browser Result available as a manual return route.
 
 ## Development principles
 
@@ -83,41 +141,3 @@ Executable `.czm` macros remain restricted to CtrlZed's approved command languag
 ## Licence
 
 MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.md).
-
-
-## Beta 10 macro and AI manager
-
-Safe .czm macros now support document text, fields, page breaks, styles, alignment, bullets, numbering, find/replace, table insertion, headers/footers and document properties. Macros may live in the central user library or be embedded in a .czd document.
-
-A macro can declare a shortcut using:
-
-```
-# SHORTCUT: Ctrl+Alt+M
-```
-
-Tools -> AI Manager prepares a provider-neutral macro-authoring prompt and copies it to the clipboard. The user can open ChatGPT (default), Copilot, Claude or Gemini either in a private/free browser session where practical or in their normal signed-in browser. CtrlZed does not store provider passwords or scrape browser sessions.
-
-Direct provider API/OAuth integration is deliberately deferred until each provider can be integrated without storing raw browser credentials.
-
-## Beta 11 direct AI return
-
-The AI Manager can now return generated material directly into CtrlZed when a direct provider connection is configured.
-
-Document workflow:
-- send the instruction plus selected text / document context to the chosen provider
-- preview the returned material
-- Insert at Cursor or Replace Selection
-- recognised CTRLZED_CHART blocks are rendered as document charts
-
-Macro workflow:
-- Ask AI from the Macro Manager
-- generated .czm source returns directly into the macro editing field for review
-- nothing is saved or run automatically
-
-Safe macros also support:
-- AI_REWRITE instruction — sends the current selection to the configured default AI and replaces it
-- AI_INSERT instruction — asks the configured AI for new material and inserts the result
-
-Direct API credentials are encrypted with Windows DPAPI for the current Windows user and never stored inside .czd files. ChatGPT/OpenAI, Claude and Gemini support direct mode. Copilot Chat remains a browser handoff because Microsoft does not expose a general consumer Copilot Chat API.
-
-Browser/free and signed-in handoff remain available for all four providers, with Paste Browser Result available as a manual return route.
