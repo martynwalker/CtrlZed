@@ -2,6 +2,21 @@ namespace CtrlZed;
 
 public static class SafeMacroLanguage
 {
+    public const string ExtendedReference =
+@"EXTENDED MACROS ARE ENABLED.
+In addition to every safe command below, you may use:
+PROMPT variable prompt text
+INSERT_QR text-or-{variable}
+
+Use PROMPT to collect user input into a named variable, then reference it as {variable} in later commands.
+Example:
+# NAME: Insert QR Code
+# DESCRIPTION: Asks for a link and inserts its QR code at the cursor.
+PROMPT LINK Enter the link or text for the QR code:
+INSERT_QR {LINK}
+
+" + Reference;
+
     public const string Reference =
 @"INSERT_TEXT text
 INSERT_FIELD name
