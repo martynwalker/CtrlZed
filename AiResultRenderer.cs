@@ -182,6 +182,8 @@ Requirements:
   public const int MENU_OPTION = 1;
   public const string MENU_NAME = ""Macro Name"";
 - Do not claim that C#, .NET, Clipboard or system APIs are unavailable.
+- Do not target Microsoft Word, Office Interop, VBA, CommandBars or Word Selection. Work through the supplied WPF RichTextBox Editor and ordinary .NET/WPF APIs.
+- Do not include installation instructions; return source only.
 - Use British English in user-facing strings unless the request says otherwise.";
         }
 
@@ -210,6 +212,9 @@ Requirements:
   Public Const MENU_OPTION As Integer = 1
   Public Const MENU_NAME As String = ""Macro Name""
 - Do not claim that VB.NET, .NET, Clipboard or system APIs are unavailable.
+- Generate VB.NET, NOT VBA. Do not use Option Explicit, Set assignment syntax, On Error GoTo/Resume Next, CommandBars, Word Selection, wd* constants, Alt+F11 instructions, or Microsoft Word's VBA object model.
+- Work through the supplied WPF RichTextBox Editor and ordinary .NET/WPF APIs.
+- Do not include installation instructions; return source only.
 - Use British English in user-facing strings unless the request says otherwise.";
         }
 
