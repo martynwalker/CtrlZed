@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CtrlZed</AssemblyName>
-    <Version>0.14.2-beta.14.2</Version>
+    <Version>0.14.3-beta.14.3</Version>
       <ApplicationIcon>CtrlZed.generated.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
