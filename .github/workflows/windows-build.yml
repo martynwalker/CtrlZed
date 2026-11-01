@@ -2,6 +2,9 @@ name: Windows beta build
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
   workflow_dispatch:
 permissions:
   contents: write
