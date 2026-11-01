@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     string documentSubject = "";
     string documentKeywords = "";
     double zoomPercent = 100;
+    bool extendedMacrosEnabled;
 
     sealed class CzdSettings
     {
@@ -626,6 +627,7 @@ public partial class MainWindow : Window
     {
         public List<string> RecentFiles { get; set; } = new();
         public double ZoomPercent { get; set; } = 100;
+        public bool ExtendedMacrosEnabled { get; set; }
     }
 
     void LoadAppSettings()
@@ -638,6 +640,7 @@ public partial class MainWindow : Window
             recentFiles.Clear();
             recentFiles.AddRange(settings.RecentFiles.Where(File.Exists).Take(10));
             zoomPercent=Math.Clamp(settings.ZoomPercent,50,150);
+            extendedMacrosEnabled=settings.ExtendedMacrosEnabled;
             ApplyZoom();
         }
         catch { }
@@ -650,7 +653,8 @@ public partial class MainWindow : Window
             File.WriteAllText(settingsFile,JsonSerializer.Serialize(new AppSettings
             {
                 RecentFiles=recentFiles.Take(10).ToList(),
-                ZoomPercent=zoomPercent
+                ZoomPercent=zoomPercent,
+                ExtendedMacrosEnabled=extendedMacrosEnabled
             }));
         }
         catch { }
@@ -1722,12 +1726,31 @@ public partial class MainWindow : Window
         Grid.SetColumn(left,0);grid.Children.Add(left);
 
         var right=new DockPanel();
+        var warningPanel=new StackPanel{Margin=new Thickness(0,0,0,8)};
         var warning=new TextBlock
         {
-            Text="Safe .czm macros run through CtrlZed's restricted command interpreter. C# and VB.NET remain source-only until a genuine OS sandbox exists.",
-            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8),Foreground=Brushes.DimGray
+            Text="Safe mode restricts .czm macros to CtrlZed document commands. Enable extended macros to allow interactive prompts and generated images such as QR codes.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray
         };
-        DockPanel.SetDock(warning,Dock.Top);right.Children.Add(warning);
+        var extended=new CheckBox
+        {
+            Content="Allow extended macros (interactive prompts and generated images)",
+            IsChecked=extendedMacrosEnabled,
+            Margin=new Thickness(0,7,0,0),
+            ToolTip="Off by default. When enabled, macros may ask for input and generate images inside the document."
+        };
+        extended.Checked+=(_,__)=>
+        {
+            extendedMacrosEnabled=true;SaveAppSettings();
+            warning.Text="Extended macros are enabled. Interactive prompts and generated images are allowed.";
+        };
+        extended.Unchecked+=(_,__)=>
+        {
+            extendedMacrosEnabled=false;SaveAppSettings();
+            warning.Text="Safe mode is enabled. Interactive prompts and generated images are blocked.";
+        };
+        warningPanel.Children.Add(warning);warningPanel.Children.Add(extended);
+        DockPanel.SetDock(warningPanel,Dock.Top);right.Children.Add(warningPanel);
 
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
@@ -1835,7 +1858,7 @@ INSERT_FIELD date
             refresh();list.SelectedItem="Central | "+selected;
         };
 
-        ai.Click+=(_,__)=>AiManager.ShowForMacro(w,SafeMacroLanguage.Reference,code.Text,result=>
+        ai.Click+=(_,__)=>AiManager.ShowForMacro(w,extendedMacrosEnabled?SafeMacroLanguage.ExtendedReference:SafeMacroLanguage.Reference,code.Text,result=>
         {
             code.Text=result;
             code.CaretIndex=code.Text.Length;
@@ -1850,6 +1873,12 @@ INSERT_FIELD date
     {
         var lines=source.Replace("\r\n","\n").Split('\n');
         var executed=0;
+        var variables=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        string ExpandMacroVariables(string value)
+        {
+            foreach(var pair in variables)value=value.Replace("{"+pair.Key+"}",pair.Value,StringComparison.OrdinalIgnoreCase);
+            return value;
+        }
         foreach(var raw in lines)
         {
             var line=raw.Trim();
@@ -1860,6 +1889,7 @@ INSERT_FIELD date
             var split=line.IndexOf(' ');
             var command=(split<0?line:line[..split]).Trim().ToUpperInvariant();
             var argument=split<0?"":line[(split+1)..];
+            argument=ExpandMacroVariables(argument);
 
             switch(command)
             {
@@ -1945,6 +1975,25 @@ INSERT_FIELD date
                     MarkDirty("Document property changed by safe macro.");
                     break;
                 }
+                case "PROMPT":
+                {
+                    if(!extendedMacrosEnabled)throw new InvalidOperationException("PROMPT requires 'Allow extended macros' in Macro Manager.");
+                    var pos=argument.IndexOf(' ');
+                    if(pos<1)throw new InvalidOperationException("PROMPT expects: variable prompt text");
+                    var name=argument[..pos].Trim();
+                    var promptText=argument[(pos+1)..].Trim();
+                    var value=ShowMacroInput(promptText);
+                    if(value==null)return;
+                    variables[name]=value;
+                    break;
+                }
+                case "INSERT_QR":
+                {
+                    if(!extendedMacrosEnabled)throw new InvalidOperationException("INSERT_QR requires 'Allow extended macros' in Macro Manager.");
+                    if(string.IsNullOrWhiteSpace(argument))throw new InvalidOperationException("INSERT_QR expects text or a URL.");
+                    InsertQrCode(argument);
+                    break;
+                }
                 case "AI_REWRITE":
                 {
                     var selectedText=new TextRange(Editor.Selection.Start,Editor.Selection.End).Text;
@@ -1971,6 +2020,45 @@ INSERT_FIELD date
             }
         }
         MarkDirty();UpdateDocumentStats();Editor.Focus();
+    }
+
+    string? ShowMacroInput(string prompt)
+    {
+        var w=new Window{Title="CtrlZed Macro",Owner=this,Width=500,Height=180,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var g=new Grid{Margin=new Thickness(14)};
+        g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        var label=new TextBlock{Text=prompt,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
+        var input=new TextBox{Margin=new Thickness(0,0,0,10)};
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var ok=new Button{Content="OK",Width=80,IsDefault=true,Margin=new Thickness(4)};
+        var cancel=new Button{Content="Cancel",Width=80,IsCancel=true,Margin=new Thickness(4)};
+        buttons.Children.Add(ok);buttons.Children.Add(cancel);
+        Grid.SetRow(label,0);Grid.SetRow(input,1);Grid.SetRow(buttons,2);
+        g.Children.Add(label);g.Children.Add(input);g.Children.Add(buttons);
+        ok.Click+=(_,__)=>w.DialogResult=true;
+        w.Content=g;
+        input.Loaded+=(_,__)=>input.Focus();
+        return w.ShowDialog()==true?input.Text:null;
+    }
+
+    void InsertQrCode(string text)
+    {
+        using var generator=new QRCoder.QRCodeGenerator();
+        using var data=generator.CreateQrCode(text,QRCoder.QRCodeGenerator.ECCLevel.Q);
+        var qr=new QRCoder.PngByteQRCode(data);
+        var bytes=qr.GetGraphic(12);
+        var bitmap=new BitmapImage();
+        using(var stream=new MemoryStream(bytes))
+        {
+            bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;bitmap.StreamSource=stream;bitmap.EndInit();bitmap.Freeze();
+        }
+        var image=new Image{Source=bitmap,Width=180,Height=180,Stretch=Stretch.Uniform,Margin=new Thickness(4)};
+        var ui=new InlineUIContainer(image,Editor.CaretPosition);
+        WirePictureContainer(ui,image);
+        Editor.CaretPosition=ui.ElementEnd;
+        MarkDirty("QR code inserted.");
     }
 
     void ReplaceAllText(string find,string replacement)
