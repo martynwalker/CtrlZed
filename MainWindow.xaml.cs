@@ -1143,16 +1143,104 @@ public partial class MainWindow : Window
 
     void Editor_PreviewMouseRightButtonDown(object sender,MouseButtonEventArgs e)
     {
-        var img=FindPictureAtPoint(e.GetPosition(Editor));
-        if(img==null)return;
-
+        var point=e.GetPosition(Editor);
+        var img=FindPictureAtPoint(point);
         e.Handled=true;
+
+        if(img!=null)
+        {
+            var imageMenu=new ContextMenu();
+            var properties=new MenuItem{Header="Picture Properties…"};
+            properties.Click+=(_,__)=>ShowPicturePropertiesSafely(img);
+            imageMenu.Items.Add(properties);
+            AddMacroSubmenu(imageMenu);
+            imageMenu.PlacementTarget=Editor;
+            imageMenu.IsOpen=true;
+            return;
+        }
+
+        var pointer=Editor.GetPositionFromPoint(point,true);
+        if(pointer!=null && Editor.Selection.IsEmpty)Editor.CaretPosition=pointer;
+
         var menu=new ContextMenu();
-        var properties=new MenuItem{Header="Picture Properties…"};
-        properties.Click+=(_,__)=>ShowPicturePropertiesSafely(img);
-        menu.Items.Add(properties);
+        AddMacroSubmenu(menu);
+        if(menu.Items.Count>0)menu.Items.Add(new Separator());
+
+        var cut=new MenuItem{Header="Cut",Command=ApplicationCommands.Cut,CommandTarget=Editor,InputGestureText="Ctrl+X"};
+        var copy=new MenuItem{Header="Copy",Command=ApplicationCommands.Copy,CommandTarget=Editor,InputGestureText="Ctrl+C"};
+        var paste=new MenuItem{Header="Paste",Command=ApplicationCommands.Paste,CommandTarget=Editor,InputGestureText="Ctrl+V"};
+        menu.Items.Add(cut);menu.Items.Add(copy);menu.Items.Add(paste);
         menu.PlacementTarget=Editor;
         menu.IsOpen=true;
+    }
+
+    IEnumerable<(string Name,string Source)> GetMacroSources()
+    {
+        var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
+        if(Directory.Exists(dir))
+            foreach(var path in Directory.GetFiles(dir,"*.czm"))
+                yield return (Path.GetFileName(path),File.ReadAllText(path));
+        foreach(var pair in embeddedMacros)yield return (pair.Key,pair.Value);
+    }
+
+    static (int Option,string MenuName)? GetMacroMenuMetadata(string source)
+    {
+        int? option=null;
+        string? menuName=null;
+        foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
+        {
+            var line=raw.Trim();
+            if(line.StartsWith("#"))line=line[1..].Trim();
+            if(line.StartsWith("MENU_OPTION",StringComparison.OrdinalIgnoreCase))
+            {
+                var eq=line.IndexOf('=');
+                if(eq>=0 && int.TryParse(line[(eq+1)..].Trim(),out var n) && n>0)option=n;
+            }
+            else if(line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))
+            {
+                var eq=line.IndexOf('=');
+                if(eq>=0)
+                {
+                    var value=line[(eq+1)..].Trim();
+                    if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
+                    if(!string.IsNullOrWhiteSpace(value))menuName=value;
+                }
+            }
+        }
+        return option.HasValue && !string.IsNullOrWhiteSpace(menuName)?(option.Value,menuName):null;
+    }
+
+    void AddMacroSubmenu(ContextMenu menu)
+    {
+        var entries=GetMacroSources()
+            .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source)))
+            .Where(x=>x.Meta.HasValue)
+            .OrderBy(x=>x.Meta!.Value.Option)
+            .ThenBy(x=>x.Meta!.Value.MenuName,StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if(entries.Count==0)return;
+
+        var macros=new MenuItem{Header="Macros"};
+        foreach(var entry in entries)
+        {
+            var item=new MenuItem{Header=entry.Meta!.Value.MenuName};
+            var macro=entry.Macro;
+            item.Click+=async (_,__)=>
+            {
+                try
+                {
+                    await RunSafeMacroAsync(macro.Source);
+                    Status.Text="Macro: "+entry.Meta!.Value.MenuName;
+                }
+                catch(Exception ex)
+                {
+                    MessageBox.Show(ex.Message,"Macro",MessageBoxButton.OK,MessageBoxImage.Error);
+                }
+            };
+            macros.Items.Add(item);
+        }
+        menu.Items.Add(macros);
     }
 
     Image? FindPictureAtPoint(Point point)
@@ -1883,6 +1971,7 @@ INSERT_FIELD date
         {
             var line=raw.Trim();
             if(line.Length==0 || line.StartsWith("#"))continue;
+            if(line.StartsWith("MENU_OPTION",StringComparison.OrdinalIgnoreCase) || line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))continue;
             executed++;
             if(executed>200)throw new InvalidOperationException("Safe macro exceeds the 200-command limit.");
 
@@ -2099,16 +2188,7 @@ INSERT_FIELD date
         var pressed=BuildShortcutString(e);
         if(string.IsNullOrWhiteSpace(pressed))return false;
 
-        IEnumerable<(string Name,string Source)> Sources()
-        {
-            var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
-            if(Directory.Exists(dir))
-                foreach(var path in Directory.GetFiles(dir,"*.czm"))
-                    yield return (Path.GetFileName(path),File.ReadAllText(path));
-            foreach(var pair in embeddedMacros)yield return (pair.Key,pair.Value);
-        }
-
-        foreach(var macro in Sources())
+        foreach(var macro in GetMacroSources())
         {
             var configured=macro.Source.Replace("\r\n","\n").Split('\n')
                 .FirstOrDefault(x=>x.TrimStart().StartsWith("# SHORTCUT:",StringComparison.OrdinalIgnoreCase));
