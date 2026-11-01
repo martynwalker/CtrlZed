@@ -1646,7 +1646,53 @@ public partial class MainWindow : Window
 
     void AiManager_Click(object s,RoutedEventArgs e)
     {
-        AiManager.Show(this,SafeMacroLanguage.Reference);
+        var selected=new TextRange(Editor.Selection.Start,Editor.Selection.End).Text;
+        var whole=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text;
+        AiManager.ShowForDocument(this,selected,whole,ApplyAiDocumentResult);
+    }
+
+    void ApplyAiDocumentResult(string result,bool replaceSelection)
+    {
+        if(string.IsNullOrWhiteSpace(result))return;
+
+        if(replaceSelection && !Editor.Selection.IsEmpty)
+        {
+            Editor.Selection.Text="";
+            Editor.CaretPosition=Editor.Selection.Start;
+        }
+
+        foreach(var part in AiResultRenderer.Parse(result))
+        {
+            if(!string.IsNullOrWhiteSpace(part.Text))
+            {
+                var text=part.Text.Trim();
+                Editor.CaretPosition.InsertTextInRun(text);
+                EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+            }
+            if(part.Image!=null)
+            {
+                try
+                {
+                    var image=new Image
+                    {
+                        Source=part.Image,Width=Math.Min(680,part.Image.PixelWidth),
+                        Stretch=Stretch.Uniform,Margin=new Thickness(4,8,4,8)
+                    };
+                    new InlineUIContainer(image,Editor.CaretPosition);
+                    EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+                    WirePicture(image);
+                }
+                catch
+                {
+                    Editor.CaretPosition.InsertTextInRun("[Chart could not be inserted]");
+                    EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+                }
+            }
+        }
+
+        MarkDirty(replaceSelection?"AI replaced the selection.":"AI result inserted.");
+        UpdateDocumentStats();
+        Editor.Focus();
     }
 
     void MacroLibrary_Click(object s,RoutedEventArgs e)
@@ -1763,12 +1809,12 @@ INSERT_FIELD date
             Status.Text="Macro source saved.";
         };
 
-        run.Click+=(_,__)=>
+        run.Click+=async (_,__)=>
         {
             if(selected==null || !Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase))return;
             if(selectedEmbedded)embeddedMacros[selected]=code.Text;
             else File.WriteAllText(Path.Combine(dir,selected),code.Text);
-            try{RunSafeMacro(code.Text);Status.Text="Safe macro completed.";}
+            try{await RunSafeMacroAsync(code.Text);Status.Text="Safe macro completed.";}
             catch(Exception ex){MessageBox.Show(ex.Message,"Safe macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);}
         };
 
@@ -1789,13 +1835,18 @@ INSERT_FIELD date
             refresh();list.SelectedItem="Central | "+selected;
         };
 
-        ai.Click+=(_,__)=>AiManager.Show(w,SafeMacroLanguage.Reference);
+        ai.Click+=(_,__)=>AiManager.ShowForMacro(w,SafeMacroLanguage.Reference,code.Text,result=>
+        {
+            code.Text=result;
+            code.CaretIndex=code.Text.Length;
+            code.Focus();
+        });
 
         refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
     }
 
-    void RunSafeMacro(string source)
+    async Task RunSafeMacroAsync(string source)
     {
         var lines=source.Replace("\r\n","\n").Split('\n');
         var executed=0;
@@ -1894,6 +1945,27 @@ INSERT_FIELD date
                     MarkDirty("Document property changed by safe macro.");
                     break;
                 }
+                case "AI_REWRITE":
+                {
+                    var selectedText=new TextRange(Editor.Selection.Start,Editor.Selection.End).Text;
+                    if(string.IsNullOrWhiteSpace(selectedText))
+                        throw new InvalidOperationException("AI_REWRITE requires selected text.");
+                    var provider=AiManager.GetDefaultProvider();
+                    var prompt=AiResultRenderer.DocumentPrompt(argument,selectedText,"",false);
+                    var response=await AiDirectService.GenerateAsync(provider,prompt,false);
+                    Editor.Selection.Text=response;
+                    MarkDirty("AI rewrote the selected text.");
+                    break;
+                }
+                case "AI_INSERT":
+                {
+                    var provider=AiManager.GetDefaultProvider();
+                    var whole=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text;
+                    var prompt=AiResultRenderer.DocumentPrompt(argument,"",whole,true);
+                    var response=await AiDirectService.GenerateAsync(provider,prompt,true);
+                    ApplyAiDocumentResult(response,false);
+                    break;
+                }
                 default:
                     throw new InvalidOperationException($"Unsupported safe macro command: {command}");
             }
@@ -1933,7 +2005,7 @@ INSERT_FIELD date
         MarkDirty($"Inserted {rows} × {cols} table.");
     }
 
-    bool TryRunMacroShortcut(KeyEventArgs e)
+    async Task<bool> TryRunMacroShortcutAsync(KeyEventArgs e)
     {
         if(e.IsRepeat)return false;
         var pressed=BuildShortcutString(e);
@@ -1956,7 +2028,7 @@ INSERT_FIELD date
             var shortcut=configured[(configured.IndexOf(':')+1)..].Trim();
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
-                try{RunSafeMacro(macro.Source);Status.Text="Macro: "+macro.Name;}
+                try{await RunSafeMacroAsync(macro.Source);Status.Text="Macro: "+macro.Name;}
                 catch(Exception ex){MessageBox.Show(ex.Message,"Macro shortcut",MessageBoxButton.OK,MessageBoxImage.Error);}
                 return true;
             }
@@ -2001,9 +2073,9 @@ INSERT_FIELD date
         wordStarPrefix=false;
     }
 
-    void Window_PreviewKeyDown(object sender,KeyEventArgs e)
+    async void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
-        if(TryRunMacroShortcut(e)){e.Handled=true;return;}
+        if(await TryRunMacroShortcutAsync(e)){e.Handled=true;return;}
         if(profile==KeyboardProfile.Word && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift) && e.Key==Key.S)
         {
             SaveAs_Click(this,new RoutedEventArgs());e.Handled=true;return;
@@ -2091,6 +2163,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.9.1 beta 9.1").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.11.0 beta 11").ShowDialog();
     }
 }
