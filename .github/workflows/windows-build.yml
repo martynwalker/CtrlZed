@@ -39,23 +39,23 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip
-          (Get-FileHash artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.10.0-beta.10-win-x64.sha256
+          Compress-Archive -Path artifacts/CtrlZed/* -DestinationPath artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip
+          (Get-FileHash artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip -Algorithm SHA256).Hash | Out-File artifacts/CtrlZed-0.11.0-beta.11-win-x64.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: CtrlZed-0.10.0-beta.10-win-x64
+          name: CtrlZed-0.11.0-beta.11-win-x64
           path: |
-            artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip
-            artifacts/CtrlZed-0.10.0-beta.10-win-x64.sha256
+            artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip
+            artifacts/CtrlZed-0.11.0-beta.11-win-x64.sha256
 
       - name: Publish GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.10.0-beta.10"
+          $tag = "v0.11.0-beta.11"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) {
             gh release delete $tag --yes --cleanup-tag
           }
-          gh release create $tag artifacts/CtrlZed-0.10.0-beta.10-win-x64.zip artifacts/CtrlZed-0.10.0-beta.10-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.10.0 beta 10" --notes "Beta 10 expands safe macros with page breaks, tables, find/replace, alignment, lists and document properties; adds document-embedded macros and keyboard shortcuts; and introduces an AI Macro Manager for ChatGPT, Copilot, Claude and Gemini browser workflows."
+          gh release create $tag artifacts/CtrlZed-0.11.0-beta.11-win-x64.zip artifacts/CtrlZed-0.11.0-beta.11-win-x64.sha256 --prerelease --target "${{ github.sha }}" --title "CtrlZed 0.11.0 beta 11" --notes "Beta 11 adds direct AI return into the macro editor and document, preview/insert/replace workflows, secure per-user API credentials, AI_REWRITE/AI_INSERT safe macro commands, and native CtrlZed chart rendering for AI comparison data. Browser fallbacks remain for ChatGPT, Copilot, Claude and Gemini."
