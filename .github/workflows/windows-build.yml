@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 14.2 fixes compiled-macro reference resolution in single-file builds, embeds Ask AI provenance comments in generated macros, adds stage-aware diagnostics with copyable details, and exercises live C#/VB macros in CI."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 14.3 detects VBA mistakenly supplied as VB.NET before compilation, tightens AI prompts to forbid Word/VBA output, and improves macro diagnostics with selectable text and an always-visible Copy Details button."
