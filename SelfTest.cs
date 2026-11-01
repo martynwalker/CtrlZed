@@ -21,7 +21,7 @@ public static class SelfTest
             if(Branding.CreateIconImageSource()==null)return 26;
             var chart=AiResultRenderer.TryRenderChart("TITLE: Test movements\nFTSE 100|1.2\nDAX|-0.8\nNikkei 225|2.1");
             if(chart==null||chart.PixelWidth<400)return 27;
-            var prompt=AiResultRenderer.MacroPrompt("Insert today's date",SafeMacroLanguage.Reference,"");
+            var prompt=AiResultRenderer.MacroPrompt("Insert today's date",".czm",SafeMacroLanguage.Reference,"");
             if(!prompt.Contains("INSERT_FIELD")||!prompt.Contains("Insert today's date"))return 28;
             var profile=AiDirectService.GetProfile("ChatGPT");
             if(string.IsNullOrWhiteSpace(profile.Model))return 29;
