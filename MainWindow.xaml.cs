@@ -1261,7 +1261,7 @@ public partial class MainWindow : Window
             ?@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+MENU_OPTION\s+As\s+Integer\s*=\s*(\d+)"
             :@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+int\s+MENU_OPTION\s*=\s*(\d+)\s*;";
         var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
-        return match.Success && int.TryParse(match.Groups[1].Value,out var value) && value>0?(value,name):null;
+        return match.Success && int.TryParse(match.Groups[1].Value,out var optionValue) && optionValue>0?(optionValue,name):null;
     }
 
     void AddMacroSubmenu(ContextMenu menu)
