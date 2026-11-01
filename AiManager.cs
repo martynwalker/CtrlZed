@@ -183,7 +183,11 @@ public static class AiManager
         insert.Click+=(_,__)=>
         {
             if(string.IsNullOrWhiteSpace(result.Text))return;
-            if(macroMode)applyMacro?.Invoke(result.Text.Trim());
+            if(macroMode)
+            {
+                var providerName=provider.SelectedItem?.ToString()??"Unknown";
+                applyMacro?.Invoke(AiResultRenderer.EmbedMacroPrompt(result.Text.Trim(),macroExtension,instruction.Text,providerName));
+            }
             else applyDocument?.Invoke(result.Text,false);
             w.Close();
         };
