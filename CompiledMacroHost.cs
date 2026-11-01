@@ -22,6 +22,7 @@ public static class CompiledMacroHost
         if(string.IsNullOrWhiteSpace(source))throw new InvalidOperationException("Macro source is empty.");
 
         extension=(extension??"").ToLowerInvariant();
+        PreflightLanguage(source,extension);
         if(extension is not ".cs" and not ".vb")
             throw new InvalidOperationException("Compiled macros must use .cs or .vb.");
 
@@ -113,6 +114,33 @@ public static class CompiledMacroHost
         finally
         {
             alc.Unload();
+        }
+    }
+
+    static void PreflightLanguage(string source,string extension)
+    {
+        if(extension==".vb")
+        {
+            var vbaMarkers=new[]
+            {
+                "Option Explicit","On Error GoTo","On Error Resume Next","CommandBar","Application.CommandBars",
+                "wdSelectionIP","Selection.Text","Set ","MsgBox ","CreateObject("
+            };
+            var hits=vbaMarkers.Where(x=>source.Contains(x,StringComparison.OrdinalIgnoreCase)).Take(5).ToList();
+            if(hits.Count>=2)
+                throw new CompiledMacroException(
+                    "Language preflight",
+                    "This source appears to be VBA/Word macro code, not VB.NET. CtrlZed compiles .vb macros as VB.NET with Roslyn. "+
+                    "Ask the AI for VB.NET using Public Sub Run(Editor As RichTextBox), not VBA. Detected VBA markers: "+
+                    string.Join(", ",hits));
+        }
+        else if(extension==".cs")
+        {
+            if(source.Contains("Microsoft.Office.Interop.Word",StringComparison.OrdinalIgnoreCase) ||
+               source.Contains("Word.Application",StringComparison.OrdinalIgnoreCase))
+                throw new CompiledMacroException(
+                    "Language preflight",
+                    "This C# macro targets the Microsoft Word object model. CtrlZed macros must operate on the supplied WPF RichTextBox Editor instead.");
         }
     }
 
