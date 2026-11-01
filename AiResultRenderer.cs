@@ -155,8 +155,15 @@ Return only the material suitable for insertion into the document.";
 
     public static string MacroPrompt(string instruction,string macroReference,string existingCode)
     {
+        var extended=macroReference.Contains("EXTENDED MACROS ARE ENABLED",StringComparison.OrdinalIgnoreCase);
+        var mode=extended
+            ?@"You are writing an EXTENDED CtrlZed .czm macro. Extended macro mode is enabled in the application.
+The command reference below is authoritative. PROMPT and INSERT_QR are implemented capabilities when they appear in that reference.
+Do not claim that interactive prompts, QR generation or image insertion are unavailable if PROMPT or INSERT_QR are listed."
+            :@"You are writing a SAFE CtrlZed .czm macro using only the restricted command language below.";
+
         return
-$@"You are writing a safe CtrlZed .czm macro.
+$@"{mode}
 
 User request:
 {instruction}
@@ -166,12 +173,13 @@ Current macro editor content, if any:
 {existingCode}
 ---
 
-Supported CtrlZed safe-macro language:
+Supported CtrlZed macro language for the CURRENT mode:
 {macroReference}
 
 Return ONLY the complete .czm source. Comments may begin with #.
-Do not return Markdown fences, C#, VB.NET, PowerShell, shell commands, filesystem/network/process operations, or invented commands.
-If the request cannot be implemented by this macro language, return a commented .czm explaining the missing capability instead of inventing syntax.";
+Do not return Markdown fences, C#, VB.NET, PowerShell, shell commands, filesystem/network/process operations, or commands absent from the supplied reference.
+Treat every command explicitly listed in the reference as implemented and available.
+Only return an unsupported-capability explanation when the required capability is genuinely absent from the supplied reference.";
     }
 
     static string TrimContext(string text,int max)
