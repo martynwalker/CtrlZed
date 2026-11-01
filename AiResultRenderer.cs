@@ -23,7 +23,7 @@ public static class AiResultRenderer
         foreach(Match match in ChartRegex.Matches(result??""))
         {
             if(match.Index>pos)
-                parts.Add(new AiResultPart(result[pos..match.Index].Trim(),null));
+                parts.Add(new AiResultPart((result??"")[pos..match.Index].Trim(),null));
 
             var chart=TryRenderChart(match.Groups[1].Value);
             if(chart!=null)parts.Add(new AiResultPart(null,chart));
