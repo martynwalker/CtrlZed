@@ -73,4 +73,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 13.1 improves Macro Manager identification with friendly MENU_NAME labels, adds central macro file renaming, and recognises language-native MENU_NAME constants in VB.NET and C# sources."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 14 enables opt-in live VB.NET and C# macros using Roslyn compilation, supports Run(RichTextBox) entry points, and includes compiled macros in the right-click Macros submenu when MENU_OPTION and MENU_NAME constants are present."
