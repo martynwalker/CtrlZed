@@ -2320,28 +2320,32 @@ public static class CtrlZedMacro
             details.AppendLine(ex.StackTrace);
         }
 
-        var w=new Window{Title="Macro Error",Owner=this,Width=720,Height=430,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
+        var w=new Window{Title="Macro Error",Owner=this,Width=780,Height=520,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
         var root=new DockPanel{Margin=new Thickness(12)};
+
+        var top=new DockPanel{Margin=new Thickness(0,0,0,10)};
+        var copy=new Button{Content="Copy Details",Width=105,Margin=new Thickness(8,0,0,0),HorizontalAlignment=HorizontalAlignment.Right};
+        DockPanel.SetDock(copy,Dock.Right);top.Children.Add(copy);
         var summary=new TextBlock
         {
             Text=$"{macroName}\n{stage}: {ex.Message}",
-            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10),FontWeight=FontWeights.SemiBold
+            TextWrapping=TextWrapping.Wrap,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center
         };
-        DockPanel.SetDock(summary,Dock.Top);root.Children.Add(summary);
+        top.Children.Add(summary);
+        DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
 
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
-        var copy=new Button{Content="Copy Details",Width=100,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=80,Margin=new Thickness(4),IsDefault=true};
         copy.Click+=(_,__)=>{try{Clipboard.SetText(details.ToString());Status.Text="Macro diagnostic copied.";}catch{}};
         close.Click+=(_,__)=>w.Close();
-        buttons.Children.Add(copy);buttons.Children.Add(close);
+        buttons.Children.Add(close);
         DockPanel.SetDock(buttons,Dock.Bottom);root.Children.Add(buttons);
 
         var box=new TextBox
         {
-            Text=details.ToString(),IsReadOnly=true,AcceptsReturn=true,TextWrapping=TextWrapping.NoWrap,
-            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
-            FontFamily=new FontFamily("Consolas")
+            Text=details.ToString(),IsReadOnly=true,AcceptsReturn=true,IsReadOnlyCaretVisible=true,
+            TextWrapping=TextWrapping.NoWrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,FontFamily=new FontFamily("Consolas")
         };
         root.Children.Add(box);
         w.Content=root;w.ShowDialog();
@@ -2567,6 +2571,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.14.2 beta 14.2").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.14.3 beta 14.3").ShowDialog();
     }
 }
