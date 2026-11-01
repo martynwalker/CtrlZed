@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     string documentKeywords = "";
     double zoomPercent = 100;
     bool extendedMacrosEnabled;
+    bool compiledMacrosEnabled;
 
     sealed class CzdSettings
     {
@@ -628,6 +629,7 @@ public partial class MainWindow : Window
         public List<string> RecentFiles { get; set; } = new();
         public double ZoomPercent { get; set; } = 100;
         public bool ExtendedMacrosEnabled { get; set; }
+        public bool CompiledMacrosEnabled { get; set; }
     }
 
     void LoadAppSettings()
@@ -641,6 +643,7 @@ public partial class MainWindow : Window
             recentFiles.AddRange(settings.RecentFiles.Where(File.Exists).Take(10));
             zoomPercent=Math.Clamp(settings.ZoomPercent,50,150);
             extendedMacrosEnabled=settings.ExtendedMacrosEnabled;
+            compiledMacrosEnabled=settings.CompiledMacrosEnabled;
             ApplyZoom();
         }
         catch { }
@@ -654,7 +657,8 @@ public partial class MainWindow : Window
             {
                 RecentFiles=recentFiles.Take(10).ToList(),
                 ZoomPercent=zoomPercent,
-                ExtendedMacrosEnabled=extendedMacrosEnabled
+                ExtendedMacrosEnabled=extendedMacrosEnabled,
+                CompiledMacrosEnabled=compiledMacrosEnabled
             }));
         }
         catch { }
@@ -1178,7 +1182,8 @@ public partial class MainWindow : Window
     {
         var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
         if(Directory.Exists(dir))
-            foreach(var path in Directory.GetFiles(dir,"*.czm"))
+            foreach(var path in Directory.GetFiles(dir)
+                .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase)))
                 yield return (Path.GetFileName(path),File.ReadAllText(path));
         foreach(var pair in embeddedMacros)yield return (pair.Key,pair.Value);
     }
@@ -1219,37 +1224,50 @@ public partial class MainWindow : Window
         return null;
     }
 
-    static (int Option,string MenuName)? GetMacroMenuMetadata(string source)
+    static (int Option,string MenuName)? GetMacroMenuMetadata(string source,string extension)
     {
-        int? option=null;
-        string? menuName=null;
-        foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
+        extension=(extension??"").ToLowerInvariant();
+        if(extension==".czm")
         {
-            var line=raw.Trim();
-            if(line.StartsWith("#"))line=line[1..].Trim();
-            if(line.StartsWith("MENU_OPTION",StringComparison.OrdinalIgnoreCase))
+            int? option=null;
+            string? menuName=null;
+            foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
             {
-                var eq=line.IndexOf('=');
-                if(eq>=0 && int.TryParse(line[(eq+1)..].Trim(),out var n) && n>0)option=n;
-            }
-            else if(line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))
-            {
-                var eq=line.IndexOf('=');
-                if(eq>=0)
+                var line=raw.Trim();
+                if(line.StartsWith("#"))line=line[1..].Trim();
+                if(line.StartsWith("MENU_OPTION",StringComparison.OrdinalIgnoreCase))
                 {
-                    var value=line[(eq+1)..].Trim();
-                    if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
-                    if(!string.IsNullOrWhiteSpace(value))menuName=value;
+                    var eq=line.IndexOf('=');
+                    if(eq>=0 && int.TryParse(line[(eq+1)..].Trim(),out var n) && n>0)option=n;
+                }
+                else if(line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))
+                {
+                    var eq=line.IndexOf('=');
+                    if(eq>=0)
+                    {
+                        var value=line[(eq+1)..].Trim();
+                        if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
+                        if(!string.IsNullOrWhiteSpace(value))menuName=value;
+                    }
                 }
             }
+            return option.HasValue && !string.IsNullOrWhiteSpace(menuName)?(option.Value,menuName):null;
         }
-        return option.HasValue && !string.IsNullOrWhiteSpace(menuName)?(option.Value,menuName):null;
+
+        var name=GetMacroFriendlyName(source,extension);
+        if(string.IsNullOrWhiteSpace(name))return null;
+
+        var pattern=extension==".vb"
+            ?@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+MENU_OPTION\s+As\s+Integer\s*=\s*(\d+)"
+            :@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+int\s+MENU_OPTION\s*=\s*(\d+)\s*;";
+        var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
+        return match.Success && int.TryParse(match.Groups[1].Value,out var value) && value>0?(value,name):null;
     }
 
     void AddMacroSubmenu(ContextMenu menu)
     {
         var entries=GetMacroSources()
-            .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source)))
+            .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta.HasValue)
             .OrderBy(x=>x.Meta!.Value.Option)
             .ThenBy(x=>x.Meta!.Value.MenuName,StringComparer.CurrentCultureIgnoreCase)
@@ -1266,7 +1284,7 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    await RunSafeMacroAsync(macro.Source);
+                    await RunMacroSourceAsync(macro.Name,macro.Source);
                     Status.Text="Macro: "+entry.Meta!.Value.MenuName;
                 }
                 catch(Exception ex)
@@ -1874,7 +1892,24 @@ public partial class MainWindow : Window
             extendedMacrosEnabled=false;SaveAppSettings();
             warning.Text="Safe mode is enabled. Interactive prompts and generated images are blocked.";
         };
-        warningPanel.Children.Add(warning);warningPanel.Children.Add(extended);
+        var compiled=new CheckBox
+        {
+            Content="Allow compiled VB/C# macros (full trust)",
+            IsChecked=compiledMacrosEnabled,
+            Margin=new Thickness(0,5,0,0),
+            ToolTip="Compiled macros run as your Windows user and may access files, network, processes and other system resources."
+        };
+        compiled.Checked+=(_,__)=>
+        {
+            compiledMacrosEnabled=true;SaveAppSettings();
+            warning.Text="Compiled VB/C# macros are enabled. They run with the same Windows permissions as CtrlZed.";
+        };
+        compiled.Unchecked+=(_,__)=>
+        {
+            compiledMacrosEnabled=false;SaveAppSettings();
+            warning.Text="Compiled VB/C# macros are disabled. .czm macros remain available.";
+        };
+        warningPanel.Children.Add(warning);warningPanel.Children.Add(extended);warningPanel.Children.Add(compiled);
         DockPanel.SetDock(warningPanel,Dock.Top);right.Children.Add(warningPanel);
 
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
@@ -1942,8 +1977,10 @@ public partial class MainWindow : Window
                 var path=Path.Combine(dir,selected);
                 code.Text=File.Exists(path)?File.ReadAllText(path):"";
             }
-            run.IsEnabled=selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
-            embed.IsEnabled=!selectedEmbedded && selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
+            var selectedExt=selected==null?"":Path.GetExtension(selected).ToLowerInvariant();
+            run.Content=selectedExt==".czm"?"Run macro":"Compile && Run";
+            run.IsEnabled=selected!=null && (selectedExt==".czm" || ((selectedExt==".vb"||selectedExt==".cs") && compiledMacrosEnabled));
+            embed.IsEnabled=!selectedEmbedded && selected!=null && selectedExt==".czm";
             extract.IsEnabled=selectedEmbedded && selected!=null;
             rename.IsEnabled=!selectedEmbedded && selected!=null;
         };
@@ -1968,8 +2005,32 @@ INSERT_TEXT Hello from a CtrlZed safe macro
 NEW_PARAGRAPH
 INSERT_FIELD date
 ");
-        nv.Click+=(_,__)=>make(".vb","' CtrlZed VB.NET macro source\n' Stored only. Execution is disabled until a real OS sandbox exists.\n");
-        nc.Click+=(_,__)=>make(".cs","// CtrlZed C# macro source\n// Stored only. Execution is disabled until a real OS sandbox exists.\n");
+        nv.Click+=(_,__)=>make(".vb",
+@"Imports System.Windows.Controls
+
+Public Module CtrlZedMacro
+    Public Const MENU_OPTION As Integer = 1
+    Public Const MENU_NAME As String = ""New VB Macro""
+
+    Public Sub Run(Editor As RichTextBox)
+        Editor.CaretPosition.InsertTextInRun(""Hello from a VB.NET macro"")
+    End Sub
+End Module
+");
+        nc.Click+=(_,__)=>make(".cs",
+@"using System.Windows.Controls;
+
+public static class CtrlZedMacro
+{
+    public const int MENU_OPTION = 1;
+    public const string MENU_NAME = ""New C# Macro"";
+
+    public static void Run(RichTextBox Editor)
+    {
+        Editor.CaretPosition.InsertTextInRun(""Hello from a C# macro"");
+    }
+}
+");
 
         save.Click+=(_,__)=>
         {
@@ -1985,11 +2046,18 @@ INSERT_FIELD date
 
         run.Click+=async (_,__)=>
         {
-            if(selected==null || !Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase))return;
+            if(selected==null)return;
             if(selectedEmbedded)embeddedMacros[selected]=code.Text;
             else File.WriteAllText(Path.Combine(dir,selected),code.Text);
-            try{await RunSafeMacroAsync(code.Text);Status.Text="Safe macro completed.";}
-            catch(Exception ex){MessageBox.Show(ex.Message,"Safe macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);}
+            try
+            {
+                await RunMacroSourceAsync(selected,code.Text);
+                Status.Text="Macro completed.";
+            }
+            catch(Exception ex)
+            {
+                MessageBox.Show(ex.Message,"Macro stopped",MessageBoxButton.OK,MessageBoxImage.Error);
+            }
         };
 
         embed.Click+=(_,__)=>
@@ -2043,6 +2111,29 @@ INSERT_FIELD date
 
         refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
+    }
+
+    async Task RunMacroSourceAsync(string name,string source)
+    {
+        var ext=Path.GetExtension(name).ToLowerInvariant();
+        if(ext==".czm")
+        {
+            await RunSafeMacroAsync(source);
+            return;
+        }
+
+        if(ext is ".vb" or ".cs")
+        {
+            if(!compiledMacrosEnabled)
+                throw new InvalidOperationException("Compiled VB/C# macros are disabled. Enable them in Macro Manager first.");
+            await CompiledMacroHost.RunAsync(source,ext,Editor,this);
+            MarkDirty("Compiled macro completed.");
+            UpdateDocumentStats();
+            Editor.Focus();
+            return;
+        }
+
+        throw new InvalidOperationException("Unsupported macro type: "+ext);
     }
 
     async Task RunSafeMacroAsync(string source)
@@ -2284,7 +2375,7 @@ INSERT_FIELD date
             var shortcut=configured[(configured.IndexOf(':')+1)..].Trim();
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
-                try{await RunSafeMacroAsync(macro.Source);Status.Text="Macro: "+macro.Name;}
+                try{await RunMacroSourceAsync(macro.Name,macro.Source);Status.Text="Macro: "+macro.Name;}
                 catch(Exception ex){MessageBox.Show(ex.Message,"Macro shortcut",MessageBoxButton.OK,MessageBoxImage.Error);}
                 return true;
             }
@@ -2419,6 +2510,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.13.1 beta 13.1").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.14.0 beta 14").ShowDialog();
     }
 }
