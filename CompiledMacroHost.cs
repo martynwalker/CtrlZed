@@ -9,6 +9,12 @@ using System.Windows.Controls;
 
 namespace CtrlZed;
 
+public sealed class CompiledMacroException : Exception
+{
+    public string Stage { get; }
+    public CompiledMacroException(string stage,string message,Exception? inner=null):base(message,inner)=>Stage=stage;
+}
+
 public static class CompiledMacroHost
 {
     public static async Task RunAsync(string source,string extension,RichTextBox editor,Window owner)
@@ -19,7 +25,10 @@ public static class CompiledMacroHost
         if(extension is not ".cs" and not ".vb")
             throw new InvalidOperationException("Compiled macros must use .cs or .vb.");
 
-        var references=BuildReferences();
+        IReadOnlyList<MetadataReference> references;
+        try{references=BuildReferences();}
+        catch(Exception ex){throw new CompiledMacroException("Reference resolution",ex.Message,ex);}
+
         var assemblyName="CtrlZedMacro_"+Guid.NewGuid().ToString("N");
         Compilation compilation;
 
@@ -50,7 +59,7 @@ public static class CompiledMacroHost
                 .Where(d=>d.Severity==DiagnosticSeverity.Error)
                 .Take(25)
                 .Select(d=>d.ToString());
-            throw new InvalidOperationException("Macro compilation failed:\n\n"+string.Join("\n",errors));
+            throw new CompiledMacroException("Compilation",string.Join("\n",errors));
         }
 
         pe.Position=0;
@@ -60,7 +69,10 @@ public static class CompiledMacroHost
 
         try
         {
-            var assembly=alc.LoadFromStream(pe);
+            Assembly assembly;
+            try{assembly=alc.LoadFromStream(pe);}
+            catch(Exception ex){throw new CompiledMacroException("Assembly load",ex.Message,ex);}
+
             var run=assembly.GetTypes()
                 .SelectMany(t=>t.GetMethods(BindingFlags.Public|BindingFlags.Static))
                 .FirstOrDefault(m=>
@@ -71,8 +83,9 @@ public static class CompiledMacroHost
                 });
 
             if(run==null)
-                throw new InvalidOperationException(
-                    "No public static Run(RichTextBox) entry point was found.\n\n"+
+                throw new CompiledMacroException(
+                    "Entry point",
+                    "No public static/shared Run(RichTextBox) entry point was found.\n\n"+
                     "VB.NET: Public Sub Run(Editor As RichTextBox)\n"+
                     "C#: public static void Run(RichTextBox Editor)");
 
@@ -83,10 +96,19 @@ public static class CompiledMacroHost
             }
             catch(TargetInvocationException ex)
             {
-                throw ex.InnerException??ex;
+                var inner=ex.InnerException??ex;
+                throw new CompiledMacroException("Runtime",inner.Message,inner);
+            }
+            catch(Exception ex)
+            {
+                throw new CompiledMacroException("Runtime",ex.Message,ex);
             }
 
-            if(result is Task task)await task;
+            if(result is Task task)
+            {
+                try{await task;}
+                catch(Exception ex){throw new CompiledMacroException("Runtime",ex.Message,ex);}
+            }
         }
         finally
         {
@@ -113,10 +135,21 @@ public static class CompiledMacroHost
             catch { }
         }
 
-        paths.Add(typeof(CompiledMacroHost).Assembly.Location);
-        paths.Add(typeof(RichTextBox).Assembly.Location);
-        paths.Add(typeof(Window).Assembly.Location);
+        void AddAssemblyLocation(Assembly assembly)
+        {
+            try
+            {
+                var location=assembly.Location;
+                if(!string.IsNullOrWhiteSpace(location) && File.Exists(location))paths.Add(location);
+            }
+            catch { }
+        }
 
+        AddAssemblyLocation(typeof(CompiledMacroHost).Assembly);
+        AddAssemblyLocation(typeof(RichTextBox).Assembly);
+        AddAssemblyLocation(typeof(Window).Assembly);
+
+        if(paths.Count==0)throw new InvalidOperationException("No compiler reference assemblies could be resolved.");
         return paths.Select(path=>(MetadataReference)MetadataReference.CreateFromFile(path)).ToList();
     }
 }
