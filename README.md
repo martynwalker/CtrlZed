@@ -4,7 +4,7 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Beta 10
+## Beta 11
 
 Beta 7 builds on the working `.czd` editor and adds:
 
@@ -98,3 +98,26 @@ A macro can declare a shortcut using:
 Tools -> AI Manager prepares a provider-neutral macro-authoring prompt and copies it to the clipboard. The user can open ChatGPT (default), Copilot, Claude or Gemini either in a private/free browser session where practical or in their normal signed-in browser. CtrlZed does not store provider passwords or scrape browser sessions.
 
 Direct provider API/OAuth integration is deliberately deferred until each provider can be integrated without storing raw browser credentials.
+
+## Beta 11 direct AI return
+
+The AI Manager can now return generated material directly into CtrlZed when a direct provider connection is configured.
+
+Document workflow:
+- send the instruction plus selected text / document context to the chosen provider
+- preview the returned material
+- Insert at Cursor or Replace Selection
+- recognised CTRLZED_CHART blocks are rendered as document charts
+
+Macro workflow:
+- Ask AI from the Macro Manager
+- generated .czm source returns directly into the macro editing field for review
+- nothing is saved or run automatically
+
+Safe macros also support:
+- AI_REWRITE instruction — sends the current selection to the configured default AI and replaces it
+- AI_INSERT instruction — asks the configured AI for new material and inserts the result
+
+Direct API credentials are encrypted with Windows DPAPI for the current Windows user and never stored inside .czd files. ChatGPT/OpenAI, Claude and Gemini support direct mode. Copilot Chat remains a browser handoff because Microsoft does not expose a general consumer Copilot Chat API.
+
+Browser/free and signed-in handoff remain available for all four providers, with Paste Browser Result available as a manual return route.
