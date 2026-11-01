@@ -4,7 +4,7 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 13.1
+## Current release: Beta 14
 
 Beta 13.1 builds on the working `.czd` editor and adds or retains:
 
@@ -99,7 +99,7 @@ public const int MENU_OPTION = 1;
 public const string MENU_NAME = "Clipboard to Two Columns";
 ```
 
-VB.NET and C# source remain non-executable for now; they are retained in preparation for a future compiled macro host.
+VB.NET and C# macros can be compiled and run in memory when **Allow compiled VB/C# macros (full trust)** is enabled in Macro Manager. They use a public static/shared `Run(RichTextBox)` entry point. Because compiled macros run with the same Windows permissions as CtrlZed, only run source you trust.
 
 ## AI workflows
 
