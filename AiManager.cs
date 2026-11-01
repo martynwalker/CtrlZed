@@ -32,6 +32,12 @@ public static class AiManager
         }
     }
 
+    public static string GetDefaultProvider()
+    {
+        var settings=Load();
+        return Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT";
+    }
+
     public static void ShowForMacro(Window owner,string macroReference,string existingCode,Action<string> applyResult)
     {
         ShowCore(owner,true,macroReference,existingCode,"","",result=>applyResult(result.Trim()),null);
