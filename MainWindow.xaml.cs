@@ -1183,6 +1183,42 @@ public partial class MainWindow : Window
         foreach(var pair in embeddedMacros)yield return (pair.Key,pair.Value);
     }
 
+    static string? GetMacroFriendlyName(string source,string extension)
+    {
+        extension=(extension??"").ToLowerInvariant();
+        if(extension==".czm")
+        {
+            foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
+            {
+                var line=raw.Trim();
+                if(line.StartsWith("#"))line=line[1..].Trim();
+                if(!line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))continue;
+                var eq=line.IndexOf('=');
+                if(eq<0)continue;
+                var value=line[(eq+1)..].Trim();
+                if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
+                if(!string.IsNullOrWhiteSpace(value))return value;
+            }
+            return null;
+        }
+
+        if(extension==".vb")
+        {
+            var match=System.Text.RegularExpressions.Regex.Match(source,
+                @"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+MENU_NAME\s+As\s+String\s*=\s*""([^""]+)""");
+            return match.Success?match.Groups[1].Value.Trim():null;
+        }
+
+        if(extension==".cs")
+        {
+            var match=System.Text.RegularExpressions.Regex.Match(source,
+                @"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+string\s+MENU_NAME\s*=\s*""([^""]+)""\s*;");
+            return match.Success?match.Groups[1].Value.Trim():null;
+        }
+
+        return null;
+    }
+
     static (int Option,string MenuName)? GetMacroMenuMetadata(string source)
     {
         int? option=null;
@@ -1807,8 +1843,9 @@ public partial class MainWindow : Window
         var nc=new Button{Content="New C#",Margin=new Thickness(0,0,5,5)};
         var embed=new Button{Content="Embed",Margin=new Thickness(0,0,5,5)};
         var extract=new Button{Content="Extract",Margin=new Thickness(0,0,5,5)};
+        var rename=new Button{Content="Rename",Margin=new Thickness(0,0,5,5)};
         var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
-        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(ai);
+        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(ai);
         DockPanel.SetDock(buttons,Dock.Bottom);
         left.Children.Add(buttons);
         Grid.SetColumn(left,0);grid.Children.Add(left);
@@ -1856,23 +1893,48 @@ public partial class MainWindow : Window
 
         string? selected=null;
         bool selectedEmbedded=false;
+        var itemMap=new Dictionary<string,(bool Embedded,string Key)>(StringComparer.Ordinal);
 
-        void refresh()
+        void refresh(string? reselectKey=null,bool reselectEmbedded=false)
         {
+            itemMap.Clear();
             var items=new List<string>();
-            items.AddRange(Directory.GetFiles(dir)
-                .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase))
-                .Select(p=>"Central | "+Path.GetFileName(p)));
-            items.AddRange(embeddedMacros.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).Select(x=>"Document | "+x));
+
+            foreach(var path in Directory.GetFiles(dir)
+                .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase)))
+            {
+                var file=Path.GetFileName(path);
+                var source=File.ReadAllText(path);
+                var friendly=GetMacroFriendlyName(source,Path.GetExtension(file));
+                var label=string.IsNullOrWhiteSpace(friendly)?"Central | "+file:$"Central | {friendly}  [{file}]";
+                itemMap[label]=(false,file);
+                items.Add(label);
+            }
+
+            foreach(var key in embeddedMacros.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase))
+            {
+                var source=embeddedMacros[key];
+                var friendly=GetMacroFriendlyName(source,Path.GetExtension(key));
+                var label=string.IsNullOrWhiteSpace(friendly)?"Document | "+key:$"Document | {friendly}  [{key}]";
+                itemMap[label]=(true,key);
+                items.Add(label);
+            }
+
             list.ItemsSource=items.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+
+            if(!string.IsNullOrWhiteSpace(reselectKey))
+            {
+                var match=itemMap.FirstOrDefault(x=>x.Value.Embedded==reselectEmbedded && string.Equals(x.Value.Key,reselectKey,StringComparison.OrdinalIgnoreCase));
+                if(!string.IsNullOrWhiteSpace(match.Key))list.SelectedItem=match.Key;
+            }
         }
 
         list.SelectionChanged+=(_,__)=>
         {
             var item=list.SelectedItem?.ToString();
-            if(string.IsNullOrWhiteSpace(item)){selected=null;return;}
-            selectedEmbedded=item.StartsWith("Document | ",StringComparison.OrdinalIgnoreCase);
-            selected=item[(item.IndexOf('|')+1)..].Trim();
+            if(string.IsNullOrWhiteSpace(item) || !itemMap.TryGetValue(item,out var mapped)){selected=null;return;}
+            selectedEmbedded=mapped.Embedded;
+            selected=mapped.Key;
             if(selectedEmbedded)
                 code.Text=embeddedMacros.TryGetValue(selected,out var src)?src:"";
             else
@@ -1883,13 +1945,14 @@ public partial class MainWindow : Window
             run.IsEnabled=selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
             embed.IsEnabled=!selectedEmbedded && selected!=null && Path.GetExtension(selected).Equals(".czm",StringComparison.OrdinalIgnoreCase);
             extract.IsEnabled=selectedEmbedded && selected!=null;
+            rename.IsEnabled=!selectedEmbedded && selected!=null;
         };
 
         void make(string ext,string starter)
         {
             var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+ext;
             File.WriteAllText(Path.Combine(dir,name),starter);
-            refresh();list.SelectedItem="Central | "+name;
+            refresh(name,false);
         }
 
         ns.Click+=(_,__)=>make(".czm",
@@ -1934,7 +1997,7 @@ INSERT_FIELD date
             if(selected==null||selectedEmbedded)return;
             embeddedMacros[selected]=code.Text;
             MarkDirty("Macro embedded in document.");
-            refresh();list.SelectedItem="Document | "+selected;
+            refresh(selected,true);
         };
 
         extract.Click+=(_,__)=>
@@ -1943,7 +2006,32 @@ INSERT_FIELD date
             var path=Path.Combine(dir,selected);
             File.WriteAllText(path,code.Text);
             Status.Text="Embedded macro copied to central library.";
-            refresh();list.SelectedItem="Central | "+selected;
+            refresh(selected,false);
+        };
+
+        rename.Click+=(_,__)=>
+        {
+            if(selected==null || selectedEmbedded)return;
+            var oldName=selected;
+            var ext=Path.GetExtension(oldName);
+            var stem=Path.GetFileNameWithoutExtension(oldName);
+            var newStem=ShowMacroInput("New macro filename (without extension):",stem);
+            if(string.IsNullOrWhiteSpace(newStem))return;
+            foreach(var ch in Path.GetInvalidFileNameChars())newStem=newStem.Replace(ch,'_');
+            newStem=newStem.Trim();
+            if(string.IsNullOrWhiteSpace(newStem))return;
+            var newName=newStem+ext;
+            var oldPath=Path.Combine(dir,oldName);
+            var newPath=Path.Combine(dir,newName);
+            if(File.Exists(newPath))
+            {
+                MessageBox.Show("A macro with that filename already exists.","Rename macro",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            File.Move(oldPath,newPath);
+            selected=newName;
+            Status.Text=$"Macro renamed to {newName}.";
+            refresh(newName,false);
         };
 
         ai.Click+=(_,__)=>AiManager.ShowForMacro(w,extendedMacrosEnabled?SafeMacroLanguage.ExtendedReference:SafeMacroLanguage.Reference,code.Text,result=>
@@ -1953,7 +2041,7 @@ INSERT_FIELD date
             code.Focus();
         });
 
-        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;
+        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
     }
 
@@ -2111,7 +2199,7 @@ INSERT_FIELD date
         MarkDirty();UpdateDocumentStats();Editor.Focus();
     }
 
-    string? ShowMacroInput(string prompt)
+    string? ShowMacroInput(string prompt,string initialValue="")
     {
         var w=new Window{Title="CtrlZed Macro",Owner=this,Width=500,Height=180,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
         var g=new Grid{Margin=new Thickness(14)};
@@ -2119,7 +2207,7 @@ INSERT_FIELD date
         g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         var label=new TextBlock{Text=prompt,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)};
-        var input=new TextBox{Margin=new Thickness(0,0,0,10)};
+        var input=new TextBox{Text=initialValue,Margin=new Thickness(0,0,0,10)};
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
         var ok=new Button{Content="OK",Width=80,IsDefault=true,Margin=new Thickness(4)};
         var cancel=new Button{Content="Cancel",Width=80,IsCancel=true,Margin=new Thickness(4)};
@@ -2331,6 +2419,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.13.0 beta 13").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.13.1 beta 13.1").ShowDialog();
     }
 }
