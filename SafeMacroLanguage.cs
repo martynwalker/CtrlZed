@@ -17,6 +17,8 @@ INSERT_TABLE rows columns
 SET_HEADER text
 SET_FOOTER text
 SET_PROPERTY TITLE|AUTHOR|SUBJECT|KEYWORDS value
+AI_REWRITE instruction
+AI_INSERT instruction
 
 Metadata comments:
 # NAME: Friendly macro name
@@ -27,6 +29,7 @@ Notes:
 - Lines beginning # are comments/metadata.
 - FIND_REPLACE uses || to separate search and replacement text.
 - INSERT_TABLE accepts integer row/column counts from 1 to 50 / 20.
-- Safe macros cannot access files, the network, processes, credentials or arbitrary .NET code.
+- Safe macros cannot access files, arbitrary network endpoints, processes, credentials or arbitrary .NET code.
+- AI_REWRITE and AI_INSERT may call the user's configured AI provider through CtrlZed's restricted AI service; the macro never receives the provider credential.
 - Maximum 200 executable commands per run.";
 }
