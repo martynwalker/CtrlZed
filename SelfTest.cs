@@ -23,6 +23,25 @@ public static class SelfTest
             if(chart==null||chart.PixelWidth<400)return 27;
             var prompt=AiResultRenderer.MacroPrompt("Insert today's date",".czm",SafeMacroLanguage.Reference,"");
             if(!prompt.Contains("INSERT_FIELD")||!prompt.Contains("Insert today's date"))return 28;
+            var csharpEditor=new RichTextBox();
+            CompiledMacroHost.RunAsync(
+@"using System.Windows.Controls;
+public static class TestMacro {
+    public static void Run(RichTextBox Editor) { Editor.Tag = ""CSharpMacroOK""; }
+}",".cs",csharpEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
+            if(!string.Equals(csharpEditor.Tag?.ToString(),"CSharpMacroOK",StringComparison.Ordinal))return 30;
+
+            var vbEditor=new RichTextBox();
+            CompiledMacroHost.RunAsync(
+@"Imports System.Windows.Controls
+Public Module TestMacro
+    Public Sub Run(Editor As RichTextBox)
+        Editor.Tag = ""VBMacroOK""
+    End Sub
+End Module
+",".vb",vbEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
+            if(!string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK",StringComparison.Ordinal))return 31;
+
             var profile=AiDirectService.GetProfile("ChatGPT");
             if(string.IsNullOrWhiteSpace(profile.Model))return 29;
 
