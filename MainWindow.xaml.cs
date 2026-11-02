@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     double zoomPercent = 100;
     bool extendedMacrosEnabled;
     bool compiledMacrosEnabled;
+    string lastMacroLanguage=".vb";
     double savedWindowLeft=double.NaN,savedWindowTop=double.NaN,savedWindowWidth=1100,savedWindowHeight=760;
 
     sealed class CzdSettings
@@ -681,6 +682,7 @@ public partial class MainWindow : Window
         public double ZoomPercent { get; set; } = 100;
         public bool ExtendedMacrosEnabled { get; set; }
         public bool CompiledMacrosEnabled { get; set; }
+        public string LastMacroLanguage { get; set; } = ".vb";
         public double WindowLeft { get; set; } = double.NaN;
         public double WindowTop { get; set; } = double.NaN;
         public double WindowWidth { get; set; } = 1100;
@@ -699,6 +701,7 @@ public partial class MainWindow : Window
             zoomPercent=Math.Clamp(settings.ZoomPercent,50,150);
             extendedMacrosEnabled=settings.ExtendedMacrosEnabled;
             compiledMacrosEnabled=settings.CompiledMacrosEnabled;
+            lastMacroLanguage=settings.LastMacroLanguage is ".czm" or ".vb" or ".cs"?settings.LastMacroLanguage:".vb";
             savedWindowLeft=settings.WindowLeft;savedWindowTop=settings.WindowTop;
             savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
             ApplyZoom();
@@ -716,6 +719,7 @@ public partial class MainWindow : Window
                 ZoomPercent=zoomPercent,
                 ExtendedMacrosEnabled=extendedMacrosEnabled,
                 CompiledMacrosEnabled=compiledMacrosEnabled,
+                LastMacroLanguage=lastMacroLanguage,
                 WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
                 WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight
             }));
@@ -2118,16 +2122,21 @@ public partial class MainWindow : Window
         left.Children.Add(list);
 
         var buttons=new WrapPanel{Margin=new Thickness(0,8,0,0)};
-        var ns=new Button{Content="New Safe",Margin=new Thickness(0,0,5,5)};
-        var nv=new Button{Content="New VB",Margin=new Thickness(0,0,5,5)};
-        var nc=new Button{Content="New C#",Margin=new Thickness(0,0,5,5)};
+        var language=new ComboBox{Width=92,Margin=new Thickness(0,0,5,5),ItemsSource=new[]{"Safe","VB.NET","C#"}};
+        language.SelectedIndex=lastMacroLanguage==".czm"?0:lastMacroLanguage==".cs"?2:1;
+        var create=new Button{Content="New",Width=58,Margin=new Thickness(0,0,5,5)};
+        var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
         var embed=new Button{Content="Embed",Margin=new Thickness(0,0,5,5)};
         var extract=new Button{Content="Extract",Margin=new Thickness(0,0,5,5)};
         var rename=new Button{Content="Rename",Margin=new Thickness(0,0,5,5)};
         var delete=new Button{Content="Delete",Margin=new Thickness(0,0,5,5)};
         var secrets=new Button{Content="Secrets…",Margin=new Thickness(0,0,5,5)};
-        var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
-        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(delete);buttons.Children.Add(secrets);buttons.Children.Add(ai);
+        buttons.Children.Add(language);buttons.Children.Add(create);buttons.Children.Add(ai);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(delete);buttons.Children.Add(secrets);
+        language.SelectionChanged+=(_,__)=>
+        {
+            lastMacroLanguage=language.SelectedIndex==0?".czm":language.SelectedIndex==2?".cs":".vb";
+            SaveAppSettings();
+        };
         DockPanel.SetDock(buttons,Dock.Bottom);
         left.Children.Add(buttons);
         Grid.SetColumn(left,0);grid.Children.Add(left);
@@ -2363,15 +2372,33 @@ public partial class MainWindow : Window
             delete.IsEnabled=selected!=null;
         };
 
-        void make(string ext,string starter)
+        string StarterFor(string ext)=>ext switch
         {
-            var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+ext;
-            File.WriteAllText(Path.Combine(dir,name),starter);
-            refresh(name,false);
-        }
+            ".vb"=>@"Imports System.Windows.Controls
 
-        ns.Click+=(_,__)=>make(".czm",
-$@"# CtrlZed Safe Macro
+Public Module CtrlZedMacro
+    Public Const MENU_NAME As String = ""New VB Macro""
+    Public Const MENU_POSITION As Integer = 1
+
+    Public Sub Run(Editor As RichTextBox)
+        Editor.CaretPosition.InsertTextInRun(""Hello from a VB.NET macro"")
+    End Sub
+End Module
+",
+            ".cs"=>@"using System.Windows.Controls;
+
+public static class CtrlZedMacro
+{
+    public const string MENU_NAME = ""New C# Macro"";
+    public const int MENU_POSITION = 1;
+
+    public static void Run(RichTextBox Editor)
+    {
+        Editor.CaretPosition.InsertTextInRun(""Hello from a C# macro"");
+    }
+}
+",
+            _=>$@"# CtrlZed Safe Macro
 # NAME: New Macro
 # DESCRIPTION: Describe what this macro does.
 # SHORTCUT:
@@ -2382,33 +2409,21 @@ $@"# CtrlZed Safe Macro
 INSERT_TEXT Hello from a CtrlZed safe macro
 NEW_PARAGRAPH
 INSERT_FIELD date
-");
-        nv.Click+=(_,__)=>make(".vb",
-@"Imports System.Windows.Controls
+"
+        };
 
-Public Module CtrlZedMacro
-    Public Const MENU_OPTION As Integer = 1
-    Public Const MENU_NAME As String = ""New VB Macro""
+        void make(string ext,string starter)
+        {
+            var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+ext;
+            File.WriteAllText(Path.Combine(dir,name),starter);
+            refresh(name,false);
+        }
 
-    Public Sub Run(Editor As RichTextBox)
-        Editor.CaretPosition.InsertTextInRun(""Hello from a VB.NET macro"")
-    End Sub
-End Module
-");
-        nc.Click+=(_,__)=>make(".cs",
-@"using System.Windows.Controls;
-
-public static class CtrlZedMacro
-{
-    public const int MENU_OPTION = 1;
-    public const string MENU_NAME = ""New C# Macro"";
-
-    public static void Run(RichTextBox Editor)
-    {
-        Editor.CaretPosition.InsertTextInRun(""Hello from a C# macro"");
-    }
-}
-");
+        create.Click+=(_,__)=>
+        {
+            var ext=language.SelectedIndex==0?".czm":language.SelectedIndex==2?".cs":".vb";
+            make(ext,StarterFor(ext));
+        };
 
         save.Click+=(_,__)=>
         {
@@ -2526,25 +2541,19 @@ public static class CtrlZedMacro
 
         ai.Click+=(_,__)=>
         {
-            var ext=selected==null?".czm":Path.GetExtension(selected).ToLowerInvariant();
+            var ext=language.SelectedIndex==0?".czm":language.SelectedIndex==2?".cs":".vb";
             var reference=ext==".czm"
                 ?(extendedMacrosEnabled?SafeMacroLanguage.ExtendedReference:SafeMacroLanguage.Reference)
                 :"";
-            AiManager.ShowForMacro(w,ext,reference,code.Text,(result,targetExt)=>
+            AiManager.ShowForMacro(w,ext,reference,"",(result,targetExt)=>
             {
-                if(selected==null || !string.Equals(Path.GetExtension(selected),targetExt,StringComparison.OrdinalIgnoreCase))
-                {
-                    var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+targetExt;
-                    File.WriteAllText(Path.Combine(dir,name),result);
-                    refresh(name,false);
-                    selected=name;
-                    selectedEmbedded=false;
-                    code.Text=result;
-                }
-                else
-                {
-                    code.Text=result;
-                }
+                var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+targetExt;
+                File.WriteAllText(Path.Combine(dir,name),result);
+                refresh(name,false);
+                selected=name;
+                selectedEmbedded=false;
+                code.Text=result;
+                language.SelectedIndex=targetExt==".czm"?0:targetExt==".cs"?2:1;
                 RefreshMacroMenus();
                 code.CaretIndex=code.Text.Length;
                 code.Focus();
