@@ -88,4 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 25.1 hotfix fixes the Beta 25 startup hang by expanding only field tokens actually present, adds circular-field protection, and strengthens smoke launch to require a responsive main window."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 26 adds portable .czprofile export/import for user fields, central macros and non-secret preferences, plus an AvalonEdit-powered Macro Manager editor with line numbers and C#/VB syntax highlighting while preserving existing macro keyboard controls."
