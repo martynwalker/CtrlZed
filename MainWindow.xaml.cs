@@ -1932,6 +1932,119 @@ public partial class MainWindow : Window
         bool selectedEmbedded=false;
         var itemMap=new Dictionary<string,(bool Embedded,string Key)>(StringComparer.Ordinal);
 
+        string CurrentMacroEditorExtension()=>selected==null?".czm":Path.GetExtension(selected).ToLowerInvariant();
+
+        void ReplaceSelectedLines(Func<string,string> transform)
+        {
+            var text=code.Text;
+            var start=code.SelectionStart;
+            var length=code.SelectionLength;
+            var end=start+length;
+
+            var lineStart=start<=0?0:text.LastIndexOf('\n',Math.Max(0,start-1))+1;
+            var lineEnd=text.IndexOf('\n',Math.Min(end,text.Length));
+            if(lineEnd<0)lineEnd=text.Length;
+
+            var segment=text[lineStart..lineEnd];
+            var transformed=string.Join("\n",segment.Split('\n').Select(transform));
+            code.Text=text[..lineStart]+transformed+text[lineEnd..];
+            code.SelectionStart=lineStart;
+            code.SelectionLength=transformed.Length;
+        }
+
+        void IndentSelection(bool outdent)
+        {
+            ReplaceSelectedLines(line=>
+            {
+                if(!outdent)return "    "+line;
+                if(line.StartsWith("\t"))return line[1..];
+                var remove=Math.Min(4,line.TakeWhile(ch=>ch==' ').Count());
+                return line[remove..];
+            });
+        }
+
+        void ToggleComment()
+        {
+            var ext=CurrentMacroEditorExtension();
+            var marker=ext==".vb"?"'":ext==".cs"?"//":"#";
+            var text=code.Text;
+            var start=code.SelectionStart;
+            var end=start+code.SelectionLength;
+            var lineStart=start<=0?0:text.LastIndexOf('\n',Math.Max(0,start-1))+1;
+            var lineEnd=text.IndexOf('\n',Math.Min(end,text.Length));
+            if(lineEnd<0)lineEnd=text.Length;
+            var lines=text[lineStart..lineEnd].Split('\n');
+
+            bool IsCommented(string line)
+            {
+                if(string.IsNullOrWhiteSpace(line))return true;
+                var trimmed=line.TrimStart();
+                return trimmed.StartsWith(marker,StringComparison.Ordinal);
+            }
+
+            var uncomment=lines.All(IsCommented);
+            var transformed=lines.Select(line=>
+            {
+                if(string.IsNullOrWhiteSpace(line))return line;
+                var indent=line.Length-line.TrimStart().Length;
+                var prefix=line[..indent];
+                var body=line[indent..];
+                if(uncomment)
+                {
+                    if(body.StartsWith(marker,StringComparison.Ordinal))
+                    {
+                        body=body[marker.Length..];
+                        if(body.StartsWith(" "))body=body[1..];
+                    }
+                    return prefix+body;
+                }
+                return prefix+marker+" "+body;
+            });
+            var replacement=string.Join("\n",transformed);
+            code.Text=text[..lineStart]+replacement+text[lineEnd..];
+            code.SelectionStart=lineStart;
+            code.SelectionLength=replacement.Length;
+        }
+
+        code.PreviewKeyDown+=(_,e)=>
+        {
+            if(e.Key==Key.Tab)
+            {
+                IndentSelection(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                e.Handled=true;
+                return;
+            }
+
+            if(Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key==Key.Oem2)
+            {
+                ToggleComment();
+                e.Handled=true;
+                return;
+            }
+
+            if(e.Key==Key.Enter && Keyboard.Modifiers==ModifierKeys.None)
+            {
+                var caret=code.SelectionStart;
+                var before=code.Text[..caret];
+                var lineStart=before.LastIndexOf('\n')+1;
+                var line=before[lineStart..];
+                var indent=new string(' ',line.TakeWhile(ch=>ch==' ').Count());
+                var trimmed=line.TrimEnd();
+                var ext=CurrentMacroEditorExtension();
+                if(ext==".cs" && trimmed.EndsWith("{",StringComparison.Ordinal))indent+="    ";
+                else if(ext==".vb")
+                {
+                    var lower=trimmed.Trim().ToLowerInvariant();
+                    if(lower.EndsWith(" then") || lower.StartsWith("for ") || lower.StartsWith("for each ") ||
+                       lower.StartsWith("while ") || lower.StartsWith("do") || lower.StartsWith("try") ||
+                       lower.Contains(" sub ") || lower.Contains(" function ") || lower.StartsWith("select case "))
+                        indent+="    ";
+                }
+                code.SelectedText=Environment.NewLine+indent;
+                e.Handled=true;
+            }
+        };
+
         void refresh(string? reselectKey=null,bool reselectEmbedded=false)
         {
             itemMap.Clear();
@@ -2787,6 +2900,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.15.3 beta 15.3").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.15.4 beta 15.4").ShowDialog();
     }
 }
