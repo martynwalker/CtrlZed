@@ -35,6 +35,7 @@ public static class CompiledMacroHost
 
         if(extension==".cs")
         {
+            source="using CtrlZed;\n"+source;
             var tree=CSharpSyntaxTree.ParseText(source,new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest));
             compilation=CSharpCompilation.Create(
                 assemblyName,
@@ -44,6 +45,7 @@ public static class CompiledMacroHost
         }
         else
         {
+            source="Imports Microsoft.VisualBasic\nImports CtrlZed\n"+source;
             var tree=VisualBasicSyntaxTree.ParseText(source,new VisualBasicParseOptions(Microsoft.CodeAnalysis.VisualBasic.LanguageVersion.Latest));
             compilation=VisualBasicCompilation.Create(
                 assemblyName,
