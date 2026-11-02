@@ -576,57 +576,86 @@ public partial class MainWindow : Window
 
     void HeaderFooter_Click(object s,RoutedEventArgs e)
     {
-        var w=new Window{Title="Header and Footer",Owner=this,Width=640,Height=430,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var w=new Window{Title="Header and Footer",Owner=this,Width=700,Height=420,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
         var grid=new Grid{Margin=new Thickness(16)};
-        for(int i=0;i<8;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        for(int i=0;i<6;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(90)});
         grid.ColumnDefinitions.Add(new ColumnDefinition());
 
-        var preset=new ComboBox{Margin=new Thickness(0,4,0,10)};
-        preset.Items.Add("Custom");
-        preset.Items.Add("Title | Page n of n | Date & Version");
-        preset.Items.Add("Title | Page n of n");
-        preset.Items.Add("Filename | Page n of n | Date");
-        preset.SelectedIndex=0;
+        Grid FieldRow(TextBox box,ComboBox templates)
+        {
+            var row=new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(34)});
+            box.Margin=new Thickness(0,3,4,8);
+            templates.Width=30;templates.Margin=new Thickness(0,3,0,8);templates.ToolTip="Templates";
+            Grid.SetColumn(box,0);Grid.SetColumn(templates,1);
+            row.Children.Add(box);row.Children.Add(templates);
+            return row;
+        }
 
-        var h=new TextBox{Text=headerText,Margin=new Thickness(0,4,0,10)};
-        var ft=new TextBox{Text=footerText,Margin=new Thickness(0,4,0,10)};
+        var h=new TextBox{Text=headerText};
+        var ft=new TextBox{Text=footerText};
+        var headerTemplates=new ComboBox();
+        var footerTemplates=new ComboBox();
+        foreach(var item in new[]{"","Title | Page n of n | Date & Version","Title | Page n of n","Filename | Page n of n | Date","Title only"})
+            headerTemplates.Items.Add(item);
+        foreach(var item in new[]{"","Page n of n","Filename | Page n of n","Date & Version","Blank"})
+            footerTemplates.Items.Add(item);
+        headerTemplates.SelectedIndex=0;footerTemplates.SelectedIndex=0;
+
+        void ApplyHeaderTemplate()
+        {
+            h.Text=headerTemplates.SelectedIndex switch
+            {
+                1=>"{title}\tPage {page} of {pages}\t{date} · v{version}",
+                2=>"{title}\tPage {page} of {pages}\t",
+                3=>"{filename}\tPage {page} of {pages}\t{date}",
+                4=>"{title}",
+                _=>h.Text
+            };
+        }
+        void ApplyFooterTemplate()
+        {
+            ft.Text=footerTemplates.SelectedIndex switch
+            {
+                1=>"\tPage {page} of {pages}\t",
+                2=>"{filename}\tPage {page} of {pages}\t",
+                3=>"\t\t{date} · v{version}",
+                4=>"",
+                _=>ft.Text
+            };
+        }
+        headerTemplates.SelectionChanged+=(_,__)=>{if(headerTemplates.SelectedIndex>0)ApplyHeaderTemplate();};
+        footerTemplates.SelectionChanged+=(_,__)=>{if(footerTemplates.SelectedIndex>0)ApplyFooterTemplate();};
+
+        var headerLabel=new TextBlock{Text="Header",VerticalAlignment=VerticalAlignment.Center};
+        var footerLabel=new TextBlock{Text="Footer",VerticalAlignment=VerticalAlignment.Center};
+        var headerRow=FieldRow(h,headerTemplates);
+        var footerRow=FieldRow(ft,footerTemplates);
+        Grid.SetRow(headerLabel,0);Grid.SetColumn(headerLabel,0);grid.Children.Add(headerLabel);
+        Grid.SetRow(headerRow,0);Grid.SetColumn(headerRow,1);grid.Children.Add(headerRow);
+        Grid.SetRow(footerLabel,1);Grid.SetColumn(footerLabel,0);grid.Children.Add(footerLabel);
+        Grid.SetRow(footerRow,1);Grid.SetColumn(footerRow,1);grid.Children.Add(footerRow);
+
         var help=new TextBlock
         {
             Text="Use tab-separated left, centre and right sections. Built-ins: {title}, {page}, {pages}, {date}, {time}, {filename}, {version}, {moonphase}, {moonicon}. Custom fields use {field:name}.",
-            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,4,0,8)
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,8)
         };
-        AddRow(grid,0,"Preset",preset);
-        AddRow(grid,1,"Header",h);
-        AddRow(grid,2,"Footer",ft);
-        Grid.SetRow(help,3);Grid.SetColumnSpan(help,2);grid.Children.Add(help);
+        Grid.SetRow(help,2);Grid.SetColumnSpan(help,2);grid.Children.Add(help);
 
         var preview=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,8)};
-        Grid.SetRow(preview,4);Grid.SetColumnSpan(preview,2);grid.Children.Add(preview);
-
-        void ApplyPreset()
+        void RefreshPreview()
         {
-            switch(preset.SelectedIndex)
-            {
-                case 1:
-                    h.Text="{title}\tPage {page} of {pages}\t{date} · v{version}";
-                    ft.Text="";
-                    break;
-                case 2:
-                    h.Text="{title}\tPage {page} of {pages}\t";
-                    ft.Text="";
-                    break;
-                case 3:
-                    h.Text="{filename}\tPage {page} of {pages}\t{date}";
-                    ft.Text="";
-                    break;
-            }
-            preview.Text="Example: "+ExpandFields(h.Text,1,Math.Max(1,CreatePreviewPaginator().PageCount));
+            preview.Text="Header example: "+ExpandFields(h.Text,1,Math.Max(1,CreatePreviewPaginator().PageCount))+
+                         "\nFooter example: "+ExpandFields(ft.Text,1,Math.Max(1,CreatePreviewPaginator().PageCount));
         }
-        preset.SelectionChanged+=(_,__)=>{if(preset.SelectedIndex>0)ApplyPreset();};
+        h.TextChanged+=(_,__)=>RefreshPreview();ft.TextChanged+=(_,__)=>RefreshPreview();
+        Grid.SetRow(preview,3);Grid.SetColumnSpan(preview,2);grid.Children.Add(preview);
 
         var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
-        Grid.SetRow(ok,7);Grid.SetColumnSpan(ok,2);grid.Children.Add(ok);
+        Grid.SetRow(ok,5);Grid.SetColumnSpan(ok,2);grid.Children.Add(ok);
         ok.Click+=(_,__)=>
         {
             headerText=h.Text;
@@ -635,6 +664,7 @@ public partial class MainWindow : Window
             MarkDirty("Header/footer updated.");
             w.DialogResult=true;
         };
+        RefreshPreview();
         w.Content=grid;
         w.ShowDialog();
     }
