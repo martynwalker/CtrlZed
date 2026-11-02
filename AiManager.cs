@@ -38,20 +38,20 @@ public static class AiManager
         return Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT";
     }
 
-    public static void ShowForMacro(Window owner,string macroExtension,string macroReference,string existingCode,Action<string,string> applyResult)
+    public static void ShowForMacro(Window owner,string macroExtension,string macroReference,string existingCode,Action<string,string> applyResult,string? initialInstruction=null)
     {
-        ShowCore(owner,true,macroExtension,macroReference,existingCode,"","",(result,ext)=>applyResult(result.Trim(),ext),null);
+        ShowCore(owner,true,macroExtension,macroReference,existingCode,"","",(result,ext)=>applyResult(result.Trim(),ext),null,initialInstruction);
     }
 
     public static void ShowForDocument(Window owner,string selectedText,string documentText,Action<string,bool> applyResult)
     {
-        ShowCore(owner,false,"","","",selectedText,documentText,null,applyResult);
+        ShowCore(owner,false,"","","",selectedText,documentText,null,applyResult,null);
     }
 
     static void ShowCore(
         Window owner,bool macroMode,string macroExtension,string macroReference,string existingCode,
         string selectedText,string documentText,
-        Action<string,string>? applyMacro,Action<string,bool>? applyDocument)
+        Action<string,string>? applyMacro,Action<string,bool>? applyDocument,string? initialInstruction=null)
     {
         var settings=Load();
         var w=new Window
@@ -101,7 +101,8 @@ public static class AiManager
         {
             AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
             Padding=new Thickness(10),FontSize=14,
-            Text=macroMode
+            Text=!string.IsNullOrWhiteSpace(initialInstruction)?initialInstruction:
+                macroMode
                 ?"Describe the macro you want. Example: Create a macro that rewrites the highlighted text in the style of Winston Churchill."
                 :"Tell the AI what to write, research or transform. Selected text is supplied automatically when present."
         };
