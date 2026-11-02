@@ -32,15 +32,19 @@ public static class TestMacro {
             if(!string.Equals(csharpEditor.Tag?.ToString(),"CSharpMacroOK",StringComparison.Ordinal))return 30;
 
             var vbEditor=new RichTextBox();
+            var vbSecretName="VBMacroSecret_"+Guid.NewGuid().ToString("N");
+            CtrlZedSecrets.Set(vbSecretName,"ok");
             CompiledMacroHost.RunAsync(
-@"Imports System.Windows.Controls
+$@"Imports System.Windows.Controls
 Public Module TestMacro
     Public Sub Run(Editor As RichTextBox)
-        Editor.Tag = ""VBMacroOK""
+        Dim s As String = CtrlZedSecrets.Get(""{vbSecretName}"")
+        Editor.Tag = ""VBMacroOK"" & vbCrLf & s
     End Sub
 End Module
 ",".vb",vbEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
-            if(!string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK",StringComparison.Ordinal))return 31;
+            if(!string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK"+Environment.NewLine+"ok",StringComparison.Ordinal))return 31;
+            CtrlZedSecrets.Remove(vbSecretName);
 
             var secretName="SelfTest_"+Guid.NewGuid().ToString("N");
             CtrlZedSecrets.Set(secretName,"secret-value");
