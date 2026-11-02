@@ -185,6 +185,7 @@ Requirements:
 - Do not claim that C#, .NET, Clipboard or system APIs are unavailable.
 - Do not target Microsoft Word, Office Interop, VBA, CommandBars or Word Selection. Work through the supplied WPF RichTextBox Editor and ordinary .NET/WPF APIs.
 - Do not include installation instructions; return source only.
+- For technical failures such as HTTP/API errors, throw an exception containing the status and response detail so CtrlZed's Macro Debugger can diagnose it. Use message boxes only for ordinary user-facing conditions such as missing selection or configuration.
 - Use British English in user-facing strings unless the request says otherwise.";
         }
 
