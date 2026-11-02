@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15.2 adds automatic compiled-macro namespace imports so VB.NET macros can use CtrlZedSecrets and standard VB constants such as vbCrLf without boilerplate, and extends CI to test both."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15.3 adds a split Macro Debugger with source and diagnostics side-by-side, Copy Details, Ask AI to Fix, and Save Fixed Source."
