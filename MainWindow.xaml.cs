@@ -3029,6 +3029,10 @@ INSERT_FIELD date
         Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
 
         var form=new StackPanel();
+        var name=new TextBox{Margin=new Thickness(0,4,0,10)};
+        var value=new PasswordBox{Margin=new Thickness(0,4,0,10)};
+        var configured=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap};
+
         form.Children.Add(new TextBlock{Text="Provider defaults",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
         var defaults=new WrapPanel{Margin=new Thickness(0,0,0,12)};
         foreach(var provider in new[]{"ChatGPT","Gemini","Claude"})
@@ -3048,17 +3052,14 @@ INSERT_FIELD date
         form.Children.Add(defaults);
 
         form.Children.Add(new TextBlock{Text="Secret name"});
-        var name=new TextBox{Margin=new Thickness(0,4,0,10)};
         form.Children.Add(name);
         form.Children.Add(new TextBlock{Text="Secret value"});
-        var value=new PasswordBox{Margin=new Thickness(0,4,0,10)};
         form.Children.Add(value);
         form.Children.Add(new TextBlock
         {
             Text="Values are encrypted with Windows DPAPI for the current Windows user. Saved values are never displayed again. AI-generated macros use the provider defaults above unless you explicitly request another secret name.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,12)
         });
-        var configured=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap};
         form.Children.Add(configured);
         Grid.SetColumn(form,1);Grid.SetRow(form,0);root.Children.Add(form);
 
