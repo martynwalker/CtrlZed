@@ -575,12 +575,12 @@ public partial class MainWindow : Window
 
     string ExpandFields(string text,int page,int pages)
     {
-        return ExpandFieldsCore(text??"",page,pages,0);
+        return ExpandFieldsCore(text??"",page,pages,0,new HashSet<string>(StringComparer.OrdinalIgnoreCase));
     }
 
-    string ExpandFieldsCore(string text,int page,int pages,int depth)
+    string ExpandFieldsCore(string text,int page,int pages,int depth,HashSet<string> resolving)
     {
-        if(depth>8)return text;
+        if(depth>16)return text;
         var now=DateTime.Now;
         var result=text.Replace("{page}",page.ToString(),StringComparison.OrdinalIgnoreCase)
                        .Replace("{pages}",pages.ToString(),StringComparison.OrdinalIgnoreCase)
@@ -592,34 +592,53 @@ public partial class MainWindow : Window
                        .Replace("{version}",documentVersion,StringComparison.OrdinalIgnoreCase)
                        .Replace("{title}",documentTitle,StringComparison.OrdinalIgnoreCase);
 
+        string Resolve(string scope,string key,string template)
+        {
+            var id=scope+":"+key;
+            if(!resolving.Add(id))return "[Circular field: "+id+"]";
+            try{return ExpandFieldsCore(template,page,pages,depth+1,resolving);}
+            finally{resolving.Remove(id);}
+        }
+
         foreach(var pair in systemFields)
         {
-            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
-            result=result.Replace("{system:"+pair.Key+"}",expanded,StringComparison.OrdinalIgnoreCase);
+            var token="{system:"+pair.Key+"}";
+            if(!result.Contains(token,StringComparison.OrdinalIgnoreCase))continue;
+            result=result.Replace(token,Resolve("system",pair.Key,pair.Value),StringComparison.OrdinalIgnoreCase);
         }
 
         foreach(var pair in userFields)
         {
-            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
-            result=result.Replace("{user:"+pair.Key+"}",expanded,StringComparison.OrdinalIgnoreCase);
-            foreach(var token in new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"})
+            var explicitToken="{user:"+pair.Key+"}";
+            var legacyTokens=new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"};
+            var needed=result.Contains(explicitToken,StringComparison.OrdinalIgnoreCase) ||
+                       legacyTokens.Any(t=>result.Contains(t,StringComparison.OrdinalIgnoreCase));
+            if(!needed)continue;
+
+            var expanded=Resolve("user",pair.Key,pair.Value);
+            result=result.Replace(explicitToken,expanded,StringComparison.OrdinalIgnoreCase);
+            foreach(var token in legacyTokens)
                 result=result.Replace(token,expanded,StringComparison.OrdinalIgnoreCase);
         }
 
         foreach(var pair in customFields)
         {
             if(userFields.ContainsKey(pair.Key))continue;
-            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
-            foreach(var token in new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"})
+            var tokens=new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"};
+            if(!tokens.Any(t=>result.Contains(t,StringComparison.OrdinalIgnoreCase)))continue;
+            var expanded=Resolve("legacy",pair.Key,pair.Value);
+            foreach(var token in tokens)
                 result=result.Replace(token,expanded,StringComparison.OrdinalIgnoreCase);
         }
 
         foreach(var pair in systemFields)
         {
             if(userFields.ContainsKey(pair.Key) || customFields.ContainsKey(pair.Key))continue;
-            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
-            result=result.Replace("{"+pair.Key+"}",expanded,StringComparison.OrdinalIgnoreCase);
+            var token="{"+pair.Key+"}";
+            if(!result.Contains(token,StringComparison.OrdinalIgnoreCase))continue;
+            result=result.Replace(token,Resolve("system",pair.Key,pair.Value),StringComparison.OrdinalIgnoreCase);
         }
+
         return result;
     }
 
@@ -3765,6 +3784,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.25.0 beta 25").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.25.1 beta 25.1").ShowDialog();
     }
 }
