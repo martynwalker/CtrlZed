@@ -29,7 +29,7 @@ public sealed class PageGuideLayer : FrameworkElement
             var bottom=(i+1)*PageContentHeight;
 
             var headerY=i==0?top+4:top+(PageGap/2)+5;
-            DrawText(dc,Expand?.Invoke(Header,i+1,pages)??Header,10,headerY,ActualWidth-20,TextAlignment.Center,Brushes.Gray);
+            DrawTriplet(dc,Expand?.Invoke(Header,i+1,pages)??Header,10,headerY,ActualWidth-20,Brushes.Gray);
 
             if(bottom<=ActualHeight+1)
             {
@@ -38,7 +38,7 @@ public sealed class PageGuideLayer : FrameworkElement
                 var gapBottom=Math.Min(ActualHeight,bottom+half);
                 var gapHeight=Math.Max(0,gapBottom-gapTop);
 
-                DrawText(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,gapTop-22),ActualWidth-20,TextAlignment.Center,Brushes.Gray);
+                DrawTriplet(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,gapTop-22),ActualWidth-20,Brushes.Gray);
 
                 dc.DrawLine(edgePen,new Point(0,gapTop),new Point(ActualWidth,gapTop));
                 if(gapHeight>0)dc.DrawRectangle(gapBrush,null,new Rect(0,gapTop,ActualWidth,gapHeight));
@@ -57,6 +57,16 @@ public sealed class PageGuideLayer : FrameworkElement
             dc.DrawLine(manualPen,new Point(0,y),new Point(ActualWidth,y));
             DrawText(dc,"Manual page break",10,top+2,140,TextAlignment.Left,new SolidColorBrush(Color.FromRgb(85,105,130)));
         }
+    }
+
+    static void DrawTriplet(DrawingContext dc,string text,double x,double y,double width,Brush brush)
+    {
+        var parts=(text??"").Split('\t');
+        if(parts.Length<2){DrawText(dc,text,x,y,width,TextAlignment.Center,brush);return;}
+        var third=width/3;
+        DrawText(dc,parts.ElementAtOrDefault(0)??"",x,y,third,TextAlignment.Left,brush);
+        DrawText(dc,parts.ElementAtOrDefault(1)??"",x+third,y,third,TextAlignment.Center,brush);
+        DrawText(dc,parts.ElementAtOrDefault(2)??"",x+third*2,y,third,TextAlignment.Right,brush);
     }
 
     static void DrawText(DrawingContext dc,string text,double x,double y,double width,TextAlignment alignment,Brush brush)
