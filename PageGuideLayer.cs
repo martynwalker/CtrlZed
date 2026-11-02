@@ -42,14 +42,12 @@ public sealed class PageGuideLayer : FrameworkElement
             }
         }
 
-        var manualBrush=new SolidColorBrush(Color.FromArgb(225,232,238,245));
-        var manualPen=new Pen(new SolidColorBrush(Color.FromRgb(115,135,160)),1){DashStyle=DashStyles.Dash};
+        var manualPen=new Pen(new SolidColorBrush(Color.FromRgb(115,135,160)),1){DashStyle=DashStyles.Dot};
         foreach(var y in ManualBreakY.Where(y=>y>16 && y<ActualHeight-16))
         {
-            var top=y-10;
-            dc.DrawRectangle(manualBrush,null,new Rect(0,top,ActualWidth,20));
             dc.DrawLine(manualPen,new Point(0,y),new Point(ActualWidth,y));
-            DrawText(dc,"Manual page break",10,top+2,140,TextAlignment.Left,new SolidColorBrush(Color.FromRgb(85,105,130)));
+            dc.DrawRectangle(Brushes.White,null,new Rect(4,y-9,112,18));
+            DrawText(dc,"Manual page break",8,y-8,104,TextAlignment.Left,new SolidColorBrush(Color.FromRgb(85,105,130)));
         }
     }
 
