@@ -2862,13 +2862,26 @@ public partial class MainWindow : Window
         actionBar.Children.Add(run);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
-        var code=new TextBox
+        var code=new ICSharpCode.AvalonEdit.TextEditor
         {
-            AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas"),
-            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto
+            FontFamily=new FontFamily("Consolas"),
+            FontSize=13,
+            ShowLineNumbers=true,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto
         };
         right.Children.Add(code);Grid.SetColumn(right,1);grid.Children.Add(right);
+
+        void ApplyMacroSyntaxHighlighting()
+        {
+            var ext=CurrentMacroEditorExtension();
+            code.SyntaxHighlighting=ext switch
+            {
+                ".cs"=>ICSharpCode.AvalonEdit.Highlighting.HighlightingManager.Instance.GetDefinition("C#"),
+                ".vb"=>ICSharpCode.AvalonEdit.Highlighting.HighlightingManager.Instance.GetDefinition("VBNET"),
+                _=>null
+            };
+        }
 
         string? selected=null;
         bool selectedEmbedded=false;
@@ -2889,9 +2902,8 @@ public partial class MainWindow : Window
 
             var segment=text[lineStart..lineEnd];
             var transformed=string.Join("\n",segment.Split('\n').Select(transform));
-            code.Text=text[..lineStart]+transformed+text[lineEnd..];
-            code.SelectionStart=lineStart;
-            code.SelectionLength=transformed.Length;
+            code.Document.Replace(lineStart,lineEnd-lineStart,transformed);
+            code.Select(lineStart,transformed.Length);
         }
 
         void IndentSelection(bool outdent)
@@ -2943,9 +2955,8 @@ public partial class MainWindow : Window
                 return prefix+marker+" "+body;
             });
             var replacement=string.Join("\n",transformed);
-            code.Text=text[..lineStart]+replacement+text[lineEnd..];
-            code.SelectionStart=lineStart;
-            code.SelectionLength=replacement.Length;
+            code.Document.Replace(lineStart,lineEnd-lineStart,replacement);
+            code.Select(lineStart,replacement.Length);
         }
 
         code.PreviewKeyDown+=(_,e)=>
@@ -2982,7 +2993,9 @@ public partial class MainWindow : Window
                        lower.Contains(" sub ") || lower.Contains(" function ") || lower.StartsWith("select case "))
                         indent+="    ";
                 }
-                code.SelectedText=Environment.NewLine+indent;
+                var insertion=Environment.NewLine+indent;
+                code.Document.Replace(code.SelectionStart,code.SelectionLength,insertion);
+                code.CaretOffset=caret+insertion.Length;
                 e.Handled=true;
             }
         };
@@ -3034,6 +3047,7 @@ public partial class MainWindow : Window
                 var path=Path.Combine(dir,selected);
                 code.Text=File.Exists(path)?File.ReadAllText(path):"";
             }
+            ApplyMacroSyntaxHighlighting();
             var selectedExt=selected==null?"":Path.GetExtension(selected).ToLowerInvariant();
             run.Content=selectedExt==".czm"?"Run macro":"Compile && Run";
             run.IsEnabled=selected!=null && (selectedExt==".czm" || ((selectedExt==".vb"||selectedExt==".cs") && compiledMacrosEnabled));
@@ -3094,6 +3108,7 @@ INSERT_FIELD date
         {
             var ext=language.SelectedIndex==0?".czm":language.SelectedIndex==2?".cs":".vb";
             make(ext,StarterFor(ext));
+            ApplyMacroSyntaxHighlighting();
         };
 
         void SaveSelectedMacro()
@@ -3207,7 +3222,7 @@ INSERT_FIELD date
                 }
 
                 selected=null;
-                code.Clear();
+                code.Text="";
                 refresh();RefreshMacroMenus();
                 run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
             }
@@ -3235,7 +3250,7 @@ INSERT_FIELD date
                 code.Text=result;
                 language.SelectedIndex=targetExt==".czm"?0:targetExt==".cs"?2:1;
                 RefreshMacroMenus();
-                code.CaretIndex=code.Text.Length;
+                code.CaretOffset=code.Text.Length;
                 code.Focus();
             });
         };
