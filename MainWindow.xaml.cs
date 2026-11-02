@@ -2390,12 +2390,17 @@ public partial class MainWindow : Window
         PageBorder.Width=pageWidth;
         PageBorder.MinHeight=pageHeight;
         PageBorder.Padding=pageMargins;
-        Editor.Document.PageWidth=pageWidth;
-        Editor.Document.PageHeight=pageHeight;
-        Editor.Document.PagePadding=pageMargins;
+
+        var contentWidth=Math.Max(120,pageWidth-pageMargins.Left-pageMargins.Right);
+        var contentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
+        Editor.Document.PageWidth=contentWidth;
+        Editor.Document.PageHeight=double.NaN;
+        Editor.Document.PagePadding=new Thickness(0);
+        Editor.Document.ColumnWidth=double.PositiveInfinity;
+
         if(PageGuides!=null)
         {
-            PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
+            PageGuides.PageContentHeight=contentHeight;
             PageGuides.PageGap=Math.Max(24,pageMargins.Top+pageMargins.Bottom);
             UpdatePageGuideState();
         }
