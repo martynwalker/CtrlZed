@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15.5 exposes CtrlZedAi.GetModel(provider) to compiled macros and teaches AI authoring/repair to avoid hard-coded provider model IDs so macros follow CtrlZed configuration automatically."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 16 turns macros into a hierarchical menu extension system using MENU_NAME, MENU_POSITION, MENU_PATH and MENU_PATH_POSITIONS, while preserving right-click defaults and legacy MENU_OPTION."
