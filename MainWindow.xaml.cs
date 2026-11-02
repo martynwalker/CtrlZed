@@ -1503,6 +1503,8 @@ public partial class MainWindow : Window
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta!=null && string.IsNullOrWhiteSpace(x.Meta.Path))
+            .GroupBy(x=>x.Meta!.Name.Trim(),StringComparer.CurrentCultureIgnoreCase)
+            .Select(g=>g.OrderBy(x=>x.Macro.Name,StringComparer.OrdinalIgnoreCase).First())
             .OrderBy(x=>x.Meta!.Position)
             .ThenBy(x=>x.Meta!.Name,StringComparer.CurrentCultureIgnoreCase)
             .ToList();
@@ -1538,6 +1540,8 @@ public partial class MainWindow : Window
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta!=null && !string.IsNullOrWhiteSpace(x.Meta.Path))
+            .GroupBy(x=>$"{x.Meta!.Path.Trim().ToLowerInvariant()}|{x.Meta.Name.Trim().ToLowerInvariant()}",StringComparer.OrdinalIgnoreCase)
+            .Select(g=>g.OrderBy(x=>x.Macro.Name,StringComparer.OrdinalIgnoreCase).First())
             .ToList();
         if(entries.Count==0)return;
 
@@ -2134,7 +2138,14 @@ public partial class MainWindow : Window
     void OpenMacroFolder_Click(object s,RoutedEventArgs e)
     {
         var dir=MacroDirectory();
-        Process.Start(new ProcessStartInfo("explorer.exe",$"\"{dir}\""){UseShellExecute=true});
+        try
+        {
+            Process.Start(new ProcessStartInfo{FileName=dir,UseShellExecute=true});
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Open Macro Folder",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
     }
 
     void MacroLibrary_Click(object s,RoutedEventArgs e)
