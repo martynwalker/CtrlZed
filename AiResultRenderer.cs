@@ -179,6 +179,7 @@ Requirements:
 - CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
+- Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
 - If the macro should appear in the document right-click Macros submenu, use language-native constants:
   public const int MENU_OPTION = 1;
   public const string MENU_NAME = ""Macro Name"";
@@ -211,6 +212,7 @@ Requirements:
 - CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
+- Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
 - If the macro should appear in the document right-click Macros submenu, use language-native constants:
   Public Const MENU_OPTION As Integer = 1
   Public Const MENU_NAME As String = ""Macro Name""
