@@ -180,9 +180,12 @@ Requirements:
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
-- If the macro should appear in the document right-click Macros submenu, use language-native constants:
-  public const int MENU_OPTION = 1;
-  public const string MENU_NAME = ""Macro Name"";
+- Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
+- Omit MENU_PATH for the editor right-click Macros submenu. For main menus use a slash path, for example:
+  public const string MENU_NAME = ""Snowflake..."";
+  public const string MENU_PATH = ""Writing/Plotting Methods"";
+  public const string MENU_PATH_POSITIONS = ""7/2"";
+  public const int MENU_POSITION = 1;
 - Do not claim that C#, .NET, Clipboard or system APIs are unavailable.
 - Do not target Microsoft Word, Office Interop, VBA, CommandBars or Word Selection. Work through the supplied WPF RichTextBox Editor and ordinary .NET/WPF APIs.
 - Do not include installation instructions; return source only.
@@ -213,9 +216,12 @@ Requirements:
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
-- If the macro should appear in the document right-click Macros submenu, use language-native constants:
-  Public Const MENU_OPTION As Integer = 1
-  Public Const MENU_NAME As String = ""Macro Name""
+- Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
+- Omit MENU_PATH for the editor right-click Macros submenu. For main menus use a slash path, for example:
+  Public Const MENU_NAME As String = ""Snowflake...""
+  Public Const MENU_PATH As String = ""Writing/Plotting Methods""
+  Public Const MENU_PATH_POSITIONS As String = ""7/2""
+  Public Const MENU_POSITION As Integer = 1
 - Do not claim that VB.NET, .NET, Clipboard or system APIs are unavailable.
 - Generate VB.NET, NOT VBA. Do not use Option Explicit, Set assignment syntax, On Error GoTo/Resume Next, CommandBars, Word Selection, wd* constants, Alt+F11 instructions, or Microsoft Word's VBA object model.
 - Work through the supplied WPF RichTextBox Editor and ordinary .NET/WPF APIs.
