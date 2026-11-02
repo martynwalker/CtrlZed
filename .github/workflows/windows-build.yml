@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 17 professionalises About and credits, remembers normal window placement, prefills document metadata from Windows/Office where available, adds document version fields and header/footer templates, and adds a GitHub menu link."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 18 polishes header/footer template controls and branding, adds an explicit About close action and macro-folder access, merges macro paths into built-in menus, simplifies Macro Manager language/new/AI workflow with remembered language, defaults generated macros to the authoring AI provider, and fixes safe-macro menu metadata handling."
