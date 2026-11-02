@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     double zoomPercent = 100;
     bool extendedMacrosEnabled;
     bool compiledMacrosEnabled;
+    bool fieldValuesVisible;
     string lastMacroLanguage=".vb";
     double savedWindowLeft=double.NaN,savedWindowTop=double.NaN,savedWindowWidth=1100,savedWindowHeight=760;
 
@@ -134,6 +135,7 @@ public partial class MainWindow : Window
     void New_Click(object s,RoutedEventArgs e)
     {
         if(!CanDiscardChanges())return;
+        if(fieldValuesVisible)SetFieldValuesVisible(false);
         suppressDirty = true;
         Editor.Document = new FlowDocument();
         currentFile = null;
@@ -196,6 +198,8 @@ public partial class MainWindow : Window
             currentFile=d.FileName;
         }
 
+        var restoreFields=fieldValuesVisible;
+        if(restoreFields)SetFieldValuesVisible(false);
         try
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
@@ -215,6 +219,10 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(ex.Message,"Save failed",MessageBoxButton.OK,MessageBoxImage.Error);
             return false;
+        }
+        finally
+        {
+            if(restoreFields)SetFieldValuesVisible(true);
         }
     }
 
@@ -257,6 +265,8 @@ public partial class MainWindow : Window
     void WriteRecoverySnapshot()
     {
         if(!dirty)return;
+        var restoreFields=fieldValuesVisible;
+        if(restoreFields)SetFieldValuesVisible(false);
         try
         {
             var tmp=recoveryFile+".tmp";
@@ -264,6 +274,7 @@ public partial class MainWindow : Window
             File.Move(tmp,recoveryFile,true);
         }
         catch { }
+        finally{if(restoreFields)SetFieldValuesVisible(true);}
     }
 
     void TryDeleteRecovery()
@@ -465,9 +476,10 @@ public partial class MainWindow : Window
 
         foreach(var pair in customFields)
         {
-            var token="{field:"+pair.Key+"}";
-            if(result.Contains(token,StringComparison.OrdinalIgnoreCase))
-                result=result.Replace(token,ExpandFieldsCore(pair.Value,page,pages,depth+1),StringComparison.OrdinalIgnoreCase);
+            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
+            foreach(var token in new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"})
+                if(result.Contains(token,StringComparison.OrdinalIgnoreCase))
+                    result=result.Replace(token,expanded,StringComparison.OrdinalIgnoreCase);
         }
         return result;
     }
@@ -538,7 +550,7 @@ public partial class MainWindow : Window
         AddRow(edit,1,"Template",value);
         var hint=new TextBlock
         {
-            Text="Use built-ins such as {date}, {filename}, {moonphase}, or another custom field as {field:name}. Insert it in a header/footer as {field:name}.",
+            Text="Use built-ins such as {date}, {filename}, {moonphase}. Custom fields may be used as {name}, {field.name}, or {field:name} anywhere in the document, header or footer.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,4,0,8)
         };
         Grid.SetRow(hint,2);Grid.SetColumnSpan(hint,2);edit.Children.Add(hint);
@@ -578,6 +590,7 @@ public partial class MainWindow : Window
             RefreshList();
             list.SelectedItem=key;
             RefreshHeaderFooter();
+            if(fieldValuesVisible){SetFieldValuesVisible(false);SetFieldValuesVisible(true);}
             MarkDirty("Custom field saved.");
         };
 
@@ -585,7 +598,9 @@ public partial class MainWindow : Window
         {
             if(list.SelectedItem is string key && customFields.Remove(key))
             {
-                name.Clear();value.Clear();RefreshList();RefreshHeaderFooter();MarkDirty("Custom field deleted.");
+                name.Clear();value.Clear();RefreshList();RefreshHeaderFooter();
+                if(fieldValuesVisible){SetFieldValuesVisible(false);SetFieldValuesVisible(true);}
+                MarkDirty("Custom field deleted.");
             }
         };
 
@@ -600,6 +615,122 @@ public partial class MainWindow : Window
         w.Content=root;
         w.ShowDialog();
     }
+
+    const string FieldTagPrefix="CtrlZedField:";
+
+    bool TryExpandDocumentField(string token,out string value)
+    {
+        value="";
+        if(string.IsNullOrWhiteSpace(token) || token.Length<3 || token[0]!='{' || token[^1]!='}')return false;
+        var inner=token[1..^1].Trim();
+        var name=inner;
+        if(inner.StartsWith("field:",StringComparison.OrdinalIgnoreCase) || inner.StartsWith("field.",StringComparison.OrdinalIgnoreCase))
+            name=inner[6..];
+
+        if(customFields.TryGetValue(name,out var custom))
+        {
+            value=ExpandFields(custom,1,1);
+            return true;
+        }
+
+        var builtins=new HashSet<string>(new[]{"page","pages","date","time","filename","moonphase","moonicon","version","title"},StringComparer.OrdinalIgnoreCase);
+        if(!builtins.Contains(inner))return false;
+        value=ExpandFields(token,1,1);
+        return true;
+    }
+
+    static Run CloneRun(Run source,string text)
+    {
+        return new Run(text)
+        {
+            FontFamily=source.FontFamily,FontSize=source.FontSize,FontWeight=source.FontWeight,
+            FontStyle=source.FontStyle,Foreground=source.Foreground,Background=source.Background,
+            TextDecorations=source.TextDecorations
+        };
+    }
+
+    void ExpandFieldsInInlineCollection(InlineCollection inlines)
+    {
+        foreach(var inline in inlines.ToList())
+        {
+            if(inline is Span span)
+            {
+                ExpandFieldsInInlineCollection(span.Inlines);
+                continue;
+            }
+            if(inline is not Run run || string.IsNullOrEmpty(run.Text) || run.Tag!=null)continue;
+
+            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:field[:.])?[A-Za-z0-9_-]+\}");
+            if(matches.Count==0)continue;
+
+            var replacements=new List<Inline>();
+            var pos=0;
+            foreach(System.Text.RegularExpressions.Match match in matches)
+            {
+                if(match.Index>pos)replacements.Add(CloneRun(run,run.Text[pos..match.Index]));
+                var token=match.Value;
+                if(TryExpandDocumentField(token,out var expanded))
+                {
+                    var fieldRun=CloneRun(run,expanded);
+                    fieldRun.Tag=FieldTagPrefix+token;
+                    fieldRun.Background=new SolidColorBrush(Color.FromArgb(36,71,215,255));
+                    replacements.Add(fieldRun);
+                }
+                else replacements.Add(CloneRun(run,token));
+                pos=match.Index+match.Length;
+            }
+            if(pos<run.Text.Length)replacements.Add(CloneRun(run,run.Text[pos..]));
+
+            foreach(var replacement in replacements)inlines.InsertBefore(run,replacement);
+            inlines.Remove(run);
+        }
+    }
+
+    void RestoreFieldCodesInInlineCollection(InlineCollection inlines)
+    {
+        foreach(var inline in inlines.ToList())
+        {
+            if(inline is Span span)RestoreFieldCodesInInlineCollection(span.Inlines);
+            else if(inline is Run run && run.Tag is string tag && tag.StartsWith(FieldTagPrefix,StringComparison.Ordinal))
+            {
+                run.Text=tag[FieldTagPrefix.Length..];
+                run.Tag=null;
+                run.ClearValue(TextElement.BackgroundProperty);
+            }
+        }
+    }
+
+    void SetFieldValuesVisible(bool visible)
+    {
+        if(visible==fieldValuesVisible)return;
+        var oldSuppress=suppressDirty;
+        var oldDirty=dirty;
+        suppressDirty=true;
+        try
+        {
+            foreach(var paragraph in EnumerateDocumentParagraphs())
+            {
+                if(visible)ExpandFieldsInInlineCollection(paragraph.Inlines);
+                else RestoreFieldCodesInInlineCollection(paragraph.Inlines);
+            }
+            fieldValuesVisible=visible;
+            if(FieldDisplayToggle!=null)
+            {
+                FieldDisplayToggle.IsChecked=visible;
+                FieldDisplayToggle.Content=visible?"ƒx":"{ }";
+                FieldDisplayToggle.ToolTip=visible?"Show field codes":"Show field values";
+            }
+        }
+        finally
+        {
+            suppressDirty=oldSuppress;
+            dirty=oldDirty;
+            UpdateTitle();
+        }
+    }
+
+    void FieldDisplay_Click(object s,RoutedEventArgs e)
+        =>SetFieldValuesVisible(FieldDisplayToggle.IsChecked==true);
 
     void HeaderFooter_Click(object s,RoutedEventArgs e)
     {
@@ -886,6 +1017,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            if(fieldValuesVisible)SetFieldValuesVisible(false);
             suppressDirty=true;
             var ext=Path.GetExtension(path).ToLowerInvariant();
             headerText=footerText="";
