@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15.4 adds code-editor keystrokes to Macro Manager: Tab/Shift+Tab line indentation, automatic indentation on Enter, and Ctrl+/ comment toggling for .czm, VB.NET and C#."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15.5 exposes CtrlZedAi.GetModel(provider) to compiled macros and teaches AI authoring/repair to avoid hard-coded provider model IDs so macros follow CtrlZed configuration automatically."
