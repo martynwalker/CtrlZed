@@ -18,19 +18,20 @@ public sealed class PageGuideLayer : FrameworkElement
         base.OnRender(dc);
         if(PageContentHeight < 100 || ActualWidth < 100 || ActualHeight < 100)return;
 
-        var pages=Math.Max(1,(int)Math.Ceiling(ActualHeight/PageContentHeight));
+        var stride=Math.Max(PageContentHeight+PageGap,PageContentHeight);
+        var pages=Math.Max(1,(int)Math.Ceiling((ActualHeight+PageGap)/stride));
         var edgePen=new Pen(new SolidColorBrush(Color.FromArgb(150,125,125,125)),1);
         var labelBrush=new SolidColorBrush(Color.FromRgb(105,105,105));
 
         for(int i=0;i<pages;i++)
         {
-            var top=i*PageContentHeight;
-            var bottom=(i+1)*PageContentHeight;
+            var top=i*stride;
+            var bottom=top+PageContentHeight;
 
             const double sideGutter=52;
             var contentX=sideGutter;
             var contentWidth=Math.Max(20,ActualWidth-sideGutter*2);
-            var headerY=i==0?top+4:top+(PageGap/2)+5;
+            var headerY=top+4;
             DrawTriplet(dc,Expand?.Invoke(Header,i+1,pages)??Header,contentX,headerY,contentWidth,Brushes.Gray);
 
             if(bottom<=ActualHeight+1)
@@ -42,9 +43,17 @@ public sealed class PageGuideLayer : FrameworkElement
                 dc.DrawLine(pagePen,new Point(0,lineY),new Point(Math.Max(0,sideGutter-8),lineY));
                 dc.DrawLine(pagePen,new Point(Math.Min(ActualWidth,ActualWidth-sideGutter+8),lineY),new Point(ActualWidth,lineY));
 
+                var nextBodyY=lineY+PageGap;
+                if(i<pages-1 && nextBodyY<ActualHeight)
+                {
+                    dc.DrawLine(pagePen,new Point(0,nextBodyY),new Point(Math.Max(0,sideGutter-8),nextBodyY));
+                    dc.DrawLine(pagePen,new Point(Math.Min(ActualWidth,ActualWidth-sideGutter+8),nextBodyY),new Point(ActualWidth,nextBodyY));
+                }
+
                 var labelX=Math.Max(0,ActualWidth-sideGutter+6);
-                dc.DrawRectangle(Brushes.White,null,new Rect(labelX,lineY-9,sideGutter-8,18));
-                DrawText(dc,$"Page {i+1}",labelX+2,Math.Max(0,lineY-8),sideGutter-12,TextAlignment.Right,labelBrush);
+                var labelY=lineY+Math.Max(0,(PageGap-18)/2);
+                dc.DrawRectangle(Brushes.White,null,new Rect(labelX,labelY,sideGutter-8,18));
+                DrawText(dc,$"Page {i+1}",labelX+2,labelY+1,sideGutter-12,TextAlignment.Right,labelBrush);
             }
         }
 
