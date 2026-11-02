@@ -178,7 +178,7 @@ Requirements:
   or an async Task-returning equivalent with the same RichTextBox parameter.
 - CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
-- Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
+- Never embed API keys, passwords, tokens or other secrets in source. If the user has not explicitly named a secret, use CtrlZedSecrets.Get(CtrlZedSecrets.DefaultName(""ProviderName"")) at runtime. CtrlZed's defaults are ChatGPTKey, GeminiKey and ClaudeKey. Tell the user which provider default is required, but never invent a different secret name.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
 - If the user does not name an external AI provider, prefer the provider authoring this macro ({authoringProvider}) rather than inventing a different provider or secret name. Never assume which secrets exist.
 - Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
