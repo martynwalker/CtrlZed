@@ -17,16 +17,46 @@ public static class Branding
     public static ImageSource CreateIconImageSource()
     {
         var group=new DrawingGroup();
-        group.Children.Add(new GeometryDrawing(new SolidColorBrush(Navy),null,new RectangleGeometry(new Rect(0,0,100,100),18,18)));
-        var mainArc=Geometry.Parse("M 73,74 A 34,34 0 1 1 38,24");
-        group.Children.Add(new GeometryDrawing(null,new Pen(new SolidColorBrush(Gold),10){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round,LineJoin=PenLineJoin.Round},mainArc));
-        group.Children.Add(new GeometryDrawing(new SolidColorBrush(Gold),null,Geometry.Parse("M 37,14 L 37,34 L 20,28 Z")));
-        var trail1=Geometry.Parse("M 70,24 A 30,30 0 0 1 84,50");
-        group.Children.Add(new GeometryDrawing(null,new Pen(new SolidColorBrush(Color.FromArgb(120,229,163,65)),4){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round},trail1));
-        var trail2=Geometry.Parse("M 75,27 A 28,28 0 0 1 88,54");
-        group.Children.Add(new GeometryDrawing(null,new Pen(new SolidColorBrush(Color.FromArgb(60,229,163,65)),2){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round},trail2));
-        group.Children.Add(new GeometryDrawing(Brushes.White,null,Geometry.Parse("M 36,34 L 66,34 L 66,42 L 49,62 L 67,62 L 67,70 L 34,70 L 34,62 L 51,42 L 36,42 Z")));
-        var image=new DrawingImage(group);image.Freeze();return image;
+        var cyan=Color.FromRgb(71,215,255);
+        var cyanSoft=Color.FromArgb(85,71,215,255);
+
+        group.Children.Add(new GeometryDrawing(
+            new LinearGradientBrush(Color.FromRgb(20,34,58),Color.FromRgb(28,48,78),45),
+            null,new RectangleGeometry(new Rect(0,0,100,100),20,20)));
+
+        // Subtle circuit traces: visible at larger sizes, harmless at 16px.
+        var circuitPen=new Pen(new SolidColorBrush(cyanSoft),1.7){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round};
+        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 10,28 L 22,28 L 28,22")));
+        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 90,72 L 78,72 L 72,78")));
+        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 72,10 L 72,20 L 79,27")));
+        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 28,90 L 28,80 L 21,73")));
+
+        foreach(var p in new[]{new Point(10,28),new Point(90,72),new Point(72,10),new Point(28,90)})
+            group.Children.Add(new GeometryDrawing(new SolidColorBrush(cyan),null,new EllipseGeometry(p,2.3,2.3)));
+
+        // Gold undo/orbit sweep.
+        var goldArc=Geometry.Parse("M 73,73 A 34,34 0 1 1 39,23");
+        group.Children.Add(new GeometryDrawing(null,
+            new Pen(new SolidColorBrush(GoldBright),8.5){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round,LineJoin=PenLineJoin.Round},
+            goldArc));
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(GoldBright),null,Geometry.Parse("M 38,14 L 38,33 L 22,27 Z")));
+
+        // Cyan counter-orbit suggests data/AI motion.
+        var cyanArc=Geometry.Parse("M 69,23 A 31,31 0 0 1 83,49");
+        group.Children.Add(new GeometryDrawing(null,
+            new Pen(new SolidColorBrush(cyan),4){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round},
+            cyanArc));
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(cyan),null,new EllipseGeometry(new Point(84,52),2.7,2.7)));
+
+        // Slight cyan shadow behind the Z gives depth without blurring small icons.
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(90,71,215,255)),null,
+            Geometry.Parse("M 38,33 L 67,33 L 67,41 L 50,61 L 68,61 L 68,70 L 35,70 L 35,61 L 52,41 L 38,41 Z")));
+        var z=Geometry.Parse("M 36,31 L 65,31 L 65,39 L 48,59 L 66,59 L 66,68 L 33,68 L 33,59 L 50,39 L 36,39 Z");
+        group.Children.Add(new GeometryDrawing(Brushes.White,null,z));
+
+        var image=new DrawingImage(group);
+        image.Freeze();
+        return image;
     }
 
     static TextBlock Link(string text,string url)
@@ -72,15 +102,15 @@ public static class Branding
         var body=new TextBlock{Text=$"Version {version}\n\nHuman-directed. AI-authored. Open to inspection.\nMIT licensed · Local-first · Keyboard-friendly",Foreground=new SolidColorBrush(Color.FromRgb(220,226,236)),FontSize=13.5,TextAlignment=TextAlignment.Center,TextWrapping=TextWrapping.Wrap};
         Grid.SetRow(body,4);root.Children.Add(body);
 
-        var links=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,18,0,0)};
-        var credits=new Button{Content="Credits",Width=90,Margin=new Thickness(4)};
-        var github=new Button{Content="GitHub",Width=90,Margin=new Thickness(4)};
+        var links=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,20,0,0)};
+        var credits=new Button{Content="Credits",Width=90,Height=30,Margin=new Thickness(4)};
+        var github=new Button{Content="GitHub",Width=90,Height=30,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=90,Height=30,Margin=new Thickness(4),IsDefault=true};
         credits.Click+=(_,__)=>CreateCreditsWindow(window).ShowDialog();
         github.Click+=(_,__)=>Process.Start(new ProcessStartInfo("https://github.com/martynwalker/CtrlZed"){UseShellExecute=true});
-        links.Children.Add(credits);links.Children.Add(github);Grid.SetRow(links,5);root.Children.Add(links);
-
-        var close=new Button{Content="Close",Width=90,Height=30,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,18,0,0)};
-        close.Click+=(_,__)=>window.Close();Grid.SetRow(close,6);root.Children.Add(close);
+        close.Click+=(_,__)=>window.Close();
+        links.Children.Add(credits);links.Children.Add(github);links.Children.Add(close);
+        Grid.SetRow(links,5);Grid.SetRowSpan(links,2);root.Children.Add(links);
 
         window.Content=root;return window;
     }
