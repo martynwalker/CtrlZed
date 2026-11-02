@@ -42,10 +42,20 @@ public sealed class HeaderFooterPaginator : DocumentPaginator
         }
 
         var total=Math.Max(1,PageCount);
-        DrawText(dc,expand(header,pageNumber+1,total),42,18,page.Size.Width-84,TextAlignment.Center);
-        DrawText(dc,expand(footer,pageNumber+1,total),42,Math.Max(18,page.Size.Height-38),page.Size.Width-84,TextAlignment.Center);
+        DrawTriplet(dc,expand(header,pageNumber+1,total),42,18,page.Size.Width-84);
+        DrawTriplet(dc,expand(footer,pageNumber+1,total),42,Math.Max(18,page.Size.Height-38),page.Size.Width-84);
 
         return new DocumentPage(visual,page.Size,page.BleedBox,page.ContentBox);
+    }
+
+    static void DrawTriplet(DrawingContext dc,string text,double x,double y,double width)
+    {
+        var parts=(text??"").Split('\t');
+        if(parts.Length<2){DrawText(dc,text,x,y,width,TextAlignment.Center);return;}
+        var third=width/3;
+        DrawText(dc,parts.ElementAtOrDefault(0)??"",x,y,third,TextAlignment.Left);
+        DrawText(dc,parts.ElementAtOrDefault(1)??"",x+third,y,third,TextAlignment.Center);
+        DrawText(dc,parts.ElementAtOrDefault(2)??"",x+third*2,y,third,TextAlignment.Right);
     }
 
     static void DrawText(DrawingContext dc,string text,double x,double y,double width,TextAlignment alignment)
