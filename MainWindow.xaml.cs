@@ -65,6 +65,8 @@ public partial class MainWindow : Window
         public override string ToString() => Text;
     }
 
+    sealed record MacroMenuMetadata(string Name,string Path,int Position,IReadOnlyList<int> PathPositions);
+
     public MainWindow()
     {
         InitializeComponent();
@@ -82,6 +84,7 @@ public partial class MainWindow : Window
         settingsFile = Path.Combine(recoveryDir,"settings.json");
         LoadAppSettings();
         RefreshRecentFilesMenu();
+        RefreshMacroMenus();
         recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         recoveryTimer.Tick += (_,__) => WriteRecoverySnapshot();
         recoveryTimer.Start();
@@ -1224,77 +1227,207 @@ public partial class MainWindow : Window
         return null;
     }
 
-    static (int Option,string MenuName)? GetMacroMenuMetadata(string source,string extension)
+    static MacroMenuMetadata? GetMacroMenuMetadata(string source,string extension)
     {
         extension=(extension??"").ToLowerInvariant();
+
+        string? name=null;
+        string path="";
+        int position=0;
+        var pathPositions=new List<int>();
+
         if(extension==".czm")
         {
-            int? option=null;
-            string? menuName=null;
             foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
             {
                 var line=raw.Trim();
                 if(line.StartsWith("#"))line=line[1..].Trim();
-                if(line.StartsWith("MENU_OPTION",StringComparison.OrdinalIgnoreCase))
+                var eq=line.IndexOf('=');
+                if(eq<1)continue;
+                var key=line[..eq].Trim().ToUpperInvariant();
+                var value=line[(eq+1)..].Trim();
+                if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
+
+                switch(key)
                 {
-                    var eq=line.IndexOf('=');
-                    if(eq>=0 && int.TryParse(line[(eq+1)..].Trim(),out var n) && n>0)option=n;
-                }
-                else if(line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))
-                {
-                    var eq=line.IndexOf('=');
-                    if(eq>=0)
-                    {
-                        var value=line[(eq+1)..].Trim();
-                        if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
-                        if(!string.IsNullOrWhiteSpace(value))menuName=value;
-                    }
+                    case "MENU_NAME":
+                        if(!string.IsNullOrWhiteSpace(value))name=value;
+                        break;
+                    case "MENU_POSITION":
+                    case "MENU_OPTION":
+                        if(position==0 && int.TryParse(value,out var pos) && pos>0)position=pos;
+                        break;
+                    case "MENU_PATH":
+                    case "MENU_PARENT":
+                        path=value;
+                        break;
+                    case "MENU_PATH_POSITIONS":
+                        pathPositions=value.Split('/',StringSplitOptions.RemoveEmptyEntries)
+                            .Select(v=>int.TryParse(v.Trim(),out var n)&&n>0?n:0).ToList();
+                        break;
                 }
             }
-            return option.HasValue && !string.IsNullOrWhiteSpace(menuName)?(option.Value,menuName):null;
+        }
+        else
+        {
+            name=GetMacroFriendlyName(source,extension);
+            string? StringConst(string constName)
+            {
+                var pattern=extension==".vb"
+                    ?$@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s+As\s+String\s*=\s*""([^""]*)"""
+                    :$@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+string\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s*=\s*""([^""]*)""\s*;";
+                var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
+                return match.Success?match.Groups[1].Value.Trim():null;
+            }
+            int IntConst(params string[] names)
+            {
+                foreach(var constName in names)
+                {
+                    var pattern=extension==".vb"
+                        ?$@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s+As\s+Integer\s*=\s*(\d+)"
+                        :$@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+int\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s*=\s*(\d+)\s*;";
+                    var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
+                    if(match.Success && int.TryParse(match.Groups[1].Value,out var n) && n>0)return n;
+                }
+                return 0;
+            }
+
+            path=StringConst("MENU_PATH")??StringConst("MENU_PARENT")??"";
+            position=IntConst("MENU_POSITION","MENU_OPTION");
+            var rawPositions=StringConst("MENU_PATH_POSITIONS");
+            if(!string.IsNullOrWhiteSpace(rawPositions))
+                pathPositions=rawPositions.Split('/',StringSplitOptions.RemoveEmptyEntries)
+                    .Select(v=>int.TryParse(v.Trim(),out var n)&&n>0?n:0).ToList();
         }
 
-        var name=GetMacroFriendlyName(source,extension);
-        if(string.IsNullOrWhiteSpace(name))return null;
+        if(string.IsNullOrWhiteSpace(name) || position<=0)return null;
+        path=(path??"").Trim().Trim('/');
+        if(string.Equals(path,"right-click",StringComparison.OrdinalIgnoreCase))path="";
+        return new MacroMenuMetadata(name,path,position,pathPositions);
+    }
 
-        var pattern=extension==".vb"
-            ?@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+MENU_OPTION\s+As\s+Integer\s*=\s*(\d+)"
-            :@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+int\s+MENU_OPTION\s*=\s*(\d+)\s*;";
-        var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
-        return match.Success && int.TryParse(match.Groups[1].Value,out var optionValue) && optionValue>0?(optionValue,name):null;
+    static int MenuOrder(MenuItem item)
+        =>item.Tag is int n?n:int.MaxValue;
+
+    static void InsertOrdered(ItemCollection items,MenuItem item,int position)
+    {
+        item.Tag=position;
+        var caption=item.Header?.ToString()??"";
+        var index=0;
+        while(index<items.Count)
+        {
+            if(items[index] is not MenuItem existing){index++;continue;}
+            var existingPos=MenuOrder(existing);
+            var comparison=existingPos.CompareTo(position);
+            if(comparison>0)break;
+            if(comparison==0 && string.Compare(existing.Header?.ToString(),caption,StringComparison.CurrentCultureIgnoreCase)>0)break;
+            index++;
+        }
+        items.Insert(index,item);
+    }
+
+    MenuItem CreateMacroCommand((string Name,string Source) macro,MacroMenuMetadata meta)
+    {
+        var item=new MenuItem{Header=meta.Name,Tag=meta.Position};
+        item.Click+=async (_,__)=>
+        {
+            try
+            {
+                await RunMacroSourceAsync(macro.Name,macro.Source);
+                Status.Text="Macro: "+meta.Name;
+            }
+            catch(Exception ex)
+            {
+                ShowMacroError(macro.Name,macro.Source,ex);
+            }
+        };
+        return item;
     }
 
     void AddMacroSubmenu(ContextMenu menu)
     {
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
-            .Where(x=>x.Meta.HasValue)
-            .OrderBy(x=>x.Meta!.Value.Option)
-            .ThenBy(x=>x.Meta!.Value.MenuName,StringComparer.CurrentCultureIgnoreCase)
+            .Where(x=>x.Meta!=null && string.IsNullOrWhiteSpace(x.Meta.Path))
+            .OrderBy(x=>x.Meta!.Position)
+            .ThenBy(x=>x.Meta!.Name,StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
         if(entries.Count==0)return;
 
         var macros=new MenuItem{Header="Macros"};
         foreach(var entry in entries)
-        {
-            var item=new MenuItem{Header=entry.Meta!.Value.MenuName};
-            var macro=entry.Macro;
-            item.Click+=async (_,__)=>
-            {
-                try
-                {
-                    await RunMacroSourceAsync(macro.Name,macro.Source);
-                    Status.Text="Macro: "+entry.Meta!.Value.MenuName;
-                }
-                catch(Exception ex)
-                {
-                    ShowMacroError(macro.Name,macro.Source,ex);
-                }
-            };
-            macros.Items.Add(item);
-        }
+            InsertOrdered(macros.Items,CreateMacroCommand(entry.Macro,entry.Meta!),entry.Meta!.Position);
         menu.Items.Add(macros);
+    }
+
+    void RefreshMacroMenus()
+    {
+        if(MainMenu==null)return;
+
+        for(int i=MainMenu.Items.Count-1;i>=0;i--)
+            if(MainMenu.Items[i] is MenuItem item && Equals(item.Tag,"DynamicMacroRoot"))
+                MainMenu.Items.RemoveAt(i);
+
+        var entries=GetMacroSources()
+            .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
+            .Where(x=>x.Meta!=null && !string.IsNullOrWhiteSpace(x.Meta.Path))
+            .ToList();
+        if(entries.Count==0)return;
+
+        var roots=new Dictionary<string,MenuItem>(StringComparer.CurrentCultureIgnoreCase);
+
+        foreach(var entry in entries
+            .OrderBy(x=>x.Meta!.PathPositions.Count>0?x.Meta.PathPositions[0]:int.MaxValue)
+            .ThenBy(x=>x.Meta!.Path,StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(x=>x.Meta!.Position)
+            .ThenBy(x=>x.Meta!.Name,StringComparer.CurrentCultureIgnoreCase))
+        {
+            var meta=entry.Meta!;
+            var segments=meta.Path.Split('/',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+            if(segments.Length==0)continue;
+
+            if(!roots.TryGetValue(segments[0],out var current))
+            {
+                var rootPos=meta.PathPositions.Count>0 && meta.PathPositions[0]>0?meta.PathPositions[0]:MainMenu.Items.Count+1;
+                current=new MenuItem{Header=segments[0],Tag="DynamicMacroRoot"};
+                var insertIndex=Math.Clamp(rootPos-1,0,MainMenu.Items.Count);
+                while(insertIndex<MainMenu.Items.Count &&
+                      MainMenu.Items[insertIndex] is MenuItem occupied &&
+                      Equals(occupied.Tag,"DynamicMacroRoot") &&
+                      string.Compare(occupied.Header?.ToString(),segments[0],StringComparison.CurrentCultureIgnoreCase)<0)
+                    insertIndex++;
+                MainMenu.Items.Insert(insertIndex,current);
+                roots[segments[0]]=current;
+            }
+
+            for(int level=1;level<segments.Length;level++)
+            {
+                var segment=segments[level];
+                var child=current.Items.OfType<MenuItem>()
+                    .FirstOrDefault(mi=>string.Equals(mi.Header?.ToString(),segment,StringComparison.CurrentCultureIgnoreCase) &&
+                                        mi.Tag is Tuple<string,int> tuple && tuple.Item1=="DynamicMacroPath");
+                if(child==null)
+                {
+                    var childPos=meta.PathPositions.Count>level && meta.PathPositions[level]>0
+                        ?meta.PathPositions[level]
+                        :current.Items.Count+1;
+                    child=new MenuItem{Header=segment,Tag=Tuple.Create("DynamicMacroPath",childPos)};
+                    var insertion=Math.Clamp(childPos-1,0,current.Items.Count);
+                    while(insertion<current.Items.Count &&
+                          current.Items[insertion] is MenuItem existing &&
+                          existing.Tag is Tuple<string,int> existingTuple &&
+                          existingTuple.Item1=="DynamicMacroPath" &&
+                          existingTuple.Item2==childPos &&
+                          string.Compare(existing.Header?.ToString(),segment,StringComparison.CurrentCultureIgnoreCase)<0)
+                        insertion++;
+                    current.Items.Insert(insertion,child);
+                }
+                current=child;
+            }
+
+            InsertOrdered(current.Items,CreateMacroCommand(entry.Macro,meta),meta.Position);
+        }
     }
 
     Image? FindPictureAtPoint(Point point)
