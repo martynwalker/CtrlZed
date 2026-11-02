@@ -38,9 +38,9 @@ public static class AiManager
         return Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT";
     }
 
-    public static void ShowForMacro(Window owner,string macroExtension,string macroReference,string existingCode,Action<string> applyResult)
+    public static void ShowForMacro(Window owner,string macroExtension,string macroReference,string existingCode,Action<string,string> applyResult)
     {
-        ShowCore(owner,true,macroExtension,macroReference,existingCode,"","",result=>applyResult(result.Trim()),null);
+        ShowCore(owner,true,macroExtension,macroReference,existingCode,"","",(result,ext)=>applyResult(result.Trim(),ext),null);
     }
 
     public static void ShowForDocument(Window owner,string selectedText,string documentText,Action<string,bool> applyResult)
@@ -51,7 +51,7 @@ public static class AiManager
     static void ShowCore(
         Window owner,bool macroMode,string macroExtension,string macroReference,string existingCode,
         string selectedText,string documentText,
-        Action<string>? applyMacro,Action<string,bool>? applyDocument)
+        Action<string,string>? applyMacro,Action<string,bool>? applyDocument)
     {
         var settings=Load();
         var w=new Window
@@ -83,6 +83,14 @@ public static class AiManager
         providerRow.Children.Add(Label("Provider"));
         var provider=new ComboBox{Width=160,ItemsSource=Providers.Keys.ToList(),SelectedItem=Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT",Margin=new Thickness(5,0,12,0)};
         providerRow.Children.Add(provider);
+        ComboBox? macroTarget=null;
+        if(macroMode)
+        {
+            providerRow.Children.Add(Label("Target"));
+            macroTarget=new ComboBox{Width=125,ItemsSource=new[]{"Safe .czm","VB.NET","C#"},Margin=new Thickness(5,0,12,0)};
+            macroTarget.SelectedIndex=macroExtension==".vb"?1:macroExtension==".cs"?2:0;
+            providerRow.Children.Add(macroTarget);
+        }
         var liveWeb=new CheckBox{Content="Use live web/search when available",Foreground=Brushes.White,IsChecked=!macroMode,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(5,0,12,0)};
         providerRow.Children.Add(liveWeb);
         var configure=new Button{Content="Configure Direct AI…",Margin=new Thickness(5,0,0,0)};
@@ -126,10 +134,21 @@ public static class AiManager
         bottom.Children.Add(insert);bottom.Children.Add(replace);bottom.Children.Add(copy);bottom.Children.Add(close);
         Grid.SetRow(bottom,5);root.Children.Add(bottom);
 
+        string CurrentMacroExtension()
+        {
+            if(!macroMode)return "";
+            return macroTarget?.SelectedIndex switch {1=>".vb",2=>".cs",_=>".czm"};
+        }
+
         string BuildPrompt()
         {
             var text=instruction.Text.Trim();
-            if(macroMode)return AiResultRenderer.MacroPrompt(text,macroExtension,macroReference,existingCode);
+            if(macroMode)
+            {
+                var ext=CurrentMacroExtension();
+                var reference=ext==".czm"?macroReference:"";
+                return AiResultRenderer.MacroPrompt(text,ext,reference,existingCode);
+            }
             return AiResultRenderer.DocumentPrompt(text,selectedText,documentText,true);
         }
 
@@ -186,7 +205,8 @@ public static class AiManager
             if(macroMode)
             {
                 var providerName=provider.SelectedItem?.ToString()??"Unknown";
-                applyMacro?.Invoke(AiResultRenderer.EmbedMacroPrompt(result.Text.Trim(),macroExtension,instruction.Text,providerName));
+                var ext=CurrentMacroExtension();
+                applyMacro?.Invoke(AiResultRenderer.EmbedMacroPrompt(result.Text.Trim(),ext,instruction.Text,providerName),ext);
             }
             else applyDocument?.Invoke(result.Text,false);
             w.Close();
