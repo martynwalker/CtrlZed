@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 20 moves page guides into side gutters, adds automatic picture and short-paragraph keep-together flow with fallback reflow, adds File > Settings with Keep paragraph together, expands font sizes to 72pt, adds Help > Coming Soon, and fixes the recursive MacroDirectory crash."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 21 fixes accumulating dynamic macro menu entries, removes the unstable live pagination reflow that caused flicker/image resizing/text bounce, clarifies top/bottom margin gaps in side guides, fixes the Macro Manager Save & Exit caption, and adopts the new cyan/gold cyber CtrlZed branding."
