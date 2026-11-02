@@ -683,7 +683,7 @@ public partial class MainWindow : Window
         edit.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
         edit.ColumnDefinitions.Add(new ColumnDefinition());
 
-        var scope=new TextBlock{Margin=new Thickness(0,3,0,8),Foreground=Brushes.DimGray};
+        var scope=new TextBox{Margin=new Thickness(0,3,0,8),IsReadOnly=true,BorderThickness=new Thickness(0),Background=Brushes.Transparent,Foreground=Brushes.DimGray};
         var name=new TextBox{Margin=new Thickness(0,3,0,8)};
         var value=new TextBox{Margin=new Thickness(0,3,0,8),AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=130};
         AddRow(edit,0,"Scope",scope);
