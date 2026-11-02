@@ -2726,7 +2726,7 @@ INSERT_FIELD date
         {
             var line=raw.Trim();
             if(line.Length==0 || line.StartsWith("#"))continue;
-            if(line.StartsWith("MENU_OPTION",StringComparison.OrdinalIgnoreCase) || line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))continue;
+            if(line.StartsWith("MENU_",StringComparison.OrdinalIgnoreCase) || line.StartsWith("MENU_PARENT",StringComparison.OrdinalIgnoreCase))continue;
             executed++;
             if(executed>200)throw new InvalidOperationException("Safe macro exceeds the 200-command limit.");
 
