@@ -4,9 +4,9 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 14
+## Current release: Beta 18
 
-Beta 13.1 builds on the working `.czd` editor and adds or retains:
+Beta 18 is the current published Windows prerelease. It builds on the working `.czd` editor and adds or retains:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
@@ -28,7 +28,7 @@ Beta 13.1 builds on the working `.czd` editor and adds or retains:
 - safe and extended `.czm` macros
 - interactive macro prompts and QR-code insertion in extended mode
 - right-click **Macros** submenu on the document canvas
-- `MENU_OPTION` and `MENU_NAME` metadata for context-menu macros
+- hierarchical macro menus using `MENU_NAME`, `MENU_POSITION`, `MENU_PATH` and `MENU_PATH_POSITIONS` (with legacy `MENU_OPTION` compatibility)
 - friendly macro names in Macro Manager
 - explicit rename support for central macro files
 
@@ -81,22 +81,24 @@ A `.czm` macro may declare:
 
 ```text
 # SHORTCUT: Ctrl+Alt+M
-MENU_OPTION=1
-MENU_NAME="Insert QR Code"
+MENU_NAME="Snowflake..."
+MENU_PATH="Writing/Plotting Methods"
+MENU_PATH_POSITIONS="7/2"
+MENU_POSITION=1
 ```
 
-When both `MENU_OPTION` and `MENU_NAME` are present, the macro appears in the document's right-click **Macros** submenu. `MENU_OPTION` controls ordering.
+Omit `MENU_PATH` to place the macro in the document's right-click **Macros** submenu. Paths can also target existing CtrlZed menus such as `Insert` or `Tools`. `MENU_OPTION` remains supported as a legacy alias for `MENU_POSITION`.
 
 VB.NET and C# macro source can also be stored in the Macro Library. CtrlZed recognises language-native friendly-name constants for display:
 
 ```vbnet
-Public Const MENU_OPTION As Integer = 1
 Public Const MENU_NAME As String = "Clipboard to Two Columns"
+Public Const MENU_POSITION As Integer = 1
 ```
 
 ```csharp
-public const int MENU_OPTION = 1;
 public const string MENU_NAME = "Clipboard to Two Columns";
+public const int MENU_POSITION = 1;
 ```
 
 VB.NET and C# macros can be compiled and run in memory when **Allow compiled VB/C# macros (full trust)** is enabled in Macro Manager. They use a public static/shared `Run(RichTextBox)` entry point. Because compiled macros run with the same Windows permissions as CtrlZed, only run source you trust.
@@ -141,3 +143,8 @@ Browser/free and signed-in handoff remain available for all four providers, with
 ## Licence
 
 MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.md).
+
+
+## Beta 19 in development
+
+Beta 19 is being developed from GitHub Issue #1. The active work includes import-at-cursor, pagination cleanup, reversible whole-document custom fields, Macro Manager workflow polish, and fixes for beta 18 macro-folder/menu regressions.
