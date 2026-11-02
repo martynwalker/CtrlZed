@@ -31,7 +31,9 @@ public partial class MainWindow : Window
     readonly DispatcherTimer uiRefreshTimer;
     readonly string recoveryFile;
     readonly string recoverySettingsFile;
-    readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase); // legacy per-document fields
+    readonly Dictionary<string,string> systemFields = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string,string> userFields = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string,string> embeddedMacros = new(StringComparer.OrdinalIgnoreCase);
     readonly List<string> recentFiles = new();
     readonly string settingsFile;
@@ -93,6 +95,7 @@ public partial class MainWindow : Window
         recoveryFile = Path.Combine(recoveryDir,"Recovery.rtf");
         recoverySettingsFile = Path.Combine(recoveryDir,"Recovery.settings.json");
         settingsFile = Path.Combine(recoveryDir,"settings.json");
+        ReloadPersistentFields();
         LoadAppSettings();
         ApplySavedWindowPlacement();
         EnsureDocumentPropertyDefaults();
@@ -155,6 +158,36 @@ public partial class MainWindow : Window
             {
                 TryDeleteRecovery();
             }
+        }
+    }
+
+    void ReloadPersistentFields()
+    {
+        systemFields.Clear();
+        foreach(var pair in PersistentFieldStore.LoadSystem())systemFields[pair.Key]=pair.Value;
+        userFields.Clear();
+        foreach(var pair in PersistentFieldStore.LoadUser())userFields[pair.Key]=pair.Value;
+    }
+
+    void SaveUserFields()
+    {
+        PersistentFieldStore.SaveUser(userFields);
+        Status.Text="User fields saved.";
+    }
+
+    void MigrateLegacyDocumentFields()
+    {
+        var changed=false;
+        foreach(var pair in customFields)
+        {
+            if(userFields.ContainsKey(pair.Key))continue;
+            userFields[pair.Key]=pair.Value;
+            changed=true;
+        }
+        if(changed)
+        {
+            PersistentFieldStore.SaveUser(userFields);
+            Status.Text="Legacy document fields migrated to persistent user fields.";
         }
     }
 
@@ -313,6 +346,7 @@ public partial class MainWindow : Window
             foreach(var pair in v.CustomFields)
                 if(!string.IsNullOrWhiteSpace(pair.Key))
                     customFields[pair.Key]=pair.Value??"";
+        MigrateLegacyDocumentFields();
 
         embeddedMacros.Clear();
         if(v.EmbeddedMacros!=null)
@@ -495,7 +529,7 @@ public partial class MainWindow : Window
             }
             if(inline is not Run run || string.IsNullOrEmpty(run.Text))continue;
 
-            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:field[:.])?[A-Za-z0-9_-]+\}");
+            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:(?:field|system|user)[:.])?[A-Za-z0-9_-]+\}");
             if(matches.Count==0)continue;
 
             var replacements=new List<Inline>();
@@ -558,12 +592,33 @@ public partial class MainWindow : Window
                        .Replace("{version}",documentVersion,StringComparison.OrdinalIgnoreCase)
                        .Replace("{title}",documentTitle,StringComparison.OrdinalIgnoreCase);
 
-        foreach(var pair in customFields)
+        foreach(var pair in systemFields)
         {
             var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
+            result=result.Replace("{system:"+pair.Key+"}",expanded,StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach(var pair in userFields)
+        {
+            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
+            result=result.Replace("{user:"+pair.Key+"}",expanded,StringComparison.OrdinalIgnoreCase);
             foreach(var token in new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"})
-                if(result.Contains(token,StringComparison.OrdinalIgnoreCase))
-                    result=result.Replace(token,expanded,StringComparison.OrdinalIgnoreCase);
+                result=result.Replace(token,expanded,StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach(var pair in customFields)
+        {
+            if(userFields.ContainsKey(pair.Key))continue;
+            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
+            foreach(var token in new[]{"{field:"+pair.Key+"}","{field."+pair.Key+"}","{"+pair.Key+"}"})
+                result=result.Replace(token,expanded,StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach(var pair in systemFields)
+        {
+            if(userFields.ContainsKey(pair.Key) || customFields.ContainsKey(pair.Key))continue;
+            var expanded=ExpandFieldsCore(pair.Value,page,pages,depth+1);
+            result=result.Replace("{"+pair.Key+"}",expanded,StringComparison.OrdinalIgnoreCase);
         }
         return result;
     }
@@ -610,9 +665,9 @@ public partial class MainWindow : Window
 
     void Fields_Click(object s,RoutedEventArgs e)
     {
-        var w=new Window{Title="CtrlZed Fields",Owner=this,Width=620,Height=430,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var w=new Window{Title="CtrlZed Fields",Owner=this,Width=720,Height=500,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
         var root=new Grid{Margin=new Thickness(12)};
-        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(190)});
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(240)});
         root.ColumnDefinitions.Add(new ColumnDefinition());
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
@@ -628,38 +683,76 @@ public partial class MainWindow : Window
         edit.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
         edit.ColumnDefinitions.Add(new ColumnDefinition());
 
+        var scope=new TextBlock{Margin=new Thickness(0,3,0,8),Foreground=Brushes.DimGray};
         var name=new TextBox{Margin=new Thickness(0,3,0,8)};
-        var value=new TextBox{Margin=new Thickness(0,3,0,8),AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=110};
-        AddRow(edit,0,"Name",name);
-        AddRow(edit,1,"Template",value);
+        var value=new TextBox{Margin=new Thickness(0,3,0,8),AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=130};
+        AddRow(edit,0,"Scope",scope);
+        AddRow(edit,1,"Name",name);
+        AddRow(edit,2,"Template",value);
         var hint=new TextBlock
         {
-            Text="Use built-ins such as {date}, {filename}, {moonphase}. Custom fields may be used as {name}, {field.name}, or {field:name} anywhere in the document, header or footer.",
-            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,4,0,8)
+            Text="System fields are shipped with CtrlZed and are read-only: {system:name}. User fields are persistent on this Windows profile: {user:name}. Legacy {name}, {field.name} and {field:name} remain supported.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,8)
         };
-        Grid.SetRow(hint,2);Grid.SetColumnSpan(hint,2);edit.Children.Add(hint);
+        Grid.SetRow(hint,3);Grid.SetColumnSpan(hint,2);edit.Children.Add(hint);
         Grid.SetColumn(edit,1);Grid.SetRow(edit,0);root.Children.Add(edit);
 
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
-        var save=new Button{Content="Save field",Width=90,Margin=new Thickness(4)};
+        var addUser=new Button{Content="New user field",Width=105,Margin=new Thickness(4)};
+        var save=new Button{Content="Save user field",Width=105,Margin=new Thickness(4)};
         var remove=new Button{Content="Delete",Width=75,Margin=new Thickness(4)};
-        var moon=new Button{Content="Moon example",Width=105,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=75,Margin=new Thickness(4)};
-        buttons.Children.Add(moon);buttons.Children.Add(remove);buttons.Children.Add(save);buttons.Children.Add(close);
+        buttons.Children.Add(addUser);buttons.Children.Add(remove);buttons.Children.Add(save);buttons.Children.Add(close);
         Grid.SetColumn(buttons,0);Grid.SetColumnSpan(buttons,2);Grid.SetRow(buttons,1);root.Children.Add(buttons);
 
+        var map=new Dictionary<string,(string Scope,string Key)>(StringComparer.Ordinal);
         void RefreshList()
         {
-            list.ItemsSource=customFields.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+            map.Clear();
+            var items=new List<string>();
+            foreach(var key in systemFields.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase))
+            {
+                var label="System | "+key;
+                map[label]=("system",key);items.Add(label);
+            }
+            foreach(var key in userFields.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase))
+            {
+                var label="User | "+key;
+                map[label]=("user",key);items.Add(label);
+            }
+            list.ItemsSource=items;
+        }
+
+        void SetEditable(bool editable)
+        {
+            name.IsReadOnly=!editable;
+            value.IsReadOnly=!editable;
+            save.IsEnabled=editable;
+            remove.IsEnabled=editable;
         }
 
         list.SelectionChanged+=(_,__)=>
         {
-            if(list.SelectedItem is string key && customFields.TryGetValue(key,out var template))
+            if(list.SelectedItem is not string label || !map.TryGetValue(label,out var item))return;
+            scope.Text=item.Scope=="system"?"System — distributed with CtrlZed":"User — persistent local profile";
+            name.Text=item.Key;
+            if(item.Scope=="system")
             {
-                name.Text=key;
-                value.Text=template;
+                value.Text=systemFields.TryGetValue(item.Key,out var template)?template:"";
+                SetEditable(false);
             }
+            else
+            {
+                value.Text=userFields.TryGetValue(item.Key,out var template)?template:"";
+                SetEditable(true);
+            }
+        };
+
+        addUser.Click+=(_,__)=>
+        {
+            list.SelectedItem=null;
+            scope.Text="User — persistent local profile";
+            name.Clear();value.Clear();SetEditable(true);name.Focus();
         };
 
         save.Click+=(_,__)=>
@@ -670,32 +763,31 @@ public partial class MainWindow : Window
                 MessageBox.Show("Field names may contain letters, numbers, hyphens and underscores.","Invalid field",MessageBoxButton.OK,MessageBoxImage.Warning);
                 return;
             }
-            customFields[key]=value.Text;
+            userFields[key]=value.Text;
+            SaveUserFields();
             RefreshList();
-            list.SelectedItem=key;
+            list.SelectedItem="User | "+key;
             RefreshHeaderFooter();
-            if(fieldValuesVisible){SetFieldValuesVisible(false);SetFieldValuesVisible(true);}
-            MarkDirty("Custom field saved.");
+            if(fieldValuesVisible){SetFieldValuesVisible(false,false);SetFieldValuesVisible(true,false);}
         };
 
         remove.Click+=(_,__)=>
         {
-            if(list.SelectedItem is string key && customFields.Remove(key))
+            if(list.SelectedItem is not string label || !map.TryGetValue(label,out var item) || item.Scope!="user")return;
+            if(userFields.Remove(item.Key))
             {
-                name.Clear();value.Clear();RefreshList();RefreshHeaderFooter();
-                if(fieldValuesVisible){SetFieldValuesVisible(false);SetFieldValuesVisible(true);}
-                MarkDirty("Custom field deleted.");
+                PersistentFieldStore.SaveUser(userFields);
+                name.Clear();value.Clear();scope.Text="";RefreshList();SetEditable(false);
+                RefreshHeaderFooter();
+                if(fieldValuesVisible){SetFieldValuesVisible(false,false);SetFieldValuesVisible(true,false);}
+                Status.Text="User field deleted.";
             }
         };
 
-        moon.Click+=(_,__)=>
-        {
-            name.Text="moon";
-            value.Text="{moonicon} {moonphase}";
-        };
-
         close.Click+=(_,__)=>w.Close();
+        ReloadPersistentFields();
         RefreshList();
+        SetEditable(false);
         w.Content=root;
         w.ShowDialog();
     }
@@ -707,13 +799,39 @@ public partial class MainWindow : Window
         value="";
         if(string.IsNullOrWhiteSpace(token) || token.Length<3 || token[0]!='{' || token[^1]!='}')return false;
         var inner=token[1..^1].Trim();
+
+        if(inner.StartsWith("system:",StringComparison.OrdinalIgnoreCase))
+        {
+            var key=inner[7..];
+            if(!systemFields.TryGetValue(key,out var template))return false;
+            value=ExpandFields(template,1,1);
+            return true;
+        }
+        if(inner.StartsWith("user:",StringComparison.OrdinalIgnoreCase))
+        {
+            var key=inner[5..];
+            if(!userFields.TryGetValue(key,out var template))return false;
+            value=ExpandFields(template,1,1);
+            return true;
+        }
+
         var name=inner;
         if(inner.StartsWith("field:",StringComparison.OrdinalIgnoreCase) || inner.StartsWith("field.",StringComparison.OrdinalIgnoreCase))
             name=inner[6..];
 
-        if(customFields.TryGetValue(name,out var custom))
+        if(userFields.TryGetValue(name,out var user))
         {
-            value=ExpandFields(custom,1,1);
+            value=ExpandFields(user,1,1);
+            return true;
+        }
+        if(customFields.TryGetValue(name,out var legacy))
+        {
+            value=ExpandFields(legacy,1,1);
+            return true;
+        }
+        if(systemFields.TryGetValue(name,out var system))
+        {
+            value=ExpandFields(system,1,1);
             return true;
         }
 
@@ -746,7 +864,7 @@ public partial class MainWindow : Window
             }
             if(inline is not Run run || string.IsNullOrEmpty(run.Text) || run.Tag!=null)continue;
 
-            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:field[:.])?[A-Za-z0-9_-]+\}");
+            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:(?:field|system|user)[:.])?[A-Za-z0-9_-]+\}");
             if(matches.Count==0)continue;
 
             var replacements=new List<Inline>();
