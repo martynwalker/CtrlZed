@@ -1,0 +1,9 @@
+{
+  "today": "{date}",
+  "now": "{time}",
+  "documentTitle": "{title}",
+  "documentVersion": "{version}",
+  "fileName": "{filename}",
+  "moonPhase": "{moonphase}",
+  "moon": "{moonicon} {moonphase}"
+}
