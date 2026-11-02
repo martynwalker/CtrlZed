@@ -2261,6 +2261,7 @@ public partial class MainWindow : Window
         if(PageGuides!=null)
         {
             PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
+            PageGuides.PageGap=Math.Max(24,pageMargins.Top+pageMargins.Bottom);
             UpdatePageGuideState();
         }
     }
