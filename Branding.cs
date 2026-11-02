@@ -16,47 +16,86 @@ public static class Branding
 
     public static ImageSource CreateIconImageSource()
     {
-        var group=new DrawingGroup();
-        var cyan=Color.FromRgb(71,215,255);
-        var cyanSoft=Color.FromArgb(85,71,215,255);
+        var g=new DrawingGroup();
+        var cyan=Color.FromRgb(55,228,240);
+        var cyanPale=Color.FromRgb(185,249,255);
+        var gold=Color.FromRgb(255,193,55);
+        var steel=Color.FromRgb(214,235,241);
+        var bg=new LinearGradientBrush(Color.FromRgb(4,15,24),Color.FromRgb(10,31,43),45);
 
-        group.Children.Add(new GeometryDrawing(
-            new LinearGradientBrush(Color.FromRgb(20,34,58),Color.FromRgb(28,48,78),45),
-            null,new RectangleGeometry(new Rect(0,0,100,100),20,20)));
+        g.Children.Add(new GeometryDrawing(bg,null,new EllipseGeometry(new Point(50,50),47,47)));
 
-        // Subtle circuit traces: visible at larger sizes, harmless at 16px.
-        var circuitPen=new Pen(new SolidColorBrush(cyanSoft),1.7){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round};
-        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 10,28 L 22,28 L 28,22")));
-        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 90,72 L 78,72 L 72,78")));
-        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 72,10 L 72,20 L 79,27")));
-        group.Children.Add(new GeometryDrawing(null,circuitPen,Geometry.Parse("M 28,90 L 28,80 L 21,73")));
+        var gridPen=new Pen(new SolidColorBrush(Color.FromArgb(45,70,215,230)),0.8);
+        foreach(var x in new[]{18d,30d,70d,82d})
+            g.Children.Add(new GeometryDrawing(null,gridPen,new LineGeometry(new Point(x,8),new Point(x,92))));
+        foreach(var y in new[]{18d,30d,70d,82d})
+            g.Children.Add(new GeometryDrawing(null,gridPen,new LineGeometry(new Point(8,y),new Point(92,y))));
 
-        foreach(var p in new[]{new Point(10,28),new Point(90,72),new Point(72,10),new Point(28,90)})
-            group.Children.Add(new GeometryDrawing(new SolidColorBrush(cyan),null,new EllipseGeometry(p,2.3,2.3)));
+        void Ring(double radius,Color colour,double width,double start,double sweep)
+        {
+            var pen=new Pen(new SolidColorBrush(colour),width){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round};
+            var geo=new StreamGeometry();
+            using(var c=geo.Open())
+            {
+                var a=start*Math.PI/180.0;
+                var b=(start+sweep)*Math.PI/180.0;
+                var p1=new Point(50+radius*Math.Cos(a),50+radius*Math.Sin(a));
+                var p2=new Point(50+radius*Math.Cos(b),50+radius*Math.Sin(b));
+                c.BeginFigure(p1,false,false);
+                c.ArcTo(p2,new Size(radius,radius),0,Math.Abs(sweep)>180,
+                    sweep>=0?SweepDirection.Clockwise:SweepDirection.Counterclockwise,true,false);
+            }
+            geo.Freeze();
+            g.Children.Add(new GeometryDrawing(null,pen,geo));
+        }
 
-        // Gold undo/orbit sweep.
-        var goldArc=Geometry.Parse("M 73,73 A 34,34 0 1 1 39,23");
-        group.Children.Add(new GeometryDrawing(null,
-            new Pen(new SolidColorBrush(GoldBright),8.5){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round,LineJoin=PenLineJoin.Round},
-            goldArc));
-        group.Children.Add(new GeometryDrawing(new SolidColorBrush(GoldBright),null,Geometry.Parse("M 38,14 L 38,33 L 22,27 Z")));
+        Ring(42,cyanPale,2.6,195,116);
+        Ring(42,gold,2.6,15,116);
+        Ring(34,cyan,3.2,206,96);
+        Ring(34,gold,3.2,26,96);
+        Ring(27,Color.FromArgb(190,55,228,240),1.5,190,140);
+        Ring(27,Color.FromArgb(190,255,193,55),1.5,10,140);
 
-        // Cyan counter-orbit suggests data/AI motion.
-        var cyanArc=Geometry.Parse("M 69,23 A 31,31 0 0 1 83,49");
-        group.Children.Add(new GeometryDrawing(null,
-            new Pen(new SolidColorBrush(cyan),4){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round},
-            cyanArc));
-        group.Children.Add(new GeometryDrawing(new SolidColorBrush(cyan),null,new EllipseGeometry(new Point(84,52),2.7,2.7)));
+        foreach(var p in new[]{new Point(16,50),new Point(84,50),new Point(50,16),new Point(50,84)})
+        {
+            g.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(6,25,34)),
+                new Pen(new SolidColorBrush(cyan),1.8),new EllipseGeometry(p,3.2,3.2)));
+        }
 
-        // Slight cyan shadow behind the Z gives depth without blurring small icons.
-        group.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(90,71,215,255)),null,
-            Geometry.Parse("M 38,33 L 67,33 L 67,41 L 50,61 L 68,61 L 68,70 L 35,70 L 35,61 L 52,41 L 38,41 Z")));
-        var z=Geometry.Parse("M 36,31 L 65,31 L 65,39 L 48,59 L 66,59 L 66,68 L 33,68 L 33,59 L 50,39 L 36,39 Z");
-        group.Children.Add(new GeometryDrawing(Brushes.White,null,z));
+        // Angular metallic Z, matching the supplied cyber logo.
+        var shadow=Geometry.Parse("M 30,31 L 72,31 L 62,41 L 48,55 L 66,55 L 75,68 L 31,68 L 41,57 L 56,42 L 38,42 Z");
+        g.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(110,55,228,240)),null,shadow));
+        var z=Geometry.Parse("M 27,28 L 75,28 L 64,40 L 47,57 L 69,57 L 78,71 L 26,71 L 38,58 L 57,39 L 39,39 Z");
+        g.Children.Add(new GeometryDrawing(
+            new LinearGradientBrush(steel,Color.FromRgb(70,155,172),90),
+            new Pen(new SolidColorBrush(cyanPale),1.1),z));
 
-        var image=new DrawingImage(group);
+        var inner=Geometry.Parse("M 35,34 L 65,34 L 58,40 L 39,61 L 63,61 L 66,65 L 36,65 L 43,58 L 62,37 L 38,37 Z");
+        g.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromRgb(5,24,34)),null,inner));
+
+        var image=new DrawingImage(g);
         image.Freeze();
         return image;
+    }
+
+    static UIElement CreateAboutLogo()
+    {
+        var panel=new StackPanel{HorizontalAlignment=HorizontalAlignment.Center};
+        panel.Children.Add(new Image
+        {
+            Source=CreateIconImageSource(),Width=245,Height=245,
+            HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,0,0,4)
+        });
+
+        var word=new TextBlock
+        {
+            FontFamily=new FontFamily("Segoe UI"),FontSize=52,
+            HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,-2,0,2)
+        };
+        word.Inlines.Add(new Run("Ctrl"){Foreground=new SolidColorBrush(Color.FromRgb(175,247,255)),FontWeight=FontWeights.Light});
+        word.Inlines.Add(new Run("Zed"){Foreground=new SolidColorBrush(Color.FromRgb(255,193,55)),FontWeight=FontWeights.Light});
+        panel.Children.Add(word);
+        return panel;
     }
 
     static TextBlock Link(string text,string url)
@@ -82,27 +121,41 @@ public static class Branding
 
     public static Window CreateAboutWindow(Window owner,string version)
     {
-        var window=new Window{Title="About CtrlZed",Owner=owner,Width=560,Height=430,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=new SolidColorBrush(NavyDeep),Icon=CreateIconImageSource()};
-        var root=new Grid{Margin=new Thickness(34)};
-        for(int i=0;i<7;i++)root.RowDefinitions.Add(new RowDefinition{Height=i==6?GridLength.Auto:GridLength.Auto});
+        var window=new Window
+        {
+            Title="About CtrlZed",Owner=owner,Width=620,Height=690,ResizeMode=ResizeMode.NoResize,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Background=new SolidColorBrush(Color.FromRgb(4,13,22)),Icon=CreateIconImageSource()
+        };
 
-        var logo=new Image{Source=CreateIconImageSource(),Width=88,Height=88,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,0,0,14)};
-        Grid.SetRow(logo,0);root.Children.Add(logo);
+        var root=new StackPanel{Margin=new Thickness(30)};
+        root.Children.Add(CreateAboutLogo());
 
-        var title=new TextBlock{HorizontalAlignment=HorizontalAlignment.Center,FontFamily=new FontFamily("Segoe UI"),FontSize=34,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,4)};
-        title.Inlines.Add(new Run("Ctrl"){Foreground=Brushes.White});title.Inlines.Add(new Run("Zed"){Foreground=new SolidColorBrush(GoldBright)});
-        Grid.SetRow(title,1);root.Children.Add(title);
+        root.Children.Add(new TextBlock
+        {
+            Text="AI-developed open-source word processor",
+            Foreground=new SolidColorBrush(Color.FromRgb(190,218,228)),
+            FontSize=16,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,2,0,14)
+        });
 
-        var subtitle=new TextBlock{Text="AI-developed open-source word processor",Foreground=new SolidColorBrush(Color.FromRgb(204,218,238)),FontSize=16,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,0,0,18)};
-        Grid.SetRow(subtitle,2);root.Children.Add(subtitle);
+        root.Children.Add(new Border
+        {
+            Height=1,Background=new SolidColorBrush(Color.FromArgb(100,55,228,240)),
+            Margin=new Thickness(45,0,45,14)
+        });
 
-        var divider=new Border{Height=1,Background=new SolidColorBrush(Color.FromArgb(80,229,163,65)),Margin=new Thickness(50,0,50,18)};
-        Grid.SetRow(divider,3);root.Children.Add(divider);
+        root.Children.Add(new TextBlock
+        {
+            Text=$"Version {version}\n\nHuman-directed. AI-authored. Open to inspection.\nMIT licensed · Local-first · Keyboard-friendly",
+            Foreground=new SolidColorBrush(Color.FromRgb(220,231,238)),
+            FontSize=13.5,TextAlignment=TextAlignment.Center,TextWrapping=TextWrapping.Wrap
+        });
 
-        var body=new TextBlock{Text=$"Version {version}\n\nHuman-directed. AI-authored. Open to inspection.\nMIT licensed · Local-first · Keyboard-friendly",Foreground=new SolidColorBrush(Color.FromRgb(220,226,236)),FontSize=13.5,TextAlignment=TextAlignment.Center,TextWrapping=TextWrapping.Wrap};
-        Grid.SetRow(body,4);root.Children.Add(body);
-
-        var links=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,20,0,0)};
+        var links=new StackPanel
+        {
+            Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center,
+            Margin=new Thickness(0,22,0,0)
+        };
         var credits=new Button{Content="Credits",Width=90,Height=30,Margin=new Thickness(4)};
         var github=new Button{Content="GitHub",Width=90,Height=30,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=90,Height=30,Margin=new Thickness(4),IsDefault=true};
@@ -110,8 +163,9 @@ public static class Branding
         github.Click+=(_,__)=>Process.Start(new ProcessStartInfo("https://github.com/martynwalker/CtrlZed"){UseShellExecute=true});
         close.Click+=(_,__)=>window.Close();
         links.Children.Add(credits);links.Children.Add(github);links.Children.Add(close);
-        Grid.SetRow(links,5);Grid.SetRowSpan(links,2);root.Children.Add(links);
+        root.Children.Add(links);
 
-        window.Content=root;return window;
+        window.Content=root;
+        return window;
     }
 }
