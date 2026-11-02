@@ -168,7 +168,6 @@ public partial class MainWindow : Window
             Filter="Supported files (*.docx;*.rtf;*.txt;*.md;*.markdown;*.html;*.htm;*.pdf)|*.docx;*.rtf;*.txt;*.md;*.markdown;*.html;*.htm;*.pdf|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt|Markdown (*.md;*.markdown)|*.md;*.markdown|HTML (*.html;*.htm)|*.html;*.htm|PDF documents (*.pdf)|*.pdf|All files (*.*)|*.*"
         };
         if(d.ShowDialog()!=true)return;
-
         try
         {
             var imported=ImportService.Load(d.FileName);
@@ -274,7 +273,10 @@ public partial class MainWindow : Window
             File.Move(tmp,recoveryFile,true);
         }
         catch { }
-        finally{if(restoreFields)SetFieldValuesVisible(true);}
+        finally
+        {
+            if(restoreFields)SetFieldValuesVisible(true);
+        }
     }
 
     void TryDeleteRecovery()
@@ -576,6 +578,2062 @@ public partial class MainWindow : Window
                 name.Text=key;
                 value.Text=template;
             }
+        };
+
+        save.Click+=(_,__)=>
+        {
+            var key=name.Text.Trim();
+            if(string.IsNullOrWhiteSpace(key) || key.Any(ch=>!(char.IsLetterOrDigit(ch)||ch=='_'||ch=='-')))
+            {
+                MessageBox.Show("Field names may contain letters, numbers, hyphens and underscores.","Invalid field",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            customFields[key]=value.Text;
+            RefreshList();
+            list.SelectedItem=key;
+            RefreshHeaderFooter();
+            if(fieldValuesVisible){SetFieldValuesVisible(false);SetFieldValuesVisible(true);}
+            MarkDirty("Custom field saved.");
+        };
+
+        remove.Click+=(_,__)=>
+        {
+            if(list.SelectedItem is string key && customFields.Remove(key))
+            {
+                name.Clear();value.Clear();RefreshList();RefreshHeaderFooter();
+                if(fieldValuesVisible){SetFieldValuesVisible(false);SetFieldValuesVisible(true);}
+                MarkDirty("Custom field deleted.");
+            }
+        };
+
+        moon.Click+=(_,__)=>
+        {
+            name.Text="moon";
+            value.Text="{moonicon} {moonphase}";
+        };
+
+        close.Click+=(_,__)=>w.Close();
+        RefreshList();
+        w.Content=root;
+        w.ShowDialog();
+    }
+
+    const string FieldTagPrefix="CtrlZedField:";
+
+    bool TryExpandDocumentField(string token,out string value)
+    {
+        value="";
+        if(string.IsNullOrWhiteSpace(token) || token.Length<3 || token[0]!='{' || token[^1]!='}')return false;
+        var inner=token[1..^1].Trim();
+        var name=inner;
+        if(inner.StartsWith("field:",StringComparison.OrdinalIgnoreCase) || inner.StartsWith("field.",StringComparison.OrdinalIgnoreCase))
+            name=inner[6..];
+
+        if(customFields.TryGetValue(name,out var custom))
+        {
+            value=ExpandFields(custom,1,1);
+            return true;
+        }
+
+        var builtins=new HashSet<string>(new[]{"page","pages","date","time","filename","moonphase","moonicon","version","title"},StringComparer.OrdinalIgnoreCase);
+        if(!builtins.Contains(inner))return false;
+        value=ExpandFields(token,1,1);
+        return true;
+    }
+
+    static Run CloneRun(Run source,string text)
+    {
+        return new Run(text)
+        {
+            FontFamily=source.FontFamily,FontSize=source.FontSize,FontWeight=source.FontWeight,
+            FontStyle=source.FontStyle,Foreground=source.Foreground,Background=source.Background,
+            TextDecorations=source.TextDecorations
+        };
+    }
+
+    void ExpandFieldsInInlineCollection(InlineCollection inlines)
+    {
+        foreach(var inline in inlines.ToList())
+        {
+            if(inline is Span span)
+            {
+                ExpandFieldsInInlineCollection(span.Inlines);
+                continue;
+            }
+            if(inline is not Run run || string.IsNullOrEmpty(run.Text) || run.Tag!=null)continue;
+
+            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:field[:.])?[A-Za-z0-9_-]+\}");
+            if(matches.Count==0)continue;
+
+            var replacements=new List<Inline>();
+            var pos=0;
+            foreach(System.Text.RegularExpressions.Match match in matches)
+            {
+                if(match.Index>pos)replacements.Add(CloneRun(run,run.Text[pos..match.Index]));
+                var token=match.Value;
+                if(TryExpandDocumentField(token,out var expanded))
+                {
+                    var fieldRun=CloneRun(run,expanded);
+                    fieldRun.Tag=FieldTagPrefix+token;
+                    fieldRun.Background=new SolidColorBrush(Color.FromArgb(36,71,215,255));
+                    replacements.Add(fieldRun);
+                }
+                else replacements.Add(CloneRun(run,token));
+                pos=match.Index+match.Length;
+            }
+            if(pos<run.Text.Length)replacements.Add(CloneRun(run,run.Text[pos..]));
+
+            foreach(var replacement in replacements)inlines.InsertBefore(run,replacement);
+            inlines.Remove(run);
+        }
+    }
+
+    void RestoreFieldCodesInInlineCollection(InlineCollection inlines)
+    {
+        foreach(var inline in inlines.ToList())
+        {
+            if(inline is Span span)RestoreFieldCodesInInlineCollection(span.Inlines);
+            else if(inline is Run run && run.Tag is string tag && tag.StartsWith(FieldTagPrefix,StringComparison.Ordinal))
+            {
+                run.Text=tag[FieldTagPrefix.Length..];
+                run.Tag=null;
+                run.ClearValue(TextElement.BackgroundProperty);
+            }
+        }
+    }
+
+    void SetFieldValuesVisible(bool visible)
+    {
+        if(visible==fieldValuesVisible)return;
+        var oldSuppress=suppressDirty;
+        var oldDirty=dirty;
+        suppressDirty=true;
+        try
+        {
+            foreach(var paragraph in EnumerateDocumentParagraphs())
+            {
+                if(visible)ExpandFieldsInInlineCollection(paragraph.Inlines);
+                else RestoreFieldCodesInInlineCollection(paragraph.Inlines);
+            }
+            fieldValuesVisible=visible;
+            if(FieldDisplayToggle!=null)
+            {
+                FieldDisplayToggle.IsChecked=visible;
+                FieldDisplayToggle.Content=visible?"Values":"Fields";
+                FieldDisplayToggle.ToolTip=visible?"Show field codes":"Show field values";
+            }
+        }
+        finally
+        {
+            suppressDirty=oldSuppress;
+            dirty=oldDirty;
+            UpdateTitle();
+        }
+    }
+
+    void FieldDisplay_Click(object s,RoutedEventArgs e)
+        =>SetFieldValuesVisible(FieldDisplayToggle.IsChecked==true);
+
+    void HeaderFooter_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window{Title="Header and Footer",Owner=this,Width=700,Height=420,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var grid=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<6;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(90)});
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+
+        Grid FieldRow(TextBox box,ComboBox templates)
+        {
+            var row=new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(34)});
+            box.Margin=new Thickness(0,3,4,8);
+            templates.Width=30;templates.Margin=new Thickness(0,3,0,8);templates.ToolTip="Templates";
+            Grid.SetColumn(box,0);Grid.SetColumn(templates,1);
+            row.Children.Add(box);row.Children.Add(templates);
+            return row;
+        }
+
+        var h=new TextBox{Text=headerText};
+        var ft=new TextBox{Text=footerText};
+        var headerTemplates=new ComboBox();
+        var footerTemplates=new ComboBox();
+        foreach(var item in new[]{"","Title | Page n of n | Date & Version","Title | Page n of n","Filename | Page n of n | Date","Title only"})
+            headerTemplates.Items.Add(item);
+        foreach(var item in new[]{"","Page n of n","Filename | Page n of n","Date & Version","Blank"})
+            footerTemplates.Items.Add(item);
+        headerTemplates.SelectedIndex=0;footerTemplates.SelectedIndex=0;
+
+        void ApplyHeaderTemplate()
+        {
+            h.Text=headerTemplates.SelectedIndex switch
+            {
+                1=>"{title}\tPage {page} of {pages}\t{date} · v{version}",
+                2=>"{title}\tPage {page} of {pages}\t",
+                3=>"{filename}\tPage {page} of {pages}\t{date}",
+                4=>"{title}",
+                _=>h.Text
+            };
+        }
+        void ApplyFooterTemplate()
+        {
+            ft.Text=footerTemplates.SelectedIndex switch
+            {
+                1=>"\tPage {page} of {pages}\t",
+                2=>"{filename}\tPage {page} of {pages}\t",
+                3=>"\t\t{date} · v{version}",
+                4=>"",
+                _=>ft.Text
+            };
+        }
+        headerTemplates.SelectionChanged+=(_,__)=>{if(headerTemplates.SelectedIndex>0)ApplyHeaderTemplate();};
+        footerTemplates.SelectionChanged+=(_,__)=>{if(footerTemplates.SelectedIndex>0)ApplyFooterTemplate();};
+
+        var headerLabel=new TextBlock{Text="Header",VerticalAlignment=VerticalAlignment.Center};
+        var footerLabel=new TextBlock{Text="Footer",VerticalAlignment=VerticalAlignment.Center};
+        var headerRow=FieldRow(h,headerTemplates);
+        var footerRow=FieldRow(ft,footerTemplates);
+        Grid.SetRow(headerLabel,0);Grid.SetColumn(headerLabel,0);grid.Children.Add(headerLabel);
+        Grid.SetRow(headerRow,0);Grid.SetColumn(headerRow,1);grid.Children.Add(headerRow);
+        Grid.SetRow(footerLabel,1);Grid.SetColumn(footerLabel,0);grid.Children.Add(footerLabel);
+        Grid.SetRow(footerRow,1);Grid.SetColumn(footerRow,1);grid.Children.Add(footerRow);
+
+        var help=new TextBlock
+        {
+            Text="Use tab-separated left, centre and right sections. Built-ins: {title}, {page}, {pages}, {date}, {time}, {filename}, {version}, {moonphase}, {moonicon}. Custom fields use {field:name}.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,8)
+        };
+        Grid.SetRow(help,2);Grid.SetColumnSpan(help,2);grid.Children.Add(help);
+
+        var preview=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,8)};
+        void RefreshPreview()
+        {
+            preview.Text="Header example: "+ExpandFields(h.Text,1,Math.Max(1,CreatePreviewPaginator().PageCount))+
+                         "\nFooter example: "+ExpandFields(ft.Text,1,Math.Max(1,CreatePreviewPaginator().PageCount));
+        }
+        h.TextChanged+=(_,__)=>RefreshPreview();ft.TextChanged+=(_,__)=>RefreshPreview();
+        Grid.SetRow(preview,3);Grid.SetColumnSpan(preview,2);grid.Children.Add(preview);
+
+        var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
+        Grid.SetRow(ok,5);Grid.SetColumnSpan(ok,2);grid.Children.Add(ok);
+        ok.Click+=(_,__)=>
+        {
+            headerText=h.Text;
+            footerText=ft.Text;
+            RefreshHeaderFooter();
+            MarkDirty("Header/footer updated.");
+            w.DialogResult=true;
+        };
+        RefreshPreview();
+        w.Content=grid;
+        w.ShowDialog();
+    }
+
+    static void AddFullRow(Grid g,int row,UIElement element)
+    {
+        Grid.SetRow(element,row);
+        g.Children.Add(element);
+    }
+
+    void RefreshHeaderFooter()
+    {
+        UpdatePageGuideState();
+    }
+
+    void UpdatePageGuideState()
+    {
+        if(PageGuides==null)return;
+        PageGuides.Header=headerText;
+        PageGuides.Footer=footerText;
+        PageGuides.Expand=ExpandFields;
+        PageGuides.ManualBreakY=GetManualBreakPositions();
+        PageGuides.InvalidateVisual();
+    }
+
+    IReadOnlyList<double> GetManualBreakPositions()
+    {
+        var points=new List<double>();
+        foreach(var p in EnumerateDocumentParagraphs())
+        {
+            if(!p.BreakPageBefore)continue;
+            try
+            {
+                var rect=p.ContentStart.GetCharacterRect(LogicalDirection.Forward);
+                if(!rect.IsEmpty && !double.IsNaN(rect.Top) && rect.Top>0)points.Add(rect.Top);
+            }
+            catch { }
+        }
+        return points;
+    }
+
+    sealed class AppSettings
+    {
+        public List<string> RecentFiles { get; set; } = new();
+        public double ZoomPercent { get; set; } = 100;
+        public bool ExtendedMacrosEnabled { get; set; }
+        public bool CompiledMacrosEnabled { get; set; }
+        public string LastMacroLanguage { get; set; } = ".vb";
+        public double WindowLeft { get; set; } = double.NaN;
+        public double WindowTop { get; set; } = double.NaN;
+        public double WindowWidth { get; set; } = 1100;
+        public double WindowHeight { get; set; } = 760;
+    }
+
+    void LoadAppSettings()
+    {
+        try
+        {
+            if(!File.Exists(settingsFile))return;
+            var settings=JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(settingsFile));
+            if(settings==null)return;
+            recentFiles.Clear();
+            recentFiles.AddRange(settings.RecentFiles.Where(File.Exists).Take(10));
+            zoomPercent=Math.Clamp(settings.ZoomPercent,50,150);
+            extendedMacrosEnabled=settings.ExtendedMacrosEnabled;
+            compiledMacrosEnabled=settings.CompiledMacrosEnabled;
+            lastMacroLanguage=settings.LastMacroLanguage is ".czm" or ".vb" or ".cs"?settings.LastMacroLanguage:".vb";
+            savedWindowLeft=settings.WindowLeft;savedWindowTop=settings.WindowTop;
+            savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
+            ApplyZoom();
+        }
+        catch { }
+    }
+
+    void SaveAppSettings()
+    {
+        try
+        {
+            File.WriteAllText(settingsFile,JsonSerializer.Serialize(new AppSettings
+            {
+                RecentFiles=recentFiles.Take(10).ToList(),
+                ZoomPercent=zoomPercent,
+                ExtendedMacrosEnabled=extendedMacrosEnabled,
+                CompiledMacrosEnabled=compiledMacrosEnabled,
+                LastMacroLanguage=lastMacroLanguage,
+                WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
+                WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight
+            }));
+        }
+        catch { }
+    }
+
+    void ApplySavedWindowPlacement()
+    {
+        if(double.IsNaN(savedWindowLeft)||double.IsNaN(savedWindowTop))return;
+        Width=Math.Clamp(savedWindowWidth,700,SystemParameters.VirtualScreenWidth);
+        Height=Math.Clamp(savedWindowHeight,500,SystemParameters.VirtualScreenHeight);
+        Left=Math.Clamp(savedWindowLeft,SystemParameters.VirtualScreenLeft,SystemParameters.VirtualScreenLeft+SystemParameters.VirtualScreenWidth-100);
+        Top=Math.Clamp(savedWindowTop,SystemParameters.VirtualScreenTop,SystemParameters.VirtualScreenTop+SystemParameters.VirtualScreenHeight-80);
+        WindowStartupLocation=WindowStartupLocation.Manual;
+    }
+
+    void CaptureWindowPlacement()
+    {
+        var bounds=WindowState==WindowState.Normal
+            ?new Rect(Left,Top,ActualWidth,ActualHeight)
+            :RestoreBounds;
+        if(bounds.Width>300&&bounds.Height>250)
+        {
+            savedWindowLeft=bounds.Left;savedWindowTop=bounds.Top;
+            savedWindowWidth=bounds.Width;savedWindowHeight=bounds.Height;
+        }
+    }
+
+    string GetPreferredAuthor()
+    {
+        try
+        {
+            using var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Office\Common\UserInfo");
+            var wordName=key?.GetValue("UserName")?.ToString()?.Trim();
+            if(!string.IsNullOrWhiteSpace(wordName))return wordName;
+        }
+        catch{}
+        try
+        {
+            var display=Environment.UserName?.Trim();
+            return string.IsNullOrWhiteSpace(display)?"Unknown author":display;
+        }
+        catch{return "Unknown author";}
+    }
+
+    void EnsureDocumentPropertyDefaults()
+    {
+        if(string.IsNullOrWhiteSpace(documentTitle))
+            documentTitle=currentFile==null?"Untitled":Path.GetFileNameWithoutExtension(currentFile);
+        if(string.IsNullOrWhiteSpace(documentAuthor))
+            documentAuthor=GetPreferredAuthor();
+        if(string.IsNullOrWhiteSpace(documentSubject))
+            documentSubject="CtrlZed document";
+        if(string.IsNullOrWhiteSpace(documentVersion))
+            documentVersion="1.0";
+    }
+
+    void OpenGitHub_Click(object s,RoutedEventArgs e)
+        =>Process.Start(new ProcessStartInfo("https://github.com/martynwalker/CtrlZed"){UseShellExecute=true});
+
+    void AddRecentFile(string? path)
+    {
+        if(string.IsNullOrWhiteSpace(path))return;
+        recentFiles.RemoveAll(x=>string.Equals(x,path,StringComparison.OrdinalIgnoreCase));
+        recentFiles.Insert(0,path);
+        if(recentFiles.Count>10)recentFiles.RemoveRange(10,recentFiles.Count-10);
+        SaveAppSettings();
+        RefreshRecentFilesMenu();
+    }
+
+    void RefreshRecentFilesMenu()
+    {
+        if(RecentFilesMenu==null)return;
+        RecentFilesMenu.Items.Clear();
+        if(recentFiles.Count==0)
+        {
+            RecentFilesMenu.Items.Add(new MenuItem{Header="(None)",IsEnabled=false});
+            return;
+        }
+        foreach(var path in recentFiles.ToList())
+        {
+            var item=new MenuItem{Header=System.IO.Path.GetFileName(path),ToolTip=path,Tag=path};
+            item.Click+=RecentFile_Click;
+            RecentFilesMenu.Items.Add(item);
+        }
+        RecentFilesMenu.Items.Add(new Separator());
+        var clear=new MenuItem{Header="Clear Recent Files"};
+        clear.Click+=(_,__)=>{recentFiles.Clear();SaveAppSettings();RefreshRecentFilesMenu();};
+        RecentFilesMenu.Items.Add(clear);
+    }
+
+    void RecentFile_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is not MenuItem {Tag:string path})return;
+        if(!File.Exists(path))
+        {
+            recentFiles.Remove(path);SaveAppSettings();RefreshRecentFilesMenu();
+            MessageBox.Show("That recent file no longer exists.","Recent Files",MessageBoxButton.OK,MessageBoxImage.Information);
+            return;
+        }
+        if(!CanDiscardChanges())return;
+        OpenPath(path);
+    }
+
+    void OpenPath(string path)
+    {
+        try
+        {
+            if(fieldValuesVisible)SetFieldValuesVisible(false);
+            suppressDirty=true;
+            var ext=Path.GetExtension(path).ToLowerInvariant();
+            headerText=footerText="";
+            documentTitle=documentAuthor=documentSubject=documentKeywords="";
+            documentVersion="1.0";
+            if(ext==".czd")LoadCzd(path);
+            else if(ext==".docx")
+            {
+                var imported=DocxInterop.LoadWithLayout(path);
+                Editor.Document=imported.Document;
+                headerText=imported.Header;footerText=imported.Footer;
+                if(imported.PageWidth>0)pageWidth=imported.PageWidth;
+                if(imported.PageHeight>0)pageHeight=imported.PageHeight;
+                if(imported.Margins!=null)pageMargins=imported.Margins.Value;
+                documentTitle=imported.Title;documentAuthor=imported.Author;
+                documentSubject=imported.Subject;documentKeywords=imported.Keywords;
+                ApplyPage();
+            }
+            else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(path))));
+            else
+            {
+                Editor.Document=new FlowDocument();
+                using var fs=File.OpenRead(path);
+                new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
+            }
+            WirePictureHandlers();RefreshNavigation();
+            currentFile=path;dirty=false;suppressDirty=false;
+            EnsureDocumentPropertyDefaults();
+            RefreshHeaderFooter();UpdateTitle();UpdateDocumentStats();
+            Status.Text="Opened "+currentFile;AddRecentFile(currentFile);TryDeleteRecovery();RefreshMacroMenus();
+        }
+        catch(Exception ex)
+        {
+            suppressDirty=false;
+            MessageBox.Show(ex.Message,"Open failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void SaveAs_Click(object s,RoutedEventArgs e)
+    {
+        var old=currentFile;
+        var d=new SaveFileDialog
+        {
+            Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt",
+            DefaultExt=old==null?".czd":Path.GetExtension(old),
+            FileName=old==null?"":Path.GetFileName(old),
+            AddExtension=true
+        };
+        if(d.ShowDialog()!=true)return;
+        currentFile=d.FileName;
+        if(!SaveCurrent())currentFile=old;
+    }
+
+    void DocumentProperties_Click(object s,RoutedEventArgs e)
+    {
+        EnsureDocumentPropertyDefaults();
+        var w=new Window{Title="Document Properties",Owner=this,Width=540,Height=410,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var g=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<7;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+        var title=new TextBox{Text=documentTitle,Margin=new Thickness(0,3,0,8)};
+        var author=new TextBox{Text=documentAuthor,Margin=new Thickness(0,3,0,8)};
+        var subject=new TextBox{Text=documentSubject,Margin=new Thickness(0,3,0,8)};
+        var keywords=new TextBox{Text=documentKeywords,Margin=new Thickness(0,3,0,8)};
+        var version=new TextBox{Text=documentVersion,Margin=new Thickness(0,3,0,8)};
+        AddRow(g,0,"Title",title);AddRow(g,1,"Author",author);AddRow(g,2,"Subject",subject);AddRow(g,3,"Keywords",keywords);AddRow(g,4,"Version",version);
+        var info=new TextBlock{Text="Empty values are prefilled from the document, Windows account and Office user profile where available. Stored in .czd; standard fields map to DOCX core properties.",Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,5)};
+        Grid.SetRow(info,5);Grid.SetColumnSpan(info,2);g.Children.Add(info);
+        var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+        Grid.SetRow(ok,6);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+        ok.Click+=(_,__)=>
+        {
+            documentTitle=title.Text;documentAuthor=author.Text;documentSubject=subject.Text;documentKeywords=keywords.Text;documentVersion=version.Text;
+            EnsureDocumentPropertyDefaults();
+            MarkDirty("Document properties updated.");RefreshHeaderFooter();w.DialogResult=true;
+        };
+        w.Content=g;w.ShowDialog();
+    }
+
+    void Zoom_Click(object s,RoutedEventArgs e)
+    {
+        if(s is MenuItem item && double.TryParse(item.Tag?.ToString(),out var value))
+        {
+            zoomPercent=Math.Clamp(value,50,150);
+            ApplyZoom();SaveAppSettings();
+        }
+    }
+
+    void ApplyZoom()
+    {
+        if(PageBorder==null)return;
+        PageBorder.LayoutTransform=new ScaleTransform(zoomPercent/100.0,zoomPercent/100.0);
+        if(ZoomStatus!=null)ZoomStatus.Text=$"{zoomPercent:0}%";
+    }
+
+    void UpdateDocumentStats()
+    {
+        if(DocumentStats==null)return;
+        var text=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text;
+        var chars=text.TrimEnd('\r','\n').Length;
+        var words=System.Text.RegularExpressions.Regex.Matches(text,@"\b[\p{L}\p{N}’'-]+\b").Count;
+        var pages=1;
+        try
+        {
+            var paginator=CreatePreviewPaginator();
+            paginator.ComputePageCount();
+            pages=Math.Max(1,paginator.PageCount);
+        }
+        catch { }
+        DocumentStats.Text=$"{words:N0} words · {chars:N0} characters · {pages:N0} page{(pages==1?"":"s")}";
+    }
+
+    void FindReplace_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="Find and Replace",
+            Owner=this,
+            Width=500,
+            Height=255,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            ResizeMode=ResizeMode.NoResize
+        };
+
+        var g=new Grid{Margin=new Thickness(14)};
+        for(int i=0;i<5;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(90)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var find=new TextBox{Margin=new Thickness(0,3,0,7)};
+        var replace=new TextBox{Margin=new Thickness(0,3,0,7)};
+        var matchCase=new CheckBox{Content="Match case",Margin=new Thickness(0,5,0,5)};
+        AddRow(g,0,"Find",find);
+        AddRow(g,1,"Replace",replace);
+        Grid.SetRow(matchCase,2);Grid.SetColumn(matchCase,1);g.Children.Add(matchCase);
+
+        var status=new TextBlock{Margin=new Thickness(0,5,0,5),Foreground=Brushes.DimGray};
+        Grid.SetRow(status,3);Grid.SetColumnSpan(status,2);g.Children.Add(status);
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var findNext=new Button{Content="Find Next",Width=90,Margin=new Thickness(4)};
+        var replaceOne=new Button{Content="Replace",Width=80,Margin=new Thickness(4)};
+        var replaceAll=new Button{Content="Replace All",Width=90,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=70,Margin=new Thickness(4)};
+        buttons.Children.Add(findNext);buttons.Children.Add(replaceOne);buttons.Children.Add(replaceAll);buttons.Children.Add(close);
+        Grid.SetRow(buttons,4);Grid.SetColumnSpan(buttons,2);g.Children.Add(buttons);
+
+        bool FindNext()
+        {
+            var term=find.Text;
+            if(string.IsNullOrEmpty(term))return false;
+            var comparison=matchCase.IsChecked==true?StringComparison.CurrentCulture:StringComparison.CurrentCultureIgnoreCase;
+            var found=FindText(Editor.CaretPosition,term,comparison) ?? FindText(Editor.Document.ContentStart,term,comparison);
+            if(found==null){status.Text="Not found.";return false;}
+            Editor.Selection.Select(found.Value.Start,found.Value.End);
+            Editor.CaretPosition=found.Value.End;
+            Editor.Focus();
+            status.Text="Found.";
+            return true;
+        }
+
+        findNext.Click+=(_,__)=>FindNext();
+        replaceOne.Click+=(_,__)=>
+        {
+            var comparison=matchCase.IsChecked==true?StringComparison.CurrentCulture:StringComparison.CurrentCultureIgnoreCase;
+            if(!string.IsNullOrEmpty(find.Text) && string.Equals(Editor.Selection.Text,find.Text,comparison))
+            {
+                Editor.Selection.Text=replace.Text;
+                MarkDirty("Text replaced.");
+            }
+            FindNext();
+        };
+        replaceAll.Click+=(_,__)=>
+        {
+            if(string.IsNullOrEmpty(find.Text))return;
+            var comparison=matchCase.IsChecked==true?StringComparison.CurrentCulture:StringComparison.CurrentCultureIgnoreCase;
+            var count=0;
+            var start=Editor.Document.ContentStart;
+            while(true)
+            {
+                var found=FindText(start,find.Text,comparison);
+                if(found==null)break;
+                var range=new TextRange(found.Value.Start,found.Value.End);
+                range.Text=replace.Text;
+                start=range.End;
+                count++;
+                if(count>10000)break;
+            }
+            if(count>0)MarkDirty($"{count} replacement{(count==1?"":"s")} made.");
+            status.Text=$"{count} replacement{(count==1?"":"s")}.";
+        };
+        close.Click+=(_,__)=>w.Close();
+
+        w.Content=g;
+        w.ShowDialog();
+    }
+
+    (TextPointer Start,TextPointer End)? FindText(TextPointer start,string term,StringComparison comparison)
+    {
+        var paragraphs=EnumerateDocumentParagraphs().ToList();
+        if(paragraphs.Count==0)return null;
+
+        var startIndex=0;
+        var startOffset=0;
+        for(int i=0;i<paragraphs.Count;i++)
+        {
+            var p=paragraphs[i];
+            if(start.CompareTo(p.ContentStart)>=0 && start.CompareTo(p.ContentEnd)<=0)
+            {
+                startIndex=i;
+                startOffset=new TextRange(p.ContentStart,start).Text.Length;
+                break;
+            }
+            if(start.CompareTo(p.ContentEnd)>0)startIndex=Math.Min(i+1,paragraphs.Count-1);
+        }
+
+        for(int pass=0;pass<2;pass++)
+        {
+            var first=pass==0?startIndex:0;
+            var last=pass==0?paragraphs.Count:startIndex+1;
+            for(int i=first;i<last;i++)
+            {
+                var p=paragraphs[i];
+                var text=new TextRange(p.ContentStart,p.ContentEnd).Text;
+                var from=pass==0&&i==startIndex?Math.Clamp(startOffset,0,text.Length):0;
+                var index=text.IndexOf(term,from,comparison);
+                if(index<0)continue;
+
+                var s=PointerAtTextOffset(p.ContentStart,p.ContentEnd,index);
+                var e=PointerAtTextOffset(p.ContentStart,p.ContentEnd,index+term.Length);
+                if(s!=null&&e!=null)return(s,e);
+            }
+        }
+        return null;
+    }
+
+    IEnumerable<Paragraph> EnumerateDocumentParagraphs()
+    {
+        foreach(var block in Editor.Document.Blocks)
+            foreach(var p in EnumerateParagraphsInBlock(block))
+                yield return p;
+    }
+
+    IEnumerable<Paragraph> EnumerateParagraphsInBlock(Block block)
+    {
+        if(block is Paragraph p)yield return p;
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)
+                foreach(var paragraph in EnumerateParagraphsInBlock(child))
+                    yield return paragraph;
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)
+                    foreach(var paragraph in EnumerateParagraphsInBlock(child))
+                        yield return paragraph;
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)
+                            foreach(var paragraph in EnumerateParagraphsInBlock(child))
+                                yield return paragraph;
+        }
+    }
+
+    TextPointer? PointerAtTextOffset(TextPointer start,TextPointer end,int target)
+    {
+        var p=start;
+        var count=0;
+        while(p!=null && p.CompareTo(end)<=0)
+        {
+            var context=p.GetPointerContext(LogicalDirection.Forward);
+            if(context==TextPointerContext.Text)
+            {
+                var text=p.GetTextInRun(LogicalDirection.Forward);
+                if(count+text.Length>=target)
+                    return p.GetPositionAtOffset(target-count,LogicalDirection.Forward);
+                count+=text.Length;
+                p=p.GetPositionAtOffset(text.Length,LogicalDirection.Forward);
+            }
+            else
+            {
+                p=p.GetNextContextPosition(LogicalDirection.Forward);
+            }
+        }
+        return target==count?end:null;
+    }
+
+    void PageBreak_Click(object s,RoutedEventArgs e)
+    {
+        Editor.Focus();
+        EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+        var paragraph=Editor.CaretPosition.Paragraph;
+        if(paragraph!=null)
+        {
+            paragraph.BreakPageBefore=true;
+            MarkDirty("Page break inserted.");
+        }
+    }
+
+    void Table_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="Insert Table",
+            Owner=this,
+            Width=330,
+            Height=220,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            ResizeMode=ResizeMode.NoResize
+        };
+        var g=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<3;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var rows=new TextBox{Text="2",Margin=new Thickness(0,4,0,8)};
+        var cols=new TextBox{Text="2",Margin=new Thickness(0,4,0,8)};
+        AddRow(g,0,"Rows",rows);
+        AddRow(g,1,"Columns",cols);
+        var ok=new Button{Content="Insert",Width=85,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        Grid.SetRow(ok,2);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+
+        ok.Click+=(_,__)=>
+        {
+            if(!int.TryParse(rows.Text,out var r)||!int.TryParse(cols.Text,out var col)||r<1||r>50||col<1||col>20)
+            {
+                MessageBox.Show("Use 1–50 rows and 1–20 columns.","Insert Table",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+
+            var table=new Table
+            {
+                CellSpacing=0,
+                BorderBrush=Brushes.Gray,
+                BorderThickness=new Thickness(1),
+                Margin=new Thickness(0,8,0,8)
+            };
+            for(int i=0;i<col;i++)table.Columns.Add(new TableColumn());
+            var group=new TableRowGroup();
+            table.RowGroups.Add(group);
+
+            for(int ri=0;ri<r;ri++)
+            {
+                var row=new TableRow();
+                group.Rows.Add(row);
+                for(int ci=0;ci<col;ci++)
+                {
+                    var cell=new TableCell(new Paragraph(new Run("")))
+                    {
+                        BorderBrush=Brushes.LightGray,
+                        BorderThickness=new Thickness(0.5),
+                        Padding=new Thickness(5)
+                    };
+                    row.Cells.Add(cell);
+                }
+            }
+
+            InsertBlockAfterCaret(table);
+            MarkDirty($"Inserted {r} × {col} table.");
+            w.DialogResult=true;
+            Editor.Focus();
+        };
+
+        w.Content=g;
+        w.ShowDialog();
+    }
+
+    void InsertBlockAfterCaret(Block block)
+    {
+        var paragraph=Editor.CaretPosition.Paragraph;
+        if(paragraph==null)
+        {
+            Editor.Document.Blocks.Add(block);
+            return;
+        }
+
+        switch(paragraph.Parent)
+        {
+            case FlowDocument doc:
+                doc.Blocks.InsertAfter(paragraph,block);
+                break;
+            case Section section:
+                section.Blocks.InsertAfter(paragraph,block);
+                break;
+            case ListItem item:
+                item.Blocks.InsertAfter(paragraph,block);
+                break;
+            case TableCell cell:
+                cell.Blocks.InsertAfter(paragraph,block);
+                break;
+            default:
+                Editor.Document.Blocks.Add(block);
+                break;
+        }
+    }
+
+    void Picture_Click(object s,RoutedEventArgs e)
+    {
+        var d=new OpenFileDialog{Filter="Pictures|*.png;*.jpg;*.jpeg;*.bmp;*.gif"};
+        if(d.ShowDialog()!=true)return;
+        try
+        {
+            var b=new BitmapImage();
+            b.BeginInit();
+            b.CacheOption=BitmapCacheOption.OnLoad;
+            b.UriSource=new Uri(d.FileName);
+            b.EndInit();
+            var img=new Image{Source=b,MaxWidth=Math.Max(100,pageWidth-pageMargins.Left-pageMargins.Right),Stretch=Stretch.Uniform,Margin=new Thickness(4)};
+            var ui=new InlineUIContainer(img,Editor.CaretPosition);
+            WirePictureContainer(ui,img);
+            Editor.CaretPosition=ui.ElementEnd;
+            Editor.Focus();
+            MarkDirty("Picture inserted — double-click or right-click it for properties.");
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Picture failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void Editor_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        var img=FindPictureAtPoint(e.GetPosition(Editor));
+        if(img==null)return;
+        if(e.ClickCount==2)
+        {
+            e.Handled=true;
+            ShowPicturePropertiesSafely(img);
+        }
+    }
+
+    void Editor_PreviewMouseRightButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        var point=e.GetPosition(Editor);
+        var img=FindPictureAtPoint(point);
+        e.Handled=true;
+
+        if(img!=null)
+        {
+            var imageMenu=new ContextMenu();
+            var properties=new MenuItem{Header="Picture Properties…"};
+            properties.Click+=(_,__)=>ShowPicturePropertiesSafely(img);
+            imageMenu.Items.Add(properties);
+            AddMacroSubmenu(imageMenu);
+            imageMenu.PlacementTarget=Editor;
+            imageMenu.IsOpen=true;
+            return;
+        }
+
+        var pointer=Editor.GetPositionFromPoint(point,true);
+        if(pointer!=null && Editor.Selection.IsEmpty)Editor.CaretPosition=pointer;
+
+        var menu=new ContextMenu();
+        AddMacroSubmenu(menu);
+        if(menu.Items.Count>0)menu.Items.Add(new Separator());
+
+        var cut=new MenuItem{Header="Cut",Command=ApplicationCommands.Cut,CommandTarget=Editor,InputGestureText="Ctrl+X"};
+        var copy=new MenuItem{Header="Copy",Command=ApplicationCommands.Copy,CommandTarget=Editor,InputGestureText="Ctrl+C"};
+        var paste=new MenuItem{Header="Paste",Command=ApplicationCommands.Paste,CommandTarget=Editor,InputGestureText="Ctrl+V"};
+        menu.Items.Add(cut);menu.Items.Add(copy);menu.Items.Add(paste);
+        menu.PlacementTarget=Editor;
+        menu.IsOpen=true;
+    }
+
+    IEnumerable<(string Name,string Source)> GetMacroSources()
+    {
+        var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
+        if(Directory.Exists(dir))
+            foreach(var path in Directory.GetFiles(dir)
+                .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase)))
+                yield return (Path.GetFileName(path),File.ReadAllText(path));
+        foreach(var pair in embeddedMacros)yield return (pair.Key,pair.Value);
+    }
+
+    static string? GetMacroFriendlyName(string source,string extension)
+    {
+        extension=(extension??"").ToLowerInvariant();
+        if(extension==".czm")
+        {
+            foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
+            {
+                var line=raw.Trim();
+                if(line.StartsWith("#"))line=line[1..].Trim();
+                if(!line.StartsWith("MENU_NAME",StringComparison.OrdinalIgnoreCase))continue;
+                var eq=line.IndexOf('=');
+                if(eq<0)continue;
+                var value=line[(eq+1)..].Trim();
+                if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
+                if(!string.IsNullOrWhiteSpace(value))return value;
+            }
+            return null;
+        }
+
+        if(extension==".vb")
+        {
+            var match=System.Text.RegularExpressions.Regex.Match(source,
+                @"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+MENU_NAME\s+As\s+String\s*=\s*""([^""]+)""");
+            return match.Success?match.Groups[1].Value.Trim():null;
+        }
+
+        if(extension==".cs")
+        {
+            var match=System.Text.RegularExpressions.Regex.Match(source,
+                @"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+string\s+MENU_NAME\s*=\s*""([^""]+)""\s*;");
+            return match.Success?match.Groups[1].Value.Trim():null;
+        }
+
+        return null;
+    }
+
+    static MacroMenuMetadata? GetMacroMenuMetadata(string source,string extension)
+    {
+        extension=(extension??"").ToLowerInvariant();
+
+        string? name=null;
+        string path="";
+        int position=0;
+        var pathPositions=new List<int>();
+
+        if(extension==".czm")
+        {
+            foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
+            {
+                var line=raw.Trim();
+                if(line.StartsWith("#"))line=line[1..].Trim();
+                var eq=line.IndexOf('=');
+                if(eq<1)continue;
+                var key=line[..eq].Trim().ToUpperInvariant();
+                var value=line[(eq+1)..].Trim();
+                if(value.Length>=2 && value[0]=='"' && value[^1]=='"')value=value[1..^1];
+
+                switch(key)
+                {
+                    case "MENU_NAME":
+                        if(!string.IsNullOrWhiteSpace(value))name=value;
+                        break;
+                    case "MENU_POSITION":
+                    case "MENU_OPTION":
+                        if(position==0 && int.TryParse(value,out var pos) && pos>0)position=pos;
+                        break;
+                    case "MENU_PATH":
+                    case "MENU_PARENT":
+                        path=value;
+                        break;
+                    case "MENU_PATH_POSITIONS":
+                        pathPositions=value.Split('/',StringSplitOptions.RemoveEmptyEntries)
+                            .Select(v=>int.TryParse(v.Trim(),out var n)&&n>0?n:0).ToList();
+                        break;
+                }
+            }
+        }
+        else
+        {
+            name=GetMacroFriendlyName(source,extension);
+            string? StringConst(string constName)
+            {
+                var pattern=extension==".vb"
+                    ?$@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s+As\s+String\s*=\s*""([^""]*)"""
+                    :$@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+string\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s*=\s*""([^""]*)""\s*;";
+                var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
+                return match.Success?match.Groups[1].Value.Trim():null;
+            }
+            int IntConst(params string[] names)
+            {
+                foreach(var constName in names)
+                {
+                    var pattern=extension==".vb"
+                        ?$@"(?im)^\s*(?:Public\s+|Friend\s+|Private\s+)?Const\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s+As\s+Integer\s*=\s*(\d+)"
+                        :$@"(?im)^\s*(?:public\s+|internal\s+|private\s+)?(?:static\s+)?const\s+int\s+{System.Text.RegularExpressions.Regex.Escape(constName)}\s*=\s*(\d+)\s*;";
+                    var match=System.Text.RegularExpressions.Regex.Match(source,pattern);
+                    if(match.Success && int.TryParse(match.Groups[1].Value,out var n) && n>0)return n;
+                }
+                return 0;
+            }
+
+            path=StringConst("MENU_PATH")??StringConst("MENU_PARENT")??"";
+            position=IntConst("MENU_POSITION","MENU_OPTION");
+            var rawPositions=StringConst("MENU_PATH_POSITIONS");
+            if(!string.IsNullOrWhiteSpace(rawPositions))
+                pathPositions=rawPositions.Split('/',StringSplitOptions.RemoveEmptyEntries)
+                    .Select(v=>int.TryParse(v.Trim(),out var n)&&n>0?n:0).ToList();
+        }
+
+        if(string.IsNullOrWhiteSpace(name) || position<=0)return null;
+        path=(path??"").Trim().Trim('/');
+        if(string.Equals(path,"right-click",StringComparison.OrdinalIgnoreCase))path="";
+        return new MacroMenuMetadata(name,path,position,pathPositions);
+    }
+
+    static int MenuOrder(MenuItem item)
+        =>item.Tag switch
+        {
+            int n=>n,
+            MacroMenuTag tag=>tag.Position,
+            _=>int.MaxValue
+        };
+
+    static void InsertOrdered(ItemCollection items,MenuItem item,int position)
+    {
+        item.Tag=position;
+        var caption=item.Header?.ToString()??"";
+        var index=0;
+        while(index<items.Count)
+        {
+            if(items[index] is not MenuItem existing){index++;continue;}
+            var existingPos=MenuOrder(existing);
+            var comparison=existingPos.CompareTo(position);
+            if(comparison>0)break;
+            if(comparison==0 && string.Compare(existing.Header?.ToString(),caption,StringComparison.CurrentCultureIgnoreCase)>0)break;
+            index++;
+        }
+        items.Insert(index,item);
+    }
+
+    MenuItem CreateMacroCommand((string Name,string Source) macro,MacroMenuMetadata meta)
+    {
+        var item=new MenuItem{Header=meta.Name,Tag=new MacroMenuTag("Command",meta.Position)};
+        item.Click+=async (_,__)=>
+        {
+            try
+            {
+                await RunMacroSourceAsync(macro.Name,macro.Source);
+                Status.Text="Macro: "+meta.Name;
+            }
+            catch(Exception ex)
+            {
+                ShowMacroError(macro.Name,macro.Source,ex);
+            }
+        };
+        return item;
+    }
+
+    void AddMacroSubmenu(ContextMenu menu)
+    {
+        var entries=GetMacroSources()
+            .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
+            .Where(x=>x.Meta!=null && string.IsNullOrWhiteSpace(x.Meta.Path))
+            .GroupBy(x=>x.Meta!.Name.Trim(),StringComparer.CurrentCultureIgnoreCase)
+            .Select(g=>g.OrderBy(x=>x.Macro.Name,StringComparer.OrdinalIgnoreCase).First())
+            .OrderBy(x=>x.Meta!.Position)
+            .ThenBy(x=>x.Meta!.Name,StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if(entries.Count==0)return;
+
+        var macros=new MenuItem{Header="Macros"};
+        foreach(var entry in entries)
+            InsertOrdered(macros.Items,CreateMacroCommand(entry.Macro,entry.Meta!),entry.Meta!.Position);
+        menu.Items.Add(macros);
+    }
+
+    static string NormalisedMenuHeader(object? header)
+        =>(header?.ToString()??"").Replace("_","").Trim();
+
+    static void RemoveDynamicMacroItems(ItemCollection items)
+    {
+        for(int i=items.Count-1;i>=0;i--)
+        {
+            if(items[i] is not MenuItem item)continue;
+            RemoveDynamicMacroItems(item.Items);
+            if(item.Tag is MacroMenuTag tag && tag.Kind is "Command" or "Path" or "Root")
+                items.RemoveAt(i);
+        }
+    }
+
+    void RefreshMacroMenus()
+    {
+        if(MainMenu==null)return;
+
+        RemoveDynamicMacroItems(MainMenu.Items);
+
+        var entries=GetMacroSources()
+            .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
+            .Where(x=>x.Meta!=null && !string.IsNullOrWhiteSpace(x.Meta.Path))
+            .GroupBy(x=>$"{x.Meta!.Path.Trim().ToLowerInvariant()}|{x.Meta.Name.Trim().ToLowerInvariant()}",StringComparer.OrdinalIgnoreCase)
+            .Select(g=>g.OrderBy(x=>x.Macro.Name,StringComparer.OrdinalIgnoreCase).First())
+            .ToList();
+        if(entries.Count==0)return;
+
+        foreach(var entry in entries
+            .OrderBy(x=>x.Meta!.PathPositions.Count>0?x.Meta.PathPositions[0]:int.MaxValue)
+            .ThenBy(x=>x.Meta!.Path,StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(x=>x.Meta!.Position)
+            .ThenBy(x=>x.Meta!.Name,StringComparer.CurrentCultureIgnoreCase))
+        {
+            var meta=entry.Meta!;
+            var segments=meta.Path.Split('/',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+            if(segments.Length==0)continue;
+
+            MenuItem? current=MainMenu.Items.OfType<MenuItem>()
+                .FirstOrDefault(mi=>string.Equals(NormalisedMenuHeader(mi.Header),segments[0],StringComparison.CurrentCultureIgnoreCase));
+
+            if(current==null)
+            {
+                var rootPos=meta.PathPositions.Count>0 && meta.PathPositions[0]>0?meta.PathPositions[0]:MainMenu.Items.Count+1;
+                current=new MenuItem{Header=segments[0],Tag=new MacroMenuTag("Root",rootPos)};
+                MainMenu.Items.Insert(Math.Clamp(rootPos-1,0,MainMenu.Items.Count),current);
+            }
+
+            for(int level=1;level<segments.Length;level++)
+            {
+                var segment=segments[level];
+                var child=current.Items.OfType<MenuItem>()
+                    .FirstOrDefault(mi=>string.Equals(NormalisedMenuHeader(mi.Header),segment,StringComparison.CurrentCultureIgnoreCase));
+                if(child==null)
+                {
+                    var childPos=meta.PathPositions.Count>level && meta.PathPositions[level]>0
+                        ?meta.PathPositions[level]
+                        :current.Items.Count+1;
+                    child=new MenuItem{Header=segment,Tag=new MacroMenuTag("Path",childPos)};
+                    InsertOrdered(current.Items,child,childPos);
+                }
+                current=child;
+            }
+
+            InsertOrdered(current.Items,CreateMacroCommand(entry.Macro,meta),meta.Position);
+        }
+    }
+
+    Image? FindPictureAtPoint(Point point)
+    {
+        foreach(var img in EnumeratePictures())
+        {
+            if(!img.IsVisible || img.ActualWidth<=0 || img.ActualHeight<=0)continue;
+            try
+            {
+                var origin=img.TranslatePoint(new Point(0,0),Editor);
+                var rect=new Rect(origin,new Size(img.ActualWidth,img.ActualHeight));
+                if(rect.Contains(point))return img;
+            }
+            catch(InvalidOperationException)
+            {
+                // The image is not currently connected to Editor's visual tree.
+            }
+        }
+        return null;
+    }
+
+    IEnumerable<Image> EnumeratePictures()
+    {
+        foreach(var block in Editor.Document.Blocks)
+            foreach(var image in EnumeratePicturesInBlock(block))
+                yield return image;
+    }
+
+    IEnumerable<Image> EnumeratePicturesInBlock(Block block)
+    {
+        if(block is Paragraph p)
+        {
+            foreach(var inline in p.Inlines)
+                foreach(var image in EnumeratePicturesInInline(inline))
+                    yield return image;
+        }
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)
+                foreach(var image in EnumeratePicturesInBlock(child))
+                    yield return image;
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)
+                    foreach(var image in EnumeratePicturesInBlock(child))
+                        yield return image;
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)
+                            foreach(var image in EnumeratePicturesInBlock(child))
+                                yield return image;
+        }
+    }
+
+    IEnumerable<Image> EnumeratePicturesInInline(Inline inline)
+    {
+        if(inline is InlineUIContainer ui && ui.Child is Image img)
+            yield return img;
+        else if(inline is Span span)
+            foreach(var child in span.Inlines)
+                foreach(var image in EnumeratePicturesInInline(child))
+                    yield return image;
+    }
+
+    void ShowPicturePropertiesSafely(Image img)
+    {
+        try
+        {
+            ShowPictureProperties(img);
+        }
+        catch(Exception ex)
+        {
+            Status.Text="Picture properties could not be opened.";
+            MessageBox.Show(ex.Message,"Picture properties",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void WirePicture(Image img)
+    {
+        img.Cursor=Cursors.Hand;
+        img.ToolTip="Double-click or right-click for picture properties";
+        img.PreviewMouseLeftButtonDown-=Picture_MouseLeftButtonDown;
+        img.PreviewMouseLeftButtonDown+=Picture_MouseLeftButtonDown;
+
+        var menu=new ContextMenu();
+        var properties=new MenuItem{Header="Picture Properties…"};
+        properties.Click+=(_,__)=>ShowPictureProperties(img);
+        menu.Items.Add(properties);
+        img.ContextMenu=menu;
+    }
+
+    void WirePictureContainer(InlineUIContainer ui,Image img)
+    {
+        WirePicture(img);
+        ui.PreviewMouseLeftButtonDown-=PictureContainer_PreviewMouseLeftButtonDown;
+        ui.PreviewMouseLeftButtonDown+=PictureContainer_PreviewMouseLeftButtonDown;
+
+        var menu=new ContextMenu();
+        var properties=new MenuItem{Header="Picture Properties…"};
+        properties.Click+=(_,__)=>ShowPictureProperties(img);
+        menu.Items.Add(properties);
+        ui.ContextMenu=menu;
+    }
+
+    void PictureContainer_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        if(e.ClickCount!=2 || sender is not InlineUIContainer ui || ui.Child is not Image img)return;
+        try
+        {
+            e.Handled=true;
+            ShowPictureProperties(img);
+        }
+        catch(Exception ex)
+        {
+            Status.Text="Picture properties could not be opened.";
+            MessageBox.Show(ex.Message,"Picture properties",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void Picture_MouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        if(e.ClickCount!=2 || sender is not Image img)return;
+        try
+        {
+            e.Handled=true;
+            ShowPicturePropertiesSafely(img);
+        }
+        catch(Exception ex)
+        {
+            Status.Text="Picture properties could not be opened.";
+            MessageBox.Show(ex.Message,"Picture properties",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void WirePictureHandlers()
+    {
+        foreach(var block in Editor.Document.Blocks)WirePicturesInBlock(block);
+    }
+
+    void WirePicturesInBlock(Block block)
+    {
+        if(block is Paragraph p)
+        {
+            foreach(var inline in p.Inlines)WirePicturesInInline(inline);
+        }
+        else if(block is Section section)
+        {
+            foreach(var child in section.Blocks)WirePicturesInBlock(child);
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)WirePicturesInBlock(child);
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)WirePicturesInBlock(child);
+        }
+    }
+
+    void WirePicturesInInline(Inline inline)
+    {
+        if(inline is InlineUIContainer ui && ui.Child is Image img)WirePictureContainer(ui,img);
+        else if(inline is Span span)
+            foreach(var child in span.Inlines)WirePicturesInInline(child);
+    }
+
+    InlineUIContainer? FindContainer(Image target)
+    {
+        foreach(var block in Editor.Document.Blocks)
+        {
+            var found=FindContainerInBlock(block,target);
+            if(found!=null)return found;
+        }
+        return null;
+    }
+
+    InlineUIContainer? FindContainerInBlock(Block block,Image target)
+    {
+        if(block is Paragraph p)
+        {
+            foreach(var inline in p.Inlines)
+            {
+                var found=FindContainerInInline(inline,target);
+                if(found!=null)return found;
+            }
+        }
+        else if(block is Section s)
+        {
+            foreach(var child in s.Blocks)
+            {
+                var found=FindContainerInBlock(child,target);
+                if(found!=null)return found;
+            }
+        }
+        else if(block is List list)
+        {
+            foreach(var item in list.ListItems)
+                foreach(var child in item.Blocks)
+                {
+                    var found=FindContainerInBlock(child,target);
+                    if(found!=null)return found;
+                }
+        }
+        else if(block is Table table)
+        {
+            foreach(var group in table.RowGroups)
+                foreach(var row in group.Rows)
+                    foreach(var cell in row.Cells)
+                        foreach(var child in cell.Blocks)
+                        {
+                            var found=FindContainerInBlock(child,target);
+                            if(found!=null)return found;
+                        }
+        }
+        return null;
+    }
+
+    InlineUIContainer? FindContainerInInline(Inline inline,Image target)
+    {
+        if(inline is InlineUIContainer ui && ReferenceEquals(ui.Child,target))return ui;
+        if(inline is Span span)
+            foreach(var child in span.Inlines)
+            {
+                var found=FindContainerInInline(child,target);
+                if(found!=null)return found;
+            }
+        return null;
+    }
+
+    void ShowPictureProperties(Image img)
+    {
+        var container=FindContainer(img);
+        var paragraph=container?.Parent as Paragraph;
+        var currentAlignment=paragraph?.TextAlignment??TextAlignment.Center;
+
+        var w=new Window{Title="Picture Properties",Owner=this,Width=390,Height=310,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var g=new Grid{Margin=new Thickness(14)};
+        for(int i=0;i<6;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(130)});
+        g.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var shownWidth=double.IsNaN(img.Width)||img.Width<=0?img.ActualWidth:img.Width;
+        if(shownWidth<=0 && img.Source is BitmapSource bitmap)shownWidth=bitmap.PixelWidth;
+        var width=new TextBox{Text=Math.Max(1,shownWidth).ToString("0")};
+        var align=new ComboBox{ItemsSource=new[]{"Left","Centre","Right"},SelectedIndex=currentAlignment==TextAlignment.Left?0:currentAlignment==TextAlignment.Right?2:1,Margin=new Thickness(0,5,0,5)};
+        var keep=new CheckBox{Content="Keep aspect ratio",IsChecked=true,Margin=new Thickness(0,8,0,8)};
+        var caption=new TextBox{Margin=new Thickness(0,4,0,8)};
+        var note=new TextBlock{Text="Pictures remain inline. Alignment applies to the containing paragraph; full floating text wrap is deliberately deferred.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var ok=new Button{Content="Apply",Width=85,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+
+        AddRow(g,0,"Width (pixels)",width);
+        AddRow(g,1,"Alignment",align);
+        Grid.SetRow(keep,2);Grid.SetColumnSpan(keep,2);g.Children.Add(keep);
+        AddRow(g,3,"Caption",caption);
+        Grid.SetRow(note,4);Grid.SetColumnSpan(note,2);g.Children.Add(note);
+        Grid.SetRow(ok,5);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+
+        ok.Click+=(_,__)=>
+        {
+            if(double.TryParse(width.Text,out var px)&&px>10)
+            {
+                if(keep.IsChecked==true&&img.Source is BitmapSource bs&&bs.PixelWidth>0)img.Height=px*bs.PixelHeight/bs.PixelWidth;
+                img.Width=px;
+            }
+            if(paragraph!=null)paragraph.TextAlignment=align.SelectedIndex==0?TextAlignment.Left:align.SelectedIndex==2?TextAlignment.Right:TextAlignment.Center;
+
+            if(!string.IsNullOrWhiteSpace(caption.Text) && paragraph!=null)
+            {
+                var next=paragraph.NextBlock;
+                var cap=new Paragraph(new Run(caption.Text))
+                {
+                    TextAlignment=paragraph.TextAlignment,
+                    FontSize=10*96/72,
+                    FontStyle=FontStyles.Italic,
+                    Foreground=Brushes.DimGray,
+                    Margin=new Thickness(0,3,0,8)
+                };
+                if(next!=null)Editor.Document.Blocks.InsertBefore(next,cap);
+                else Editor.Document.Blocks.Add(cap);
+            }
+            MarkDirty("Picture properties updated.");
+            w.DialogResult=true;
+        };
+        w.Content=g;
+        w.ShowDialog();
+    }
+
+    static void AddRow(Grid g,int row,string label,Control control)
+    {
+        var t=new TextBlock{Text=label,VerticalAlignment=VerticalAlignment.Center};
+        Grid.SetRow(t,row);Grid.SetColumn(t,0);
+        Grid.SetRow(control,row);Grid.SetColumn(control,1);
+        g.Children.Add(t);g.Children.Add(control);
+    }
+
+    TableCell? CurrentTableCell()
+    {
+        DependencyObject? node=Editor.CaretPosition.Parent;
+        while(node!=null)
+        {
+            if(node is TableCell cell)return cell;
+            node=node switch
+            {
+                FrameworkContentElement fce=>fce.Parent,
+                _=>null
+            };
+        }
+        return null;
+    }
+
+    void TableAddRow_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow row || row.Parent is not TableRowGroup group)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        var newRow=new TableRow();
+        var cols=row.Cells.Count;
+        for(int i=0;i<cols;i++)
+            newRow.Cells.Add(new TableCell(new Paragraph(new Run(""))){BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)});
+        var rowIndex=group.Rows.IndexOf(row);
+        group.Rows.Insert(Math.Min(rowIndex+1,group.Rows.Count),newRow);
+        MarkDirty("Table row added.");
+    }
+
+    void TableAddColumn_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow currentRow || currentRow.Parent is not TableRowGroup group || group.Parent is not Table table)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        var index=currentRow.Cells.IndexOf(cell)+1;
+        table.Columns.Insert(index,new TableColumn());
+        foreach(var row in group.Rows)
+        {
+            var newCell=new TableCell(new Paragraph(new Run(""))){BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)};
+            if(index>=row.Cells.Count)row.Cells.Add(newCell);
+            else row.Cells.Insert(index,newCell);
+        }
+        MarkDirty("Table column added.");
+    }
+
+    void TableDeleteRow_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow row || row.Parent is not TableRowGroup group)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        if(group.Rows.Count<=1)
+        {
+            Status.Text="A table must retain at least one row.";
+            return;
+        }
+        group.Rows.Remove(row);
+        MarkDirty("Table row deleted.");
+    }
+
+    void TableDeleteColumn_Click(object s,RoutedEventArgs e)
+    {
+        var cell=CurrentTableCell();
+        if(cell?.Parent is not TableRow currentRow || currentRow.Parent is not TableRowGroup group || group.Parent is not Table table)
+        {
+            Status.Text="Place the caret inside a table first.";
+            return;
+        }
+        if(table.Columns.Count<=1)
+        {
+            Status.Text="A table must retain at least one column.";
+            return;
+        }
+        var index=currentRow.Cells.IndexOf(cell);
+        foreach(var row in group.Rows)
+            if(index>=0 && index<row.Cells.Count)row.Cells.Remove(row.Cells[index]);
+        if(index>=0 && index<table.Columns.Count)table.Columns.RemoveAt(index);
+        MarkDirty("Table column deleted.");
+    }
+
+    void PageSetup_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window{Title="Page Setup",Owner=this,Width=390,Height=350,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var p=new StackPanel{Margin=new Thickness(16)};
+        var paper=new ComboBox{ItemsSource=new[]{"A4 Portrait","A4 Landscape","A5 Portrait","US Letter"},SelectedIndex=0,Margin=new Thickness(0,0,0,10)};
+        p.Children.Add(new TextBlock{Text="Paper"});p.Children.Add(paper);
+        TextBox Box(double dip)=>new(){Text=(dip*25.4/96).ToString("0.0"),Margin=new Thickness(0,2,0,6)};
+        TextBox l=Box(pageMargins.Left);TextBox t=Box(pageMargins.Top);TextBox r=Box(pageMargins.Right);TextBox b=Box(pageMargins.Bottom);
+        foreach(var pair in new[]{("Left margin (mm)",l),("Top margin (mm)",t),("Right margin (mm)",r),("Bottom margin (mm)",b)})
+        {
+            p.Children.Add(new TextBlock{Text=pair.Item1});
+            p.Children.Add(pair.Item2);
+        }
+        var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
+        p.Children.Add(ok);
+        ok.Click+=(_,__)=>
+        {
+            (pageWidth,pageHeight)=paper.SelectedIndex switch{1=>(1123d,794d),2=>(559d,794d),3=>(816d,1056d),_=>(794d,1123d)};
+            double mm(TextBox x)=>double.TryParse(x.Text,out var v)?v*96/25.4:72;
+            pageMargins=new Thickness(mm(l),mm(t),mm(r),mm(b));
+            ApplyPage();
+            MarkDirty("Page setup updated.");
+            w.DialogResult=true;
+        };
+        w.Content=p;
+        w.ShowDialog();
+    }
+
+    void ApplyPage()
+    {
+        PageBorder.Width=pageWidth;
+        PageBorder.MinHeight=pageHeight;
+        PageBorder.Padding=pageMargins;
+        Editor.Document.PageWidth=pageWidth;
+        Editor.Document.PageHeight=pageHeight;
+        Editor.Document.PagePadding=pageMargins;
+        if(PageGuides!=null)
+        {
+            PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
+            UpdatePageGuideState();
+        }
+    }
+
+    void StyleMenu_Click(object s,RoutedEventArgs e)
+    {
+        if(s is MenuItem m && m.Tag is string style)ApplyParagraphStyle(style);
+    }
+
+    void StyleBox_SelectionChanged(object s,SelectionChangedEventArgs e)
+    {
+        if(!IsLoaded || StyleBox.SelectedItem is not ComboBoxItem item)return;
+        if(item.Content is string style)ApplyParagraphStyle(style);
+    }
+
+    void ApplyParagraphStyle(string style)
+    {
+        if(Editor==null)return;
+        var selection=Editor.Selection;
+        selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily("Calibri"));
+        selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Normal);
+        selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Normal);
+        selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.Black);
+        selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,TextAlignment.Left);
+        selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,0,0,8));
+
+        switch(style)
+        {
+            case "Heading 1":
+                selection.ApplyPropertyValue(TextElement.FontSizeProperty,24d);
+                selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
+                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,16,0,8));
+                break;
+            case "Heading 2":
+                selection.ApplyPropertyValue(TextElement.FontSizeProperty,20d);
+                selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
+                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,12,0,6));
+                break;
+            case "Heading 3":
+                selection.ApplyPropertyValue(TextElement.FontSizeProperty,17d);
+                selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.SemiBold);
+                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,10,0,5));
+                break;
+            case "Quote":
+                selection.ApplyPropertyValue(TextElement.FontSizeProperty,16d);
+                selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
+                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(36,8,36,8));
+                selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DimGray);
+                break;
+            case "Caption":
+                selection.ApplyPropertyValue(TextElement.FontSizeProperty,13.333d);
+                selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
+                selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,TextAlignment.Center);
+                selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DimGray);
+                break;
+            default:
+                selection.ApplyPropertyValue(TextElement.FontSizeProperty,16d);
+                break;
+        }
+        MarkDirty($"Style: {style}");
+        Editor.Focus();
+    }
+
+    void AiManager_Click(object s,RoutedEventArgs e)
+    {
+        var selected=new TextRange(Editor.Selection.Start,Editor.Selection.End).Text;
+        var whole=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text;
+        AiManager.ShowForDocument(this,selected,whole,ApplyAiDocumentResult);
+    }
+
+    void ApplyAiDocumentResult(string result,bool replaceSelection)
+    {
+        if(string.IsNullOrWhiteSpace(result))return;
+
+        if(replaceSelection && !Editor.Selection.IsEmpty)
+        {
+            Editor.Selection.Text="";
+            Editor.CaretPosition=Editor.Selection.Start;
+        }
+
+        foreach(var part in AiResultRenderer.Parse(result))
+        {
+            if(!string.IsNullOrWhiteSpace(part.Text))
+            {
+                var text=part.Text.Trim();
+                Editor.CaretPosition.InsertTextInRun(text);
+                EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+            }
+            if(part.Image!=null)
+            {
+                try
+                {
+                    var image=new Image
+                    {
+                        Source=part.Image,Width=Math.Min(680,part.Image.PixelWidth),
+                        Stretch=Stretch.Uniform,Margin=new Thickness(4,8,4,8)
+                    };
+                    new InlineUIContainer(image,Editor.CaretPosition);
+                    EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+                    WirePicture(image);
+                }
+                catch
+                {
+                    Editor.CaretPosition.InsertTextInRun("[Chart could not be inserted]");
+                    EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+                }
+            }
+        }
+
+        MarkDirty(replaceSelection?"AI replaced the selection.":"AI result inserted.");
+        UpdateDocumentStats();
+        Editor.Focus();
+    }
+
+    string MacroDirectory()
+    {
+        var dir=MacroDirectory();
+        return dir;
+    }
+
+    void OpenMacroFolder_Click(object s,RoutedEventArgs e)
+    {
+        var dir=MacroDirectory();
+        try
+        {
+            Process.Start(new ProcessStartInfo{FileName=dir,UseShellExecute=true});
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Open Macro Folder",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void MacroLibrary_Click(object s,RoutedEventArgs e)
+    {
+        var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
+        Directory.CreateDirectory(dir);
+        var w=new Window{Title="CtrlZed Macro Manager",Owner=this,Width=900,Height=640,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
+        var grid=new Grid{Margin=new Thickness(10)};
+        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(240)});
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var left=new DockPanel{Margin=new Thickness(0,0,10,0)};
+        var list=new ListBox();
+        DockPanel.SetDock(list,Dock.Top);
+        left.Children.Add(list);
+
+        var folderInfo=new TextBlock
+        {
+            Text=dir,FontSize=10.5,Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,
+            ToolTip=dir,Margin=new Thickness(0,6,0,0)
+        };
+        DockPanel.SetDock(folderInfo,Dock.Bottom);
+        left.Children.Add(folderInfo);
+
+        var buttons=new WrapPanel{Margin=new Thickness(0,8,0,0)};
+        var language=new ComboBox{Width=92,Margin=new Thickness(0,0,5,5),ItemsSource=new[]{"Safe","VB.NET","C#"}};
+        language.SelectedIndex=lastMacroLanguage==".czm"?0:lastMacroLanguage==".cs"?2:1;
+        var create=new Button{Content="New",Width=58,Margin=new Thickness(0,0,5,5)};
+        var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
+        var embed=new Button{Content="Embed",Margin=new Thickness(0,0,5,5)};
+        var extract=new Button{Content="Extract",Margin=new Thickness(0,0,5,5)};
+        var rename=new Button{Content="Rename",Margin=new Thickness(0,0,5,5)};
+        var delete=new Button{Content="Delete",Margin=new Thickness(0,0,5,5)};
+        var secrets=new Button{Content="Secrets…",Margin=new Thickness(0,0,5,5)};
+        buttons.Children.Add(language);buttons.Children.Add(create);buttons.Children.Add(ai);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(delete);buttons.Children.Add(secrets);
+        language.SelectionChanged+=(_,__)=>
+        {
+            lastMacroLanguage=language.SelectedIndex==0?".czm":language.SelectedIndex==2?".cs":".vb";
+            SaveAppSettings();
+        };
+        DockPanel.SetDock(buttons,Dock.Bottom);
+        left.Children.Add(buttons);
+        Grid.SetColumn(left,0);grid.Children.Add(left);
+
+        var right=new DockPanel();
+        var warningPanel=new StackPanel{Margin=new Thickness(0,0,0,8)};
+        var warning=new TextBlock
+        {
+            Text="Safe mode restricts .czm macros to CtrlZed document commands. Enable extended macros to allow interactive prompts and generated images such as QR codes.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray
+        };
+        var extended=new CheckBox
+        {
+            Content="Allow extended macros (interactive prompts and generated images)",
+            IsChecked=extendedMacrosEnabled,
+            Margin=new Thickness(0,7,0,0),
+            ToolTip="Off by default. When enabled, macros may ask for input and generate images inside the document."
+        };
+        extended.Checked+=(_,__)=>
+        {
+            extendedMacrosEnabled=true;SaveAppSettings();
+            warning.Text="Extended macros are enabled. Interactive prompts and generated images are allowed.";
+        };
+        extended.Unchecked+=(_,__)=>
+        {
+            extendedMacrosEnabled=false;SaveAppSettings();
+            warning.Text="Safe mode is enabled. Interactive prompts and generated images are blocked.";
+        };
+        var compiled=new CheckBox
+        {
+            Content="Allow compiled VB/C# macros (full trust)",
+            IsChecked=compiledMacrosEnabled,
+            Margin=new Thickness(0,5,0,0),
+            ToolTip="Compiled macros run as your Windows user and may access files, network, processes and other system resources."
+        };
+        compiled.Checked+=(_,__)=>
+        {
+            compiledMacrosEnabled=true;SaveAppSettings();
+            warning.Text="Compiled VB/C# macros are enabled. They run with the same Windows permissions as CtrlZed.";
+        };
+        compiled.Unchecked+=(_,__)=>
+        {
+            compiledMacrosEnabled=false;SaveAppSettings();
+            warning.Text="Compiled VB/C# macros are disabled. .czm macros remain available.";
+        };
+        warningPanel.Children.Add(warning);warningPanel.Children.Add(extended);warningPanel.Children.Add(compiled);
+        DockPanel.SetDock(warningPanel,Dock.Top);right.Children.Add(warningPanel);
+
+        var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
+        var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
+        var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
+        var saveExit=new Button{Content="Save && Exit",Width=105,Margin=new Thickness(4)};
+        actionBar.Children.Add(run);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);
+        DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
+
+        var code=new TextBox
+        {
+            AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas"),
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto
+        };
+        right.Children.Add(code);Grid.SetColumn(right,1);grid.Children.Add(right);
+
+        string? selected=null;
+        bool selectedEmbedded=false;
+        var itemMap=new Dictionary<string,(bool Embedded,string Key)>(StringComparer.Ordinal);
+
+        string CurrentMacroEditorExtension()=>selected==null?".czm":Path.GetExtension(selected).ToLowerInvariant();
+
+        void ReplaceSelectedLines(Func<string,string> transform)
+        {
+            var text=code.Text;
+            var start=code.SelectionStart;
+            var length=code.SelectionLength;
+            var end=start+length;
+
+            var lineStart=start<=0?0:text.LastIndexOf('\n',Math.Max(0,start-1))+1;
+            var lineEnd=text.IndexOf('\n',Math.Min(end,text.Length));
+            if(lineEnd<0)lineEnd=text.Length;
+
+            var segment=text[lineStart..lineEnd];
+            var transformed=string.Join("\n",segment.Split('\n').Select(transform));
+            code.Text=text[..lineStart]+transformed+text[lineEnd..];
+            code.SelectionStart=lineStart;
+            code.SelectionLength=transformed.Length;
+        }
+
+        void IndentSelection(bool outdent)
+        {
+            ReplaceSelectedLines(line=>
+            {
+                if(!outdent)return "    "+line;
+                if(line.StartsWith("\t"))return line[1..];
+                var remove=Math.Min(4,line.TakeWhile(ch=>ch==' ').Count());
+                return line[remove..];
+            });
+        }
+
+        void ToggleComment()
+        {
+            var ext=CurrentMacroEditorExtension();
+            var marker=ext==".vb"?"'":ext==".cs"?"//":"#";
+            var text=code.Text;
+            var start=code.SelectionStart;
+            var end=start+code.SelectionLength;
+            var lineStart=start<=0?0:text.LastIndexOf('\n',Math.Max(0,start-1))+1;
+            var lineEnd=text.IndexOf('\n',Math.Min(end,text.Length));
+            if(lineEnd<0)lineEnd=text.Length;
+            var lines=text[lineStart..lineEnd].Split('\n');
+
+            bool IsCommented(string line)
+            {
+                if(string.IsNullOrWhiteSpace(line))return true;
+                var trimmed=line.TrimStart();
+                return trimmed.StartsWith(marker,StringComparison.Ordinal);
+            }
+
+            var uncomment=lines.All(IsCommented);
+            var transformed=lines.Select(line=>
+            {
+                if(string.IsNullOrWhiteSpace(line))return line;
+                var indent=line.Length-line.TrimStart().Length;
+                var prefix=line[..indent];
+                var body=line[indent..];
+                if(uncomment)
+                {
+                    if(body.StartsWith(marker,StringComparison.Ordinal))
+                    {
+                        body=body[marker.Length..];
+                        if(body.StartsWith(" "))body=body[1..];
+                    }
+                    return prefix+body;
+                }
+                return prefix+marker+" "+body;
+            });
+            var replacement=string.Join("\n",transformed);
+            code.Text=text[..lineStart]+replacement+text[lineEnd..];
+            code.SelectionStart=lineStart;
+            code.SelectionLength=replacement.Length;
+        }
+
+        code.PreviewKeyDown+=(_,e)=>
+        {
+            if(e.Key==Key.Tab)
+            {
+                IndentSelection(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                e.Handled=true;
+                return;
+            }
+
+            if(Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key==Key.Oem2)
+            {
+                ToggleComment();
+                e.Handled=true;
+                return;
+            }
+
+            if(e.Key==Key.Enter && Keyboard.Modifiers==ModifierKeys.None)
+            {
+                var caret=code.SelectionStart;
+                var before=code.Text[..caret];
+                var lineStart=before.LastIndexOf('\n')+1;
+                var line=before[lineStart..];
+                var indent=new string(' ',line.TakeWhile(ch=>ch==' ').Count());
+                var trimmed=line.TrimEnd();
+                var ext=CurrentMacroEditorExtension();
+                if(ext==".cs" && trimmed.EndsWith("{",StringComparison.Ordinal))indent+="    ";
+                else if(ext==".vb")
+                {
+                    var lower=trimmed.Trim().ToLowerInvariant();
+                    if(lower.EndsWith(" then") || lower.StartsWith("for ") || lower.StartsWith("for each ") ||
+                       lower.StartsWith("while ") || lower.StartsWith("do") || lower.StartsWith("try") ||
+                       lower.Contains(" sub ") || lower.Contains(" function ") || lower.StartsWith("select case "))
+                        indent+="    ";
+                }
+                code.SelectedText=Environment.NewLine+indent;
+                e.Handled=true;
+            }
+        };
+
+        void refresh(string? reselectKey=null,bool reselectEmbedded=false)
+        {
+            itemMap.Clear();
+            var items=new List<string>();
+
+            foreach(var path in Directory.GetFiles(dir)
+                .Where(p=>new[]{".czm",".vb",".cs"}.Contains(Path.GetExtension(p),StringComparer.OrdinalIgnoreCase)))
+            {
+                var file=Path.GetFileName(path);
+                var source=File.ReadAllText(path);
+                var friendly=GetMacroFriendlyName(source,Path.GetExtension(file));
+                var label=string.IsNullOrWhiteSpace(friendly)?"Central | "+file:$"Central | {friendly}  [{file}]";
+                itemMap[label]=(false,file);
+                items.Add(label);
+            }
+
+            foreach(var key in embeddedMacros.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase))
+            {
+                var source=embeddedMacros[key];
+                var friendly=GetMacroFriendlyName(source,Path.GetExtension(key));
+                var label=string.IsNullOrWhiteSpace(friendly)?"Document | "+key:$"Document | {friendly}  [{key}]";
+                itemMap[label]=(true,key);
+                items.Add(label);
+            }
+
+            list.ItemsSource=items.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+
+            if(!string.IsNullOrWhiteSpace(reselectKey))
+            {
+                var match=itemMap.FirstOrDefault(x=>x.Value.Embedded==reselectEmbedded && string.Equals(x.Value.Key,reselectKey,StringComparison.OrdinalIgnoreCase));
+                if(!string.IsNullOrWhiteSpace(match.Key))list.SelectedItem=match.Key;
+            }
+        }
+
+        list.SelectionChanged+=(_,__)=>
+        {
+            var item=list.SelectedItem?.ToString();
+            if(string.IsNullOrWhiteSpace(item) || !itemMap.TryGetValue(item,out var mapped)){selected=null;return;}
+            selectedEmbedded=mapped.Embedded;
+            selected=mapped.Key;
+            if(selectedEmbedded)
+                code.Text=embeddedMacros.TryGetValue(selected,out var src)?src:"";
+            else
+            {
+                var path=Path.Combine(dir,selected);
+                code.Text=File.Exists(path)?File.ReadAllText(path):"";
+            }
+            var selectedExt=selected==null?"":Path.GetExtension(selected).ToLowerInvariant();
+            run.Content=selectedExt==".czm"?"Run macro":"Compile && Run";
+            run.IsEnabled=selected!=null && (selectedExt==".czm" || ((selectedExt==".vb"||selectedExt==".cs") && compiledMacrosEnabled));
+            embed.IsEnabled=!selectedEmbedded && selected!=null && selectedExt==".czm";
+            extract.IsEnabled=selectedEmbedded && selected!=null;
+            rename.IsEnabled=!selectedEmbedded && selected!=null;
+            delete.IsEnabled=selected!=null;
+        };
+
+        string StarterFor(string ext)=>ext switch
+        {
+            ".vb"=>@"Imports System.Windows.Controls
+
+Public Module CtrlZedMacro
+    Public Const MENU_NAME As String = ""New VB Macro""
+    Public Const MENU_POSITION As Integer = 1
+
+    Public Sub Run(Editor As RichTextBox)
+        Editor.CaretPosition.InsertTextInRun(""Hello from a VB.NET macro"")
+    End Sub
+End Module
+",
+            ".cs"=>@"using System.Windows.Controls;
+
+public static class CtrlZedMacro
+{
+    public const string MENU_NAME = ""New C# Macro"";
+    public const int MENU_POSITION = 1;
+
+    public static void Run(RichTextBox Editor)
+    {
+        Editor.CaretPosition.InsertTextInRun(""Hello from a C# macro"");
+    }
+}
+",
+            _=>$@"# CtrlZed Safe Macro
+# NAME: New Macro
+# DESCRIPTION: Describe what this macro does.
+# SHORTCUT:
+#
+# Supported commands:
+{SafeMacroLanguage.Reference}
+
+INSERT_TEXT Hello from a CtrlZed safe macro
+NEW_PARAGRAPH
+INSERT_FIELD date
+"
+        };
+
+        void make(string ext,string starter)
+        {
+            var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+ext;
+            File.WriteAllText(Path.Combine(dir,name),starter);
+            refresh(name,false);
+        }
+
+        create.Click+=(_,__)=>
+        {
+            var ext=language.SelectedIndex==0?".czm":language.SelectedIndex==2?".cs":".vb";
+            make(ext,StarterFor(ext));
         };
 
         void SaveSelectedMacro()
