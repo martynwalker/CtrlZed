@@ -27,8 +27,20 @@ jobs:
         shell: pwsh
         run: |
           $p = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -PassThru
-          Start-Sleep -Seconds 4
-          if ($p.HasExited) { throw "CtrlZed exited during smoke launch with code $($p.ExitCode)" }
+          $ready = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            $p.Refresh()
+            if ($p.HasExited) { throw "CtrlZed exited during smoke launch with code $($p.ExitCode)" }
+            if ($p.MainWindowHandle -ne 0 -and $p.Responding) {
+              $ready = $true
+              break
+            }
+          }
+          if (-not $ready) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw "CtrlZed did not create a responsive main window within 10 seconds."
+          }
           Stop-Process -Id $p.Id -Force
       - name: Functional self-test
         shell: pwsh
@@ -76,4 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 25 introduces persistent scoped fields: read-only distributed {system:name} fields from system-fields.json and editable persistent {user:name} fields in the local CtrlZed profile, with legacy field syntax and old .czd custom-field migration retained for compatibility."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 25.1 hotfix fixes the Beta 25 startup hang by expanding only field tokens actually present, adds circular-field protection, and strengthens smoke launch to require a responsive main window."
