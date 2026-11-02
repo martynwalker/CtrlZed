@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
@@ -36,9 +37,11 @@ public partial class MainWindow : Window
     string documentAuthor = "";
     string documentSubject = "";
     string documentKeywords = "";
+    string documentVersion = "1.0";
     double zoomPercent = 100;
     bool extendedMacrosEnabled;
     bool compiledMacrosEnabled;
+    double savedWindowLeft=double.NaN,savedWindowTop=double.NaN,savedWindowWidth=1100,savedWindowHeight=760;
 
     sealed class CzdSettings
     {
@@ -56,6 +59,7 @@ public partial class MainWindow : Window
         public string Author { get; set; } = "";
         public string Subject { get; set; } = "";
         public string Keywords { get; set; } = "";
+        public string Version { get; set; } = "1.0";
     }
 
     sealed class HeadingItem
@@ -83,6 +87,8 @@ public partial class MainWindow : Window
         recoveryFile = Path.Combine(recoveryDir,"Recovery.rtf");
         settingsFile = Path.Combine(recoveryDir,"settings.json");
         LoadAppSettings();
+        ApplySavedWindowPlacement();
+        EnsureDocumentPropertyDefaults();
         RefreshRecentFilesMenu();
         RefreshMacroMenus();
         recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -133,6 +139,8 @@ public partial class MainWindow : Window
         customFields.Clear();
         embeddedMacros.Clear();
         documentTitle=documentAuthor=documentSubject=documentKeywords="";
+        documentVersion="1.0";
+        EnsureDocumentPropertyDefaults();
         RefreshHeaderFooter();
         suppressDirty = false;
         dirty = false;
@@ -257,7 +265,7 @@ public partial class MainWindow : Window
                 Header=headerText,Footer=footerText,
                 CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
                 EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
-                Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords
+                Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion
             };
             using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
         }
@@ -286,6 +294,7 @@ public partial class MainWindow : Window
                 documentAuthor=v.Author??"";
                 documentSubject=v.Subject??"";
                 documentKeywords=v.Keywords??"";
+                documentVersion=string.IsNullOrWhiteSpace(v.Version)?"1.0":v.Version;
                 customFields.Clear();
                 embeddedMacros.Clear();
                 if(v.EmbeddedMacros!=null)
@@ -421,7 +430,9 @@ public partial class MainWindow : Window
                        .Replace("{time}",now.ToString("HH:mm"),StringComparison.OrdinalIgnoreCase)
                        .Replace("{filename}",currentFile==null?"Untitled":Path.GetFileName(currentFile),StringComparison.OrdinalIgnoreCase)
                        .Replace("{moonphase}",GetMoonPhaseName(now),StringComparison.OrdinalIgnoreCase)
-                       .Replace("{moonicon}",GetMoonPhaseIcon(now),StringComparison.OrdinalIgnoreCase);
+                       .Replace("{moonicon}",GetMoonPhaseIcon(now),StringComparison.OrdinalIgnoreCase)
+                       .Replace("{version}",documentVersion,StringComparison.OrdinalIgnoreCase)
+                       .Replace("{title}",documentTitle,StringComparison.OrdinalIgnoreCase);
 
         foreach(var pair in customFields)
         {
@@ -563,21 +574,57 @@ public partial class MainWindow : Window
 
     void HeaderFooter_Click(object s,RoutedEventArgs e)
     {
-        var w=new Window{Title="Header and Footer",Owner=this,Width=520,Height=330,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var w=new Window{Title="Header and Footer",Owner=this,Width=640,Height=430,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
         var grid=new Grid{Margin=new Thickness(16)};
-        for(int i=0;i<6;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        for(int i=0;i<8;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var preset=new ComboBox{Margin=new Thickness(0,4,0,10)};
+        preset.Items.Add("Custom");
+        preset.Items.Add("Title | Page n of n | Date & Version");
+        preset.Items.Add("Title | Page n of n");
+        preset.Items.Add("Filename | Page n of n | Date");
+        preset.SelectedIndex=0;
+
         var h=new TextBox{Text=headerText,Margin=new Thickness(0,4,0,10)};
         var ft=new TextBox{Text=footerText,Margin=new Thickness(0,4,0,10)};
-        var help=new TextBlock{Text="Built-ins: {page}  {pages}  {date}  {time}  {filename}  {moonphase}  {moonicon}. Custom fields use {field:name}. Page fields are previewed as page 1 in the editor.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var help=new TextBlock
+        {
+            Text="Use tab-separated left, centre and right sections. Built-ins: {title}, {page}, {pages}, {date}, {time}, {filename}, {version}, {moonphase}, {moonicon}. Custom fields use {field:name}.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,4,0,8)
+        };
+        AddRow(grid,0,"Preset",preset);
+        AddRow(grid,1,"Header",h);
+        AddRow(grid,2,"Footer",ft);
+        Grid.SetRow(help,3);Grid.SetColumnSpan(help,2);grid.Children.Add(help);
+
+        var preview=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,8)};
+        Grid.SetRow(preview,4);Grid.SetColumnSpan(preview,2);grid.Children.Add(preview);
+
+        void ApplyPreset()
+        {
+            switch(preset.SelectedIndex)
+            {
+                case 1:
+                    h.Text="{title}\tPage {page} of {pages}\t{date} · v{version}";
+                    ft.Text="";
+                    break;
+                case 2:
+                    h.Text="{title}\tPage {page} of {pages}\t";
+                    ft.Text="";
+                    break;
+                case 3:
+                    h.Text="{filename}\tPage {page} of {pages}\t{date}";
+                    ft.Text="";
+                    break;
+            }
+            preview.Text="Example: "+ExpandFields(h.Text,1,Math.Max(1,CreatePreviewPaginator().PageCount));
+        }
+        preset.SelectionChanged+=(_,__)=>{if(preset.SelectedIndex>0)ApplyPreset();};
+
         var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)};
-
-        AddFullRow(grid,0,new TextBlock{Text="Header"});
-        AddFullRow(grid,1,h);
-        AddFullRow(grid,2,new TextBlock{Text="Footer"});
-        AddFullRow(grid,3,ft);
-        AddFullRow(grid,4,help);
-        AddFullRow(grid,5,ok);
-
+        Grid.SetRow(ok,7);Grid.SetColumnSpan(ok,2);grid.Children.Add(ok);
         ok.Click+=(_,__)=>
         {
             headerText=h.Text;
@@ -633,6 +680,10 @@ public partial class MainWindow : Window
         public double ZoomPercent { get; set; } = 100;
         public bool ExtendedMacrosEnabled { get; set; }
         public bool CompiledMacrosEnabled { get; set; }
+        public double WindowLeft { get; set; } = double.NaN;
+        public double WindowTop { get; set; } = double.NaN;
+        public double WindowWidth { get; set; } = 1100;
+        public double WindowHeight { get; set; } = 760;
     }
 
     void LoadAppSettings()
@@ -647,6 +698,8 @@ public partial class MainWindow : Window
             zoomPercent=Math.Clamp(settings.ZoomPercent,50,150);
             extendedMacrosEnabled=settings.ExtendedMacrosEnabled;
             compiledMacrosEnabled=settings.CompiledMacrosEnabled;
+            savedWindowLeft=settings.WindowLeft;savedWindowTop=settings.WindowTop;
+            savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
             ApplyZoom();
         }
         catch { }
@@ -661,11 +714,67 @@ public partial class MainWindow : Window
                 RecentFiles=recentFiles.Take(10).ToList(),
                 ZoomPercent=zoomPercent,
                 ExtendedMacrosEnabled=extendedMacrosEnabled,
-                CompiledMacrosEnabled=compiledMacrosEnabled
+                CompiledMacrosEnabled=compiledMacrosEnabled,
+                WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
+                WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight
             }));
         }
         catch { }
     }
+
+    void ApplySavedWindowPlacement()
+    {
+        if(double.IsNaN(savedWindowLeft)||double.IsNaN(savedWindowTop))return;
+        Width=Math.Clamp(savedWindowWidth,700,SystemParameters.VirtualScreenWidth);
+        Height=Math.Clamp(savedWindowHeight,500,SystemParameters.VirtualScreenHeight);
+        Left=Math.Clamp(savedWindowLeft,SystemParameters.VirtualScreenLeft,SystemParameters.VirtualScreenLeft+SystemParameters.VirtualScreenWidth-100);
+        Top=Math.Clamp(savedWindowTop,SystemParameters.VirtualScreenTop,SystemParameters.VirtualScreenTop+SystemParameters.VirtualScreenHeight-80);
+        WindowStartupLocation=WindowStartupLocation.Manual;
+    }
+
+    void CaptureWindowPlacement()
+    {
+        var bounds=WindowState==WindowState.Normal
+            ?new Rect(Left,Top,ActualWidth,ActualHeight)
+            :RestoreBounds;
+        if(bounds.Width>300&&bounds.Height>250)
+        {
+            savedWindowLeft=bounds.Left;savedWindowTop=bounds.Top;
+            savedWindowWidth=bounds.Width;savedWindowHeight=bounds.Height;
+        }
+    }
+
+    string GetPreferredAuthor()
+    {
+        try
+        {
+            using var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Office\Common\UserInfo");
+            var wordName=key?.GetValue("UserName")?.ToString()?.Trim();
+            if(!string.IsNullOrWhiteSpace(wordName))return wordName;
+        }
+        catch{}
+        try
+        {
+            var display=Environment.UserName?.Trim();
+            return string.IsNullOrWhiteSpace(display)?"Unknown author":display;
+        }
+        catch{return "Unknown author";}
+    }
+
+    void EnsureDocumentPropertyDefaults()
+    {
+        if(string.IsNullOrWhiteSpace(documentTitle))
+            documentTitle=currentFile==null?"Untitled":Path.GetFileNameWithoutExtension(currentFile);
+        if(string.IsNullOrWhiteSpace(documentAuthor))
+            documentAuthor=GetPreferredAuthor();
+        if(string.IsNullOrWhiteSpace(documentSubject))
+            documentSubject="CtrlZed document";
+        if(string.IsNullOrWhiteSpace(documentVersion))
+            documentVersion="1.0";
+    }
+
+    void OpenGitHub_Click(object s,RoutedEventArgs e)
+        =>Process.Start(new ProcessStartInfo("https://github.com/martynwalker/CtrlZed"){UseShellExecute=true});
 
     void AddRecentFile(string? path)
     {
@@ -719,6 +828,7 @@ public partial class MainWindow : Window
             var ext=Path.GetExtension(path).ToLowerInvariant();
             headerText=footerText="";
             documentTitle=documentAuthor=documentSubject=documentKeywords="";
+            documentVersion="1.0";
             if(ext==".czd")LoadCzd(path);
             else if(ext==".docx")
             {
@@ -741,6 +851,7 @@ public partial class MainWindow : Window
             }
             WirePictureHandlers();RefreshNavigation();
             currentFile=path;dirty=false;suppressDirty=false;
+            EnsureDocumentPropertyDefaults();
             RefreshHeaderFooter();UpdateTitle();UpdateDocumentStats();
             Status.Text="Opened "+currentFile;AddRecentFile(currentFile);TryDeleteRecovery();RefreshMacroMenus();
         }
@@ -768,24 +879,27 @@ public partial class MainWindow : Window
 
     void DocumentProperties_Click(object s,RoutedEventArgs e)
     {
-        var w=new Window{Title="Document Properties",Owner=this,Width=520,Height=365,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        EnsureDocumentPropertyDefaults();
+        var w=new Window{Title="Document Properties",Owner=this,Width=540,Height=410,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
         var g=new Grid{Margin=new Thickness(16)};
-        for(int i=0;i<6;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        for(int i=0;i<7;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(100)});
         g.ColumnDefinitions.Add(new ColumnDefinition());
         var title=new TextBox{Text=documentTitle,Margin=new Thickness(0,3,0,8)};
         var author=new TextBox{Text=documentAuthor,Margin=new Thickness(0,3,0,8)};
         var subject=new TextBox{Text=documentSubject,Margin=new Thickness(0,3,0,8)};
         var keywords=new TextBox{Text=documentKeywords,Margin=new Thickness(0,3,0,8)};
-        AddRow(g,0,"Title",title);AddRow(g,1,"Author",author);AddRow(g,2,"Subject",subject);AddRow(g,3,"Keywords",keywords);
-        var info=new TextBlock{Text="Stored in .czd and mapped to DOCX core properties.",Foreground=Brushes.DimGray,Margin=new Thickness(0,5,0,5)};
-        Grid.SetRow(info,4);Grid.SetColumnSpan(info,2);g.Children.Add(info);
+        var version=new TextBox{Text=documentVersion,Margin=new Thickness(0,3,0,8)};
+        AddRow(g,0,"Title",title);AddRow(g,1,"Author",author);AddRow(g,2,"Subject",subject);AddRow(g,3,"Keywords",keywords);AddRow(g,4,"Version",version);
+        var info=new TextBlock{Text="Empty values are prefilled from the document, Windows account and Office user profile where available. Stored in .czd; standard fields map to DOCX core properties.",Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,5)};
+        Grid.SetRow(info,5);Grid.SetColumnSpan(info,2);g.Children.Add(info);
         var ok=new Button{Content="Apply",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
-        Grid.SetRow(ok,5);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+        Grid.SetRow(ok,6);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
         ok.Click+=(_,__)=>
         {
-            documentTitle=title.Text;documentAuthor=author.Text;documentSubject=subject.Text;documentKeywords=keywords.Text;
-            MarkDirty("Document properties updated.");w.DialogResult=true;
+            documentTitle=title.Text;documentAuthor=author.Text;documentSubject=subject.Text;documentKeywords=keywords.Text;documentVersion=version.Text;
+            EnsureDocumentPropertyDefaults();
+            MarkDirty("Document properties updated.");RefreshHeaderFooter();w.DialogResult=true;
         };
         w.Content=g;w.ShowDialog();
     }
@@ -3027,6 +3141,7 @@ public static class CtrlZedMacro
         if(closingApproved)return;
         if(!CanDiscardChanges()){e.Cancel=true;return;}
         recoveryTimer.Stop();
+        CaptureWindowPlacement();
         SaveAppSettings();
         TryDeleteRecovery();
         closingApproved=true;
@@ -3034,6 +3149,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.16.0 beta 16").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.17.0 beta 17").ShowDialog();
     }
 }
