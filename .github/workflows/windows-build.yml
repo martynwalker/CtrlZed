@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 24 fixes right-edge text clipping by matching the live FlowDocument to the true page content width, adds standard provider default secret names and provider status controls in Macro Secrets, and teaches generated macros to use the correct default provider secret automatically."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 25 introduces persistent scoped fields: read-only distributed {system:name} fields from system-fields.json and editable persistent {user:name} fields in the local CtrlZed profile, with legacy field syntax and old .czd custom-field migration retained for compatibility."
