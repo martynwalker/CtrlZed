@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 16 turns macros into a hierarchical menu extension system using MENU_NAME, MENU_POSITION, MENU_PATH and MENU_PATH_POSITIONS, while preserving right-click defaults and legacy MENU_OPTION."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 17 professionalises About and credits, remembers normal window placement, prefills document metadata from Windows/Office where available, adds document version fields and header/footer templates, and adds a GitHub menu link."
