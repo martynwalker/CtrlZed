@@ -2725,6 +2725,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.15.1 beta 15.1").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.15.2 beta 15.2").ShowDialog();
     }
 }
