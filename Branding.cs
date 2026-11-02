@@ -73,7 +73,7 @@ public static class Branding
         var panel=new StackPanel{Margin=new Thickness(28)};
         panel.Children.Add(new TextBlock{Text="Credits & acknowledgements",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)});
         panel.Children.Add(new TextBlock{Text="CtrlZed is built on open-source and platform technologies whose authors deserve explicit credit.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,16)});
-        panel.Children.Add(new TextBlock{Text="Microsoft .NET / WPF — application platform\nRoslyn — C# and VB.NET compiler services\nDocumentFormat.OpenXml — DOCX interoperability\nQRCoder — QR code generation",FontSize=14,LineHeight=24});
+        panel.Children.Add(new TextBlock{Text="Microsoft .NET / WPF — application platform\nRoslyn — C# and VB.NET compiler services\nDocumentFormat.OpenXml — DOCX interoperability\nQRCoder — QR code generation\nPdfPig — PDF text import",FontSize=14,LineHeight=24});
         panel.Children.Add(new TextBlock{Text="Licences and notices remain governed by their respective projects and packages.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,18,0,18)});
         panel.Children.Add(Link("CtrlZed on GitHub","https://github.com/martynwalker/CtrlZed"));
         var close=new Button{Content="Close",Width=90,Height=30,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,22,0,0)};
