@@ -140,6 +140,7 @@ public partial class MainWindow : Window
     {
         if(!CanDiscardChanges())return;
         if(fieldValuesVisible)SetFieldValuesVisible(false);
+        ClearAutoPaginationMargins();
         suppressDirty = true;
         Editor.Document = new FlowDocument();
         currentFile = null;
@@ -202,7 +203,9 @@ public partial class MainWindow : Window
         }
 
         var restoreFields=fieldValuesVisible;
+        var restorePagination=autoPaginationMargins.Count>0;
         if(restoreFields)SetFieldValuesVisible(false);
+        if(restorePagination)ClearAutoPaginationMargins();
         try
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
@@ -226,6 +229,7 @@ public partial class MainWindow : Window
         finally
         {
             if(restoreFields)SetFieldValuesVisible(true);
+            if(restorePagination)Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
         }
     }
 
@@ -270,7 +274,9 @@ public partial class MainWindow : Window
     {
         if(!dirty)return;
         var restoreFields=fieldValuesVisible;
+        var restorePagination=autoPaginationMargins.Count>0;
         if(restoreFields)SetFieldValuesVisible(false);
+        if(restorePagination)ClearAutoPaginationMargins();
         try
         {
             var tmp=recoveryFile+".tmp";
@@ -281,6 +287,7 @@ public partial class MainWindow : Window
         finally
         {
             if(restoreFields)SetFieldValuesVisible(true);
+            if(restorePagination)Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
         }
     }
 
@@ -453,13 +460,22 @@ public partial class MainWindow : Window
 
     FlowDocument CloneDocument()
     {
-        using var stream=new MemoryStream();
-        var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
-        source.Save(stream,DataFormats.Rtf);
-        stream.Position=0;
-        var clone=new FlowDocument();
-        new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
-        return clone;
+        var restorePagination=autoPaginationMargins.Count>0;
+        if(restorePagination)ClearAutoPaginationMargins();
+        try
+        {
+            using var stream=new MemoryStream();
+            var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
+            source.Save(stream,DataFormats.Rtf);
+            stream.Position=0;
+            var clone=new FlowDocument();
+            new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
+            return clone;
+        }
+        finally
+        {
+            if(restorePagination)Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
+        }
     }
 
     string ExpandFields(string text,int page,int pages)
@@ -845,6 +861,97 @@ public partial class MainWindow : Window
         UpdatePageGuideState();
     }
 
+    void ClearAutoPaginationMargins()
+    {
+        foreach(var pair in autoPaginationMargins.ToList())
+        {
+            try
+            {
+                if(pair.Key.Parent!=null)pair.Key.Margin=pair.Value;
+            }
+            catch{}
+        }
+        autoPaginationMargins.Clear();
+    }
+
+    static int PageIndex(double y,double pageHeight)
+        =>Math.Max(0,(int)Math.Floor(Math.Max(0,y)/Math.Max(1,pageHeight)));
+
+    bool PictureCrossesPage(Paragraph paragraph,double pageContentHeight)
+    {
+        foreach(var inline in paragraph.Inlines)
+        {
+            foreach(var image in EnumeratePicturesInInline(inline))
+            {
+                try
+                {
+                    var height=!double.IsNaN(image.Height)&&image.Height>0?image.Height:image.ActualHeight;
+                    if(height<=0 || height>pageContentHeight)continue;
+                    var origin=image.TranslatePoint(new Point(0,0),Editor);
+                    var top=origin.Y;
+                    var bottom=top+height;
+                    if(PageIndex(top,pageContentHeight)!=PageIndex(Math.Max(top,bottom-1),pageContentHeight))
+                        return true;
+                }
+                catch{}
+            }
+        }
+        return false;
+    }
+
+    void ApplyPaginationFlow()
+    {
+        if(applyingPaginationFlow || Editor==null || Editor.Document==null)return;
+        applyingPaginationFlow=true;
+        try
+        {
+            ClearAutoPaginationMargins();
+            Editor.UpdateLayout();
+
+            var pageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
+            var paragraphs=EnumerateDocumentParagraphs().ToList();
+
+            foreach(var paragraph in paragraphs)
+            {
+                Editor.UpdateLayout();
+                Rect startRect,endRect;
+                try
+                {
+                    startRect=paragraph.ContentStart.GetCharacterRect(LogicalDirection.Forward);
+                    endRect=paragraph.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
+                }
+                catch{continue;}
+
+                if(startRect.IsEmpty || endRect.IsEmpty || double.IsNaN(startRect.Top) || double.IsNaN(endRect.Bottom))continue;
+
+                var top=startRect.Top;
+                var bottom=Math.Max(startRect.Bottom,endRect.Bottom);
+                var height=Math.Max(1,bottom-top);
+                var crosses=PageIndex(top,pageContentHeight)!=PageIndex(Math.Max(top,bottom-1),pageContentHeight);
+                var pictureCrosses=PictureCrossesPage(paragraph,pageContentHeight);
+                var shortParagraph=crosses && keepParagraphTogether && height<=pageContentHeight/2.0;
+                var manualBreak=paragraph.BreakPageBefore;
+
+                if(!manualBreak && !pictureCrosses && !shortParagraph)continue;
+
+                var pageTop=PageIndex(top,pageContentHeight)*pageContentHeight;
+                var offset=top-pageTop;
+                if(offset<=18)continue;
+
+                var spacer=pageContentHeight-offset+18;
+                var original=paragraph.Margin;
+                autoPaginationMargins[paragraph]=original;
+                paragraph.Margin=new Thickness(original.Left,original.Top+spacer,original.Right,original.Bottom);
+            }
+
+            Editor.UpdateLayout();
+        }
+        finally
+        {
+            applyingPaginationFlow=false;
+        }
+    }
+
     void UpdatePageGuideState()
     {
         if(PageGuides==null)return;
@@ -1108,6 +1215,7 @@ public partial class MainWindow : Window
         try
         {
             if(fieldValuesVisible)SetFieldValuesVisible(false);
+            ClearAutoPaginationMargins();
             suppressDirty=true;
             var ext=Path.GetExtension(path).ToLowerInvariant();
             headerText=footerText="";
@@ -2265,6 +2373,7 @@ public partial class MainWindow : Window
         {
             PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
             UpdatePageGuideState();
+            Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
         }
     }
 
