@@ -153,7 +153,7 @@ For current or time-sensitive requests, use live web/search capability when avai
 Return only the material suitable for insertion into the document.";
     }
 
-    public static string MacroPrompt(string instruction,string macroExtension,string macroReference,string existingCode)
+    public static string MacroPrompt(string instruction,string macroExtension,string macroReference,string existingCode,string authoringProvider="")
     {
         macroExtension=(macroExtension??".czm").ToLowerInvariant();
 
@@ -180,6 +180,7 @@ Requirements:
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
+- If the user does not name an external AI provider, prefer the provider authoring this macro ({authoringProvider}) rather than inventing a different provider or secret name. Never assume which secrets exist.
 - Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
 - Omit MENU_PATH for the editor right-click Macros submenu. For main menus use a slash path, for example:
   public const string MENU_NAME = ""Snowflake..."";
@@ -216,6 +217,7 @@ Requirements:
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
+- If the user does not name an external AI provider, prefer the provider authoring this macro ({authoringProvider}) rather than inventing a different provider or secret name. Never assume which secrets exist.
 - Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
 - Omit MENU_PATH for the editor right-click Macros submenu. For main menus use a slash path, for example:
   Public Const MENU_NAME As String = ""Snowflake...""
