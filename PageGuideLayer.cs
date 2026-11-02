@@ -27,27 +27,35 @@ public sealed class PageGuideLayer : FrameworkElement
             var top=i*PageContentHeight;
             var bottom=(i+1)*PageContentHeight;
 
+            const double sideGutter=52;
+            var contentX=sideGutter;
+            var contentWidth=Math.Max(20,ActualWidth-sideGutter*2);
             var headerY=i==0?top+4:top+(PageGap/2)+5;
-            DrawTriplet(dc,Expand?.Invoke(Header,i+1,pages)??Header,10,headerY,ActualWidth-20,Brushes.Gray);
+            DrawTriplet(dc,Expand?.Invoke(Header,i+1,pages)??Header,contentX,headerY,contentWidth,Brushes.Gray);
 
             if(bottom<=ActualHeight+1)
             {
                 var lineY=bottom;
-                DrawTriplet(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,lineY-22),ActualWidth-20,Brushes.Gray);
+                DrawTriplet(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,contentX,Math.Max(top+28,lineY-22),contentWidth,Brushes.Gray);
 
-                var pagePen=new Pen(new SolidColorBrush(Color.FromArgb(135,125,125,125)),1){DashStyle=DashStyles.Dash};
-                dc.DrawLine(pagePen,new Point(0,lineY),new Point(ActualWidth,lineY));
-                dc.DrawRectangle(Brushes.White,null,new Rect(Math.Max(0,ActualWidth-64),lineY-9,60,18));
-                DrawText(dc,$"Page {i+1}",Math.Max(0,ActualWidth-62),Math.Max(0,lineY-8),56,TextAlignment.Right,labelBrush);
+                var pagePen=new Pen(new SolidColorBrush(Color.FromArgb(145,125,125,125)),1){DashStyle=DashStyles.Dash};
+                dc.DrawLine(pagePen,new Point(0,lineY),new Point(Math.Max(0,sideGutter-8),lineY));
+                dc.DrawLine(pagePen,new Point(Math.Min(ActualWidth,ActualWidth-sideGutter+8),lineY),new Point(ActualWidth,lineY));
+
+                var labelX=Math.Max(0,ActualWidth-sideGutter+6);
+                dc.DrawRectangle(Brushes.White,null,new Rect(labelX,lineY-9,sideGutter-8,18));
+                DrawText(dc,$"Page {i+1}",labelX+2,Math.Max(0,lineY-8),sideGutter-12,TextAlignment.Right,labelBrush);
             }
         }
 
         var manualPen=new Pen(new SolidColorBrush(Color.FromRgb(115,135,160)),1){DashStyle=DashStyles.Dot};
         foreach(var y in ManualBreakY.Where(y=>y>16 && y<ActualHeight-16))
         {
-            dc.DrawLine(manualPen,new Point(0,y),new Point(ActualWidth,y));
-            dc.DrawRectangle(Brushes.White,null,new Rect(4,y-9,112,18));
-            DrawText(dc,"Manual page break",8,y-8,104,TextAlignment.Left,new SolidColorBrush(Color.FromRgb(85,105,130)));
+            const double sideGutter=52;
+            dc.DrawLine(manualPen,new Point(0,y),new Point(Math.Max(0,sideGutter-8),y));
+            dc.DrawLine(manualPen,new Point(Math.Min(ActualWidth,ActualWidth-sideGutter+8),y),new Point(ActualWidth,y));
+            dc.DrawRectangle(Brushes.White,null,new Rect(2,y-9,sideGutter-4,18));
+            DrawText(dc,"Break",5,y-8,sideGutter-10,TextAlignment.Left,new SolidColorBrush(Color.FromRgb(85,105,130)));
         }
     }
 
