@@ -52,6 +52,7 @@ End Module
             CtrlZedSecrets.Remove(secretName);
             if(CtrlZedSecrets.Exists(secretName))return 33;
 
+            if(string.IsNullOrWhiteSpace(CtrlZedAi.GetModel("Gemini")))return 34;
             var profile=AiDirectService.GetProfile("ChatGPT");
             if(string.IsNullOrWhiteSpace(profile.Model))return 29;
 
