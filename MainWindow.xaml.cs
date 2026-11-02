@@ -1289,7 +1289,7 @@ public partial class MainWindow : Window
                 }
                 catch(Exception ex)
                 {
-                    ShowMacroError(macro.Name,ex);
+                    ShowMacroError(macro.Name,macro.Source,ex);
                 }
             };
             macros.Items.Add(item);
@@ -2059,7 +2059,7 @@ public static class CtrlZedMacro
             }
             catch(Exception ex)
             {
-                ShowMacroError(selected,ex);
+                ShowMacroError(selected,code.Text,ex);
             }
         };
 
@@ -2451,7 +2451,7 @@ public static class CtrlZedMacro
         MarkDirty();UpdateDocumentStats();Editor.Focus();
     }
 
-    void ShowMacroError(string macroName,Exception ex)
+    void ShowMacroError(string macroName,string source,Exception ex)
     {
         var stage=ex is CompiledMacroException cme?cme.Stage:"Execution";
         var details=new System.Text.StringBuilder();
@@ -2474,34 +2474,96 @@ public static class CtrlZedMacro
             details.AppendLine(ex.StackTrace);
         }
 
-        var w=new Window{Title="Macro Error",Owner=this,Width=780,Height=520,WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()};
-        var root=new DockPanel{Margin=new Thickness(12)};
-
-        var top=new DockPanel{Margin=new Thickness(0,0,0,10)};
-        var copy=new Button{Content="Copy Details",Width=105,Margin=new Thickness(8,0,0,0),HorizontalAlignment=HorizontalAlignment.Right};
-        DockPanel.SetDock(copy,Dock.Right);top.Children.Add(copy);
-        var summary=new TextBlock
+        var w=new Window
         {
-            Text=$"{macroName}\n{stage}: {ex.Message}",
-            TextWrapping=TextWrapping.Wrap,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center
+            Title="CtrlZed Macro Debugger",Owner=this,Width=1120,Height=650,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()
         };
-        top.Children.Add(summary);
-        DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
+        var root=new Grid{Margin=new Thickness(12)};
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        root.RowDefinitions.Add(new RowDefinition());
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        root.ColumnDefinitions.Add(new ColumnDefinition());
+        root.ColumnDefinitions.Add(new ColumnDefinition());
 
-        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+        var heading=new TextBlock
+        {
+            Text=$"{macroName} — {stage}",
+            FontWeight=FontWeights.SemiBold,FontSize=16,Margin=new Thickness(0,0,0,10)
+        };
+        Grid.SetRow(heading,0);Grid.SetColumnSpan(heading,2);root.Children.Add(heading);
+
+        var sourceBox=new TextBox
+        {
+            Text=source,AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas"),
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+            Margin=new Thickness(0,0,6,0)
+        };
+        Grid.SetRow(sourceBox,1);Grid.SetColumn(sourceBox,0);root.Children.Add(sourceBox);
+
+        var diagnosticBox=new TextBox
+        {
+            Text=details.ToString(),IsReadOnly=true,IsReadOnlyCaretVisible=true,AcceptsReturn=true,
+            FontFamily=new FontFamily("Consolas"),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,Margin=new Thickness(6,0,0,0)
+        };
+        Grid.SetRow(diagnosticBox,1);Grid.SetColumn(diagnosticBox,1);root.Children.Add(diagnosticBox);
+
+        var buttons=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+        var ask=new Button{Content="Ask AI to Fix…",Width=110,Margin=new Thickness(4)};
+        var save=new Button{Content="Save Fixed Source",Width=115,Margin=new Thickness(4)};
+        var copy=new Button{Content="Copy Details",Width=100,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=80,Margin=new Thickness(4),IsDefault=true};
+        buttons.Children.Add(ask);buttons.Children.Add(save);buttons.Children.Add(copy);buttons.Children.Add(close);
+        Grid.SetRow(buttons,2);Grid.SetColumnSpan(buttons,2);root.Children.Add(buttons);
+
+        void SaveSource()
+        {
+            var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
+            var central=Path.Combine(dir,macroName);
+            if(File.Exists(central))
+            {
+                File.WriteAllText(central,sourceBox.Text);
+                Status.Text=$"Fixed macro saved: {macroName}";
+                return;
+            }
+            if(embeddedMacros.ContainsKey(macroName))
+            {
+                embeddedMacros[macroName]=sourceBox.Text;
+                MarkDirty("Fixed embedded macro saved.");
+                return;
+            }
+            throw new FileNotFoundException("CtrlZed could not locate the macro source to save.",macroName);
+        }
+
+        ask.Click+=(_,__)=>
+        {
+            var ext=Path.GetExtension(macroName).ToLowerInvariant();
+            var reference=ext==".czm"?(extendedMacrosEnabled?SafeMacroLanguage.ExtendedReference:SafeMacroLanguage.Reference):"";
+            var instruction=
+                "Repair this CtrlZed macro using the diagnostic below. Preserve its intended behaviour, MENU_OPTION, MENU_NAME and AI prompt provenance. "+
+                "Return corrected source only. Do not expose or invent secret values; use CtrlZedSecrets for credentials.\n\nDIAGNOSTIC:\n"+details;
+            AiManager.ShowForMacro(w,ext,reference,sourceBox.Text,(result,targetExt)=>
+            {
+                if(!string.Equals(targetExt,ext,StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("The repair changed macro language. Choose the original target language to apply the fix here.","Macro Debugger",MessageBoxButton.OK,MessageBoxImage.Warning);
+                    return;
+                }
+                sourceBox.Text=result;
+                sourceBox.CaretIndex=0;
+                heading.Text=$"{macroName} — AI fix ready for review";
+            },instruction);
+        };
+
+        save.Click+=(_,__)=>
+        {
+            try{SaveSource();}
+            catch(Exception saveEx){MessageBox.Show(saveEx.Message,"Save macro",MessageBoxButton.OK,MessageBoxImage.Error);}
+        };
         copy.Click+=(_,__)=>{try{Clipboard.SetText(details.ToString());Status.Text="Macro diagnostic copied.";}catch{}};
         close.Click+=(_,__)=>w.Close();
-        buttons.Children.Add(close);
-        DockPanel.SetDock(buttons,Dock.Bottom);root.Children.Add(buttons);
 
-        var box=new TextBox
-        {
-            Text=details.ToString(),IsReadOnly=true,AcceptsReturn=true,IsReadOnlyCaretVisible=true,
-            TextWrapping=TextWrapping.NoWrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,FontFamily=new FontFamily("Consolas")
-        };
-        root.Children.Add(box);
         w.Content=root;w.ShowDialog();
     }
 
@@ -2591,7 +2653,7 @@ public static class CtrlZedMacro
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
                 try{await RunMacroSourceAsync(macro.Name,macro.Source);Status.Text="Macro: "+macro.Name;}
-                catch(Exception ex){ShowMacroError(macro.Name,ex);}
+                catch(Exception ex){ShowMacroError(macro.Name,macro.Source,ex);}
                 return true;
             }
         }
@@ -2725,6 +2787,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.15.2 beta 15.2").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.15.3 beta 15.3").ShowDialog();
     }
 }
