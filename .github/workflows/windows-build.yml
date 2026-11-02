@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 23 makes Page Preview always render expanded body/header/footer field values on a cloned document, and reduces editing lag by debouncing page-guide, page-count/statistics and navigation refresh work instead of recomputing full pagination on every keystroke."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 24 fixes right-edge text clipping by matching the live FlowDocument to the true page content width, adds standard provider default secret names and provider status controls in Macro Secrets, and teaches generated macros to use the correct default provider secret automatically."
