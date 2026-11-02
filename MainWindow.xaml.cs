@@ -1863,8 +1863,9 @@ public partial class MainWindow : Window
         var extract=new Button{Content="Extract",Margin=new Thickness(0,0,5,5)};
         var rename=new Button{Content="Rename",Margin=new Thickness(0,0,5,5)};
         var delete=new Button{Content="Delete",Margin=new Thickness(0,0,5,5)};
+        var secrets=new Button{Content="Secrets…",Margin=new Thickness(0,0,5,5)};
         var ai=new Button{Content="Ask AI…",Margin=new Thickness(0,0,5,5)};
-        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(delete);buttons.Children.Add(ai);
+        buttons.Children.Add(ns);buttons.Children.Add(nv);buttons.Children.Add(nc);buttons.Children.Add(embed);buttons.Children.Add(extract);buttons.Children.Add(rename);buttons.Children.Add(delete);buttons.Children.Add(secrets);buttons.Children.Add(ai);
         DockPanel.SetDock(buttons,Dock.Bottom);
         left.Children.Add(buttons);
         Grid.SetColumn(left,0);grid.Children.Add(left);
@@ -2146,6 +2147,8 @@ public static class CtrlZedMacro
             }
         };
 
+        secrets.Click+=(_,__)=>ShowMacroSecretsManager(w);
+
         ai.Click+=(_,__)=>
         {
             var ext=selected==null?".czm":Path.GetExtension(selected).ToLowerInvariant();
@@ -2162,6 +2165,101 @@ public static class CtrlZedMacro
 
         refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
+    }
+
+    void ShowMacroSecretsManager(Window owner)
+    {
+        var w=new Window
+        {
+            Title="CtrlZed Macro Secrets",Owner=owner,Width=620,Height=430,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()
+        };
+        var root=new Grid{Margin=new Thickness(14)};
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(220)});
+        root.ColumnDefinitions.Add(new ColumnDefinition());
+        root.RowDefinitions.Add(new RowDefinition());
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+
+        var list=new ListBox{Margin=new Thickness(0,0,12,0)};
+        Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
+
+        var form=new StackPanel();
+        form.Children.Add(new TextBlock{Text="Secret name"});
+        var name=new TextBox{Margin=new Thickness(0,4,0,10)};
+        form.Children.Add(name);
+        form.Children.Add(new TextBlock{Text="Secret value"});
+        var value=new PasswordBox{Margin=new Thickness(0,4,0,10)};
+        form.Children.Add(value);
+        form.Children.Add(new TextBlock
+        {
+            Text="Values are encrypted with Windows DPAPI for the current Windows user. Saved values are never displayed again.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,12)
+        });
+        var configured=new TextBlock{Foreground=Brushes.DimGray};
+        form.Children.Add(configured);
+        Grid.SetColumn(form,1);Grid.SetRow(form,0);root.Children.Add(form);
+
+        var buttons=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        var save=new Button{Content="Save / Replace",Width=105,Margin=new Thickness(4)};
+        var remove=new Button{Content="Delete",Width=80,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
+        buttons.Children.Add(remove);buttons.Children.Add(save);buttons.Children.Add(close);
+        Grid.SetColumn(buttons,0);Grid.SetColumnSpan(buttons,2);Grid.SetRow(buttons,1);root.Children.Add(buttons);
+
+        void Refresh()
+        {
+            list.ItemsSource=CtrlZedSecrets.Names();
+            configured.Text=$"{CtrlZedSecrets.Names().Count} secret{(CtrlZedSecrets.Names().Count==1?"":"s")} configured.";
+        }
+
+        list.SelectionChanged+=(_,__)=>
+        {
+            if(list.SelectedItem is string key)
+            {
+                name.Text=key;
+                value.Clear();
+                configured.Text=$"{key} — configured. Enter a new value only to replace it.";
+            }
+        };
+
+        save.Click+=(_,__)=>
+        {
+            var key=name.Text.Trim();
+            if(string.IsNullOrWhiteSpace(key))
+            {
+                MessageBox.Show("Enter a secret name.","Macro Secrets",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            if(string.IsNullOrEmpty(value.Password))
+            {
+                MessageBox.Show("Enter a secret value. Existing values are deliberately not revealed.","Macro Secrets",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            try
+            {
+                CtrlZedSecrets.Set(key,value.Password);
+                value.Clear();Refresh();list.SelectedItem=key;
+                Status.Text=$"Secret '{key}' saved.";
+            }
+            catch(Exception ex){MessageBox.Show(ex.Message,"Macro Secrets",MessageBoxButton.OK,MessageBoxImage.Error);}
+        };
+
+        remove.Click+=(_,__)=>
+        {
+            if(list.SelectedItem is not string key)return;
+            if(MessageBox.Show($"Delete secret '{key}'?","Delete secret",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+            try
+            {
+                CtrlZedSecrets.Remove(key);
+                name.Clear();value.Clear();Refresh();
+                Status.Text=$"Secret '{key}' deleted.";
+            }
+            catch(Exception ex){MessageBox.Show(ex.Message,"Macro Secrets",MessageBoxButton.OK,MessageBoxImage.Error);}
+        };
+
+        close.Click+=(_,__)=>w.Close();
+        Refresh();
+        w.Content=root;w.ShowDialog();
     }
 
     async Task RunMacroSourceAsync(string name,string source)
@@ -2615,6 +2713,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.14.3 beta 14.3").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.15.0 beta 15").ShowDialog();
     }
 }
