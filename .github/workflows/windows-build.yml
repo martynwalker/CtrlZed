@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15 adds a DPAPI-backed named secrets store for compiled macros, a Macro Manager Secrets UI, and AI authoring rules that use CtrlZedSecrets.Get(name) instead of embedding credentials in source."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 15.1 adds an explicit macro authoring Target selector (Safe .czm, VB.NET, C#) and creates a correctly typed macro file when the chosen target differs from the selected macro."
