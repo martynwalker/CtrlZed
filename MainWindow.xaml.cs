@@ -266,9 +266,7 @@ public partial class MainWindow : Window
     {
         if(!dirty)return;
         var restoreFields=fieldValuesVisible;
-        var restorePagination=autoPaginationMargins.Count>0;
         if(restoreFields)SetFieldValuesVisible(false);
-        if(restorePagination)ClearAutoPaginationMargins();
         try
         {
             var tmp=recoveryFile+".tmp";
