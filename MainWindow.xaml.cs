@@ -742,7 +742,7 @@ public partial class MainWindow : Window
             WirePictureHandlers();RefreshNavigation();
             currentFile=path;dirty=false;suppressDirty=false;
             RefreshHeaderFooter();UpdateTitle();UpdateDocumentStats();
-            Status.Text="Opened "+currentFile;AddRecentFile(currentFile);TryDeleteRecovery();
+            Status.Text="Opened "+currentFile;AddRecentFile(currentFile);TryDeleteRecovery();RefreshMacroMenus();
         }
         catch(Exception ex)
         {
@@ -2290,7 +2290,7 @@ public static class CtrlZedMacro
                 MarkDirty("Embedded macro updated.");
             }
             else File.WriteAllText(Path.Combine(dir,selected),code.Text);
-            Status.Text="Macro source saved.";
+            Status.Text="Macro source saved.";RefreshMacroMenus();
         };
 
         run.Click+=async (_,__)=>
@@ -2314,7 +2314,7 @@ public static class CtrlZedMacro
             if(selected==null||selectedEmbedded)return;
             embeddedMacros[selected]=code.Text;
             MarkDirty("Macro embedded in document.");
-            refresh(selected,true);
+            refresh(selected,true);RefreshMacroMenus();
         };
 
         extract.Click+=(_,__)=>
@@ -2323,7 +2323,7 @@ public static class CtrlZedMacro
             var path=Path.Combine(dir,selected);
             File.WriteAllText(path,code.Text);
             Status.Text="Embedded macro copied to central library.";
-            refresh(selected,false);
+            refresh(selected,false);RefreshMacroMenus();
         };
 
         rename.Click+=(_,__)=>
@@ -2348,7 +2348,7 @@ public static class CtrlZedMacro
             File.Move(oldPath,newPath);
             selected=newName;
             Status.Text=$"Macro renamed to {newName}.";
-            refresh(newName,false);
+            refresh(newName,false);RefreshMacroMenus();
         };
 
         delete.Click+=(_,__)=>
@@ -2384,7 +2384,7 @@ public static class CtrlZedMacro
 
                 selected=null;
                 code.Clear();
-                refresh();
+                refresh();RefreshMacroMenus();
                 run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
             }
             catch(Exception ex)
@@ -2416,6 +2416,7 @@ public static class CtrlZedMacro
                 {
                     code.Text=result;
                 }
+                RefreshMacroMenus();
                 code.CaretIndex=code.Text.Length;
                 code.Focus();
             });
@@ -3033,6 +3034,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.15.5 beta 15.5").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.16.0 beta 16").ShowDialog();
     }
 }
