@@ -39,12 +39,17 @@ Metadata comments:
 # NAME: Friendly macro name
 # DESCRIPTION: What the macro does
 # SHORTCUT: Ctrl+Alt+M
-MENU_OPTION=1
 MENU_NAME=""Macro Name""
+MENU_POSITION=1
+MENU_PATH=""Writing/Plotting Methods""
+MENU_PATH_POSITIONS=""7/2""
 
 Notes:
 - Lines beginning # are comments/metadata.
-- MENU_OPTION=n and MENU_NAME=""Name"" add the macro to the editor right-click Macros submenu. Both must be present; MENU_OPTION controls ordering.
+- MENU_NAME and MENU_POSITION add the macro to a menu.
+- Omit MENU_PATH (or set MENU_PARENT=""right-click"") for the editor right-click Macros submenu.
+- MENU_PATH=""Writing/Plotting Methods"" creates/reuses that main-menu hierarchy. MENU_PATH_POSITIONS=""7/2"" gives ordering hints for each path level.
+- MENU_OPTION remains supported as a legacy alias for MENU_POSITION.
 - FIND_REPLACE uses || to separate search and replacement text.
 - INSERT_TABLE accepts integer row/column counts from 1 to 50 / 20.
 - Safe macros cannot access files, arbitrary network endpoints, processes, credentials or arbitrary .NET code.
