@@ -11,6 +11,19 @@ namespace CtrlZed;
 /// </summary>
 public static class CtrlZedSecrets
 {
+    public static string DefaultName(string provider)
+    {
+        if(string.IsNullOrWhiteSpace(provider))throw new ArgumentException("Provider name cannot be empty.",nameof(provider));
+        return provider.Trim().ToLowerInvariant() switch
+        {
+            "chatgpt" or "openai"=>"ChatGPTKey",
+            "gemini" or "google gemini"=>"GeminiKey",
+            "claude" or "anthropic"=>"ClaudeKey",
+            "copilot" or "microsoft copilot"=>"CopilotKey",
+            _=>provider.Trim().Replace(" ","")+"Key"
+        };
+    }
+
     static readonly string Root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
     static readonly string StorePath=Path.Combine(Root,"macro-secrets.bin");
 
