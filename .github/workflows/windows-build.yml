@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 19 fixes beta 18 macro-folder and duplicate-menu regressions, adds Save & Exit in Macro Manager, File > Import at the cursor for DOCX/RTF/TXT/Markdown/HTML/PDF, cleaner pagination guides, and reversible whole-document fields using {name}, {field.name} or {field:name} with a toolbar Fields/Values toggle."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 20 moves page guides into side gutters, adds automatic picture and short-paragraph keep-together flow with fallback reflow, adds File > Settings with Keep paragraph together, expands font sizes to 72pt, adds Help > Coming Soon, and fixes the recursive MacroDirectory crash."
