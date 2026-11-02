@@ -3016,11 +3016,11 @@ INSERT_FIELD date
     {
         var w=new Window
         {
-            Title="CtrlZed Macro Secrets",Owner=owner,Width=620,Height=430,
+            Title="CtrlZed Macro Secrets",Owner=owner,Width=680,Height=500,
             WindowStartupLocation=WindowStartupLocation.CenterOwner,Icon=Branding.CreateIconImageSource()
         };
         var root=new Grid{Margin=new Thickness(14)};
-        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(220)});
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(230)});
         root.ColumnDefinitions.Add(new ColumnDefinition());
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
@@ -3029,6 +3029,24 @@ INSERT_FIELD date
         Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
 
         var form=new StackPanel();
+        form.Children.Add(new TextBlock{Text="Provider defaults",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
+        var defaults=new WrapPanel{Margin=new Thickness(0,0,0,12)};
+        foreach(var provider in new[]{"ChatGPT","Gemini","Claude"})
+        {
+            var secret=CtrlZedSecrets.DefaultName(provider);
+            var button=new Button{Content=$"{provider}: {secret}",Margin=new Thickness(0,0,6,6),Padding=new Thickness(8,3,8,3),Tag=secret};
+            button.Click+=(_,__)=>
+            {
+                name.Text=secret;
+                value.Clear();
+                configured.Text=CtrlZedSecrets.Exists(secret)
+                    ?$"{provider} default ({secret}) is configured. Enter a new value only to replace it."
+                    :$"{provider} default ({secret}) is not configured. Enter the provider API key below.";
+            };
+            defaults.Children.Add(button);
+        }
+        form.Children.Add(defaults);
+
         form.Children.Add(new TextBlock{Text="Secret name"});
         var name=new TextBox{Margin=new Thickness(0,4,0,10)};
         form.Children.Add(name);
@@ -3037,10 +3055,10 @@ INSERT_FIELD date
         form.Children.Add(value);
         form.Children.Add(new TextBlock
         {
-            Text="Values are encrypted with Windows DPAPI for the current Windows user. Saved values are never displayed again.",
+            Text="Values are encrypted with Windows DPAPI for the current Windows user. Saved values are never displayed again. AI-generated macros use the provider defaults above unless you explicitly request another secret name.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,12)
         });
-        var configured=new TextBlock{Foreground=Brushes.DimGray};
+        var configured=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap};
         form.Children.Add(configured);
         Grid.SetColumn(form,1);Grid.SetRow(form,0);root.Children.Add(form);
 
@@ -3053,8 +3071,14 @@ INSERT_FIELD date
 
         void Refresh()
         {
-            list.ItemsSource=CtrlZedSecrets.Names();
-            configured.Text=$"{CtrlZedSecrets.Names().Count} secret{(CtrlZedSecrets.Names().Count==1?"":"s")} configured.";
+            var names=CtrlZedSecrets.Names();
+            list.ItemsSource=names;
+            var providerStatus=string.Join(" · ",new[]{"ChatGPT","Gemini","Claude"}.Select(p=>
+            {
+                var key=CtrlZedSecrets.DefaultName(p);
+                return p+":"+(CtrlZedSecrets.Exists(key)?"configured":"missing");
+            }));
+            configured.Text=$"{names.Count} secret{(names.Count==1?"":"s")} configured. {providerStatus}";
         }
 
         list.SelectionChanged+=(_,__)=>
