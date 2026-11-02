@@ -20,7 +20,6 @@ public sealed class PageGuideLayer : FrameworkElement
 
         var pages=Math.Max(1,(int)Math.Ceiling(ActualHeight/PageContentHeight));
         var edgePen=new Pen(new SolidColorBrush(Color.FromArgb(150,125,125,125)),1);
-        var gapBrush=new SolidColorBrush(Color.FromArgb(210,218,218,218));
         var labelBrush=new SolidColorBrush(Color.FromRgb(105,105,105));
 
         for(int i=0;i<pages;i++)
@@ -33,18 +32,13 @@ public sealed class PageGuideLayer : FrameworkElement
 
             if(bottom<=ActualHeight+1)
             {
-                var half=PageGap/2;
-                var gapTop=Math.Max(top,bottom-half);
-                var gapBottom=Math.Min(ActualHeight,bottom+half);
-                var gapHeight=Math.Max(0,gapBottom-gapTop);
+                var lineY=bottom;
+                DrawTriplet(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,lineY-22),ActualWidth-20,Brushes.Gray);
 
-                DrawTriplet(dc,Expand?.Invoke(Footer,i+1,pages)??Footer,10,Math.Max(top+28,gapTop-22),ActualWidth-20,Brushes.Gray);
-
-                dc.DrawLine(edgePen,new Point(0,gapTop),new Point(ActualWidth,gapTop));
-                if(gapHeight>0)dc.DrawRectangle(gapBrush,null,new Rect(0,gapTop,ActualWidth,gapHeight));
-                dc.DrawLine(edgePen,new Point(0,gapBottom),new Point(ActualWidth,gapBottom));
-
-                DrawText(dc,$"End of page {i+1}",10,gapTop+4,120,TextAlignment.Left,labelBrush);
+                var pagePen=new Pen(new SolidColorBrush(Color.FromArgb(135,125,125,125)),1){DashStyle=DashStyles.Dash};
+                dc.DrawLine(pagePen,new Point(0,lineY),new Point(ActualWidth,lineY));
+                dc.DrawRectangle(Brushes.White,null,new Rect(Math.Max(0,ActualWidth-64),lineY-9,60,18));
+                DrawText(dc,$"Page {i+1}",Math.Max(0,ActualWidth-62),Math.Max(0,lineY-8),56,TextAlignment.Right,labelBrush);
             }
         }
 
