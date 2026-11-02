@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     Thickness pageMargins = new(72);
     readonly DispatcherTimer recoveryTimer;
     readonly string recoveryFile;
+    readonly string recoverySettingsFile;
     readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string,string> embeddedMacros = new(StringComparer.OrdinalIgnoreCase);
     readonly List<string> recentFiles = new();
@@ -89,6 +90,7 @@ public partial class MainWindow : Window
         var recoveryDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
         Directory.CreateDirectory(recoveryDir);
         recoveryFile = Path.Combine(recoveryDir,"Recovery.rtf");
+        recoverySettingsFile = Path.Combine(recoveryDir,"Recovery.settings.json");
         settingsFile = Path.Combine(recoveryDir,"settings.json");
         LoadAppSettings();
         ApplySavedWindowPlacement();
@@ -116,6 +118,19 @@ public partial class MainWindow : Window
                     Editor.Document = new FlowDocument();
                     using var fs = File.OpenRead(recoveryFile);
                     new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
+                    if(File.Exists(recoverySettingsFile))
+                    {
+                        try
+                        {
+                            var recovered=JsonSerializer.Deserialize<CzdSettings>(File.ReadAllText(recoverySettingsFile));
+                            if(recovered!=null)ApplyRecoveredSettings(recovered);
+                        }
+                        catch(Exception settingsEx)
+                        {
+                            MessageBox.Show("The document body was recovered, but its recovery settings could not be read.\n\n"+settingsEx.Message,
+                                "Recovery settings",MessageBoxButton.OK,MessageBoxImage.Warning);
+                        }
+                    }
                     WirePictureHandlers();
                     suppressDirty = false;
                     MarkDirty("Recovered document — save it to keep it.");
@@ -262,6 +277,47 @@ public partial class MainWindow : Window
         Title=$"CtrlZed — {name}{(dirty?" *":"")}";
     }
 
+    CzdSettings CaptureDocumentSettings()
+        =>new()
+        {
+            PageWidth=pageWidth,PageHeight=pageHeight,
+            Left=pageMargins.Left,Top=pageMargins.Top,Right=pageMargins.Right,Bottom=pageMargins.Bottom,
+            Header=headerText,Footer=footerText,
+            CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
+            EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
+            Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion
+        };
+
+    void ApplyRecoveredSettings(CzdSettings v)
+    {
+        pageWidth=v.PageWidth;
+        pageHeight=v.PageHeight;
+        pageMargins=new Thickness(v.Left,v.Top,v.Right,v.Bottom);
+        headerText=v.Header??"";
+        footerText=v.Footer??"";
+        documentTitle=v.Title??"";
+        documentAuthor=v.Author??"";
+        documentSubject=v.Subject??"";
+        documentKeywords=v.Keywords??"";
+        documentVersion=string.IsNullOrWhiteSpace(v.Version)?"1.0":v.Version;
+
+        customFields.Clear();
+        if(v.CustomFields!=null)
+            foreach(var pair in v.CustomFields)
+                if(!string.IsNullOrWhiteSpace(pair.Key))
+                    customFields[pair.Key]=pair.Value??"";
+
+        embeddedMacros.Clear();
+        if(v.EmbeddedMacros!=null)
+            foreach(var pair in v.EmbeddedMacros)
+                if(!string.IsNullOrWhiteSpace(pair.Key))
+                    embeddedMacros[pair.Key]=pair.Value??"";
+
+        ApplyPage();
+        RefreshHeaderFooter();
+        RefreshMacroMenus();
+    }
+
     void WriteRecoverySnapshot()
     {
         if(!dirty)return;
@@ -272,6 +328,10 @@ public partial class MainWindow : Window
             var tmp=recoveryFile+".tmp";
             using(var fs=File.Create(tmp))new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(fs,DataFormats.Rtf);
             File.Move(tmp,recoveryFile,true);
+
+            var settingsTmp=recoverySettingsFile+".tmp";
+            File.WriteAllText(settingsTmp,JsonSerializer.Serialize(CaptureDocumentSettings()));
+            File.Move(settingsTmp,recoverySettingsFile,true);
         }
         catch { }
         finally
@@ -283,6 +343,7 @@ public partial class MainWindow : Window
     void TryDeleteRecovery()
     {
         try{if(File.Exists(recoveryFile))File.Delete(recoveryFile);}catch{}
+        try{if(File.Exists(recoverySettingsFile))File.Delete(recoverySettingsFile);}catch{}
     }
 
     void SaveRtf(string path)
@@ -301,15 +362,7 @@ public partial class MainWindow : Window
             var doc=zip.CreateEntry("document.rtf");
             using(var s=doc.Open())new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(s,DataFormats.Rtf);
             var settings=zip.CreateEntry("settings.json");
-            var data=new CzdSettings
-            {
-                PageWidth=pageWidth,PageHeight=pageHeight,
-                Left=pageMargins.Left,Top=pageMargins.Top,Right=pageMargins.Right,Bottom=pageMargins.Bottom,
-                Header=headerText,Footer=footerText,
-                CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
-                EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
-                Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion
-            };
+            var data=CaptureDocumentSettings();
             using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
         }
         ReplaceFile(tmp,path);
@@ -326,30 +379,7 @@ public partial class MainWindow : Window
         {
             using var sr=new StreamReader(st.Open());
             var v=JsonSerializer.Deserialize<CzdSettings>(sr.ReadToEnd());
-            if(v!=null)
-            {
-                pageWidth=v.PageWidth;
-                pageHeight=v.PageHeight;
-                pageMargins=new Thickness(v.Left,v.Top,v.Right,v.Bottom);
-                headerText=v.Header??"";
-                footerText=v.Footer??"";
-                documentTitle=v.Title??"";
-                documentAuthor=v.Author??"";
-                documentSubject=v.Subject??"";
-                documentKeywords=v.Keywords??"";
-                documentVersion=string.IsNullOrWhiteSpace(v.Version)?"1.0":v.Version;
-                customFields.Clear();
-                embeddedMacros.Clear();
-                if(v.EmbeddedMacros!=null)
-                    foreach(var pair in v.EmbeddedMacros)
-                        if(!string.IsNullOrWhiteSpace(pair.Key))
-                            embeddedMacros[pair.Key]=pair.Value??"";
-                if(v.CustomFields!=null)
-                    foreach(var pair in v.CustomFields)
-                        if(!string.IsNullOrWhiteSpace(pair.Key))
-                            customFields[pair.Key]=pair.Value??"";
-                ApplyPage();
-            }
+            if(v!=null)ApplyRecoveredSettings(v);
         }
     }
 
