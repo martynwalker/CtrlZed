@@ -4,9 +4,9 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 25.1
+## Current release: Beta 26
 
-Beta 25.1 is the current Windows prerelease. It builds on Beta 25 and adds or retains:
+Beta 26 is the current Windows prerelease. It builds on the working CtrlZed editor and adds or retains:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
@@ -145,6 +145,6 @@ Browser/free and signed-in handoff remain available for all four providers, with
 MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.md).
 
 
-## Beta 25.1 hotfix
+## Beta 26 highlights
 
-Beta 25.1 fixes a Beta 25 startup hang caused by recursive expansion of every persistent field at startup. Field expansion now resolves only tokens actually present and detects circular references; CI also requires a responsive main window during smoke launch.
+Beta 26 adds portable `.czprofile` workspace export/import for user fields, central macros and non-secret preferences, plus a proper Macro Manager code editor with line numbers and C#/VB syntax highlighting. Secrets remain deliberately excluded from portable profiles.
