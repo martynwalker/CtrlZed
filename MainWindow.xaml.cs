@@ -70,6 +70,7 @@ public partial class MainWindow : Window
     }
 
     sealed record MacroMenuMetadata(string Name,string Path,int Position,IReadOnlyList<int> PathPositions);
+    sealed record MacroMenuTag(string Kind,int Position);
 
     public MainWindow()
     {
@@ -1421,7 +1422,12 @@ public partial class MainWindow : Window
     }
 
     static int MenuOrder(MenuItem item)
-        =>item.Tag is int n?n:int.MaxValue;
+        =>item.Tag switch
+        {
+            int n=>n,
+            MacroMenuTag tag=>tag.Position,
+            _=>int.MaxValue
+        };
 
     static void InsertOrdered(ItemCollection items,MenuItem item,int position)
     {
@@ -1442,7 +1448,7 @@ public partial class MainWindow : Window
 
     MenuItem CreateMacroCommand((string Name,string Source) macro,MacroMenuMetadata meta)
     {
-        var item=new MenuItem{Header=meta.Name,Tag=meta.Position};
+        var item=new MenuItem{Header=meta.Name,Tag=new MacroMenuTag("Command",meta.Position)};
         item.Click+=async (_,__)=>
         {
             try
@@ -1475,21 +1481,31 @@ public partial class MainWindow : Window
         menu.Items.Add(macros);
     }
 
+    static string NormalisedMenuHeader(object? header)
+        =>(header?.ToString()??"").Replace("_","").Trim();
+
+    static void RemoveDynamicMacroItems(ItemCollection items)
+    {
+        for(int i=items.Count-1;i>=0;i--)
+        {
+            if(items[i] is not MenuItem item)continue;
+            RemoveDynamicMacroItems(item.Items);
+            if(item.Tag is MacroMenuTag tag && tag.Kind is "Command" or "Path" or "Root")
+                items.RemoveAt(i);
+        }
+    }
+
     void RefreshMacroMenus()
     {
         if(MainMenu==null)return;
 
-        for(int i=MainMenu.Items.Count-1;i>=0;i--)
-            if(MainMenu.Items[i] is MenuItem item && Equals(item.Tag,"DynamicMacroRoot"))
-                MainMenu.Items.RemoveAt(i);
+        RemoveDynamicMacroItems(MainMenu.Items);
 
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta!=null && !string.IsNullOrWhiteSpace(x.Meta.Path))
             .ToList();
         if(entries.Count==0)return;
-
-        var roots=new Dictionary<string,MenuItem>(StringComparer.CurrentCultureIgnoreCase);
 
         foreach(var entry in entries
             .OrderBy(x=>x.Meta!.PathPositions.Count>0?x.Meta.PathPositions[0]:int.MaxValue)
@@ -1501,41 +1517,28 @@ public partial class MainWindow : Window
             var segments=meta.Path.Split('/',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
             if(segments.Length==0)continue;
 
-            if(!roots.TryGetValue(segments[0],out var current))
+            MenuItem? current=MainMenu.Items.OfType<MenuItem>()
+                .FirstOrDefault(mi=>string.Equals(NormalisedMenuHeader(mi.Header),segments[0],StringComparison.CurrentCultureIgnoreCase));
+
+            if(current==null)
             {
                 var rootPos=meta.PathPositions.Count>0 && meta.PathPositions[0]>0?meta.PathPositions[0]:MainMenu.Items.Count+1;
-                current=new MenuItem{Header=segments[0],Tag="DynamicMacroRoot"};
-                var insertIndex=Math.Clamp(rootPos-1,0,MainMenu.Items.Count);
-                while(insertIndex<MainMenu.Items.Count &&
-                      MainMenu.Items[insertIndex] is MenuItem occupied &&
-                      Equals(occupied.Tag,"DynamicMacroRoot") &&
-                      string.Compare(occupied.Header?.ToString(),segments[0],StringComparison.CurrentCultureIgnoreCase)<0)
-                    insertIndex++;
-                MainMenu.Items.Insert(insertIndex,current);
-                roots[segments[0]]=current;
+                current=new MenuItem{Header=segments[0],Tag=new MacroMenuTag("Root",rootPos)};
+                MainMenu.Items.Insert(Math.Clamp(rootPos-1,0,MainMenu.Items.Count),current);
             }
 
             for(int level=1;level<segments.Length;level++)
             {
                 var segment=segments[level];
                 var child=current.Items.OfType<MenuItem>()
-                    .FirstOrDefault(mi=>string.Equals(mi.Header?.ToString(),segment,StringComparison.CurrentCultureIgnoreCase) &&
-                                        mi.Tag is Tuple<string,int> tuple && tuple.Item1=="DynamicMacroPath");
+                    .FirstOrDefault(mi=>string.Equals(NormalisedMenuHeader(mi.Header),segment,StringComparison.CurrentCultureIgnoreCase));
                 if(child==null)
                 {
                     var childPos=meta.PathPositions.Count>level && meta.PathPositions[level]>0
                         ?meta.PathPositions[level]
                         :current.Items.Count+1;
-                    child=new MenuItem{Header=segment,Tag=Tuple.Create("DynamicMacroPath",childPos)};
-                    var insertion=Math.Clamp(childPos-1,0,current.Items.Count);
-                    while(insertion<current.Items.Count &&
-                          current.Items[insertion] is MenuItem existing &&
-                          existing.Tag is Tuple<string,int> existingTuple &&
-                          existingTuple.Item1=="DynamicMacroPath" &&
-                          existingTuple.Item2==childPos &&
-                          string.Compare(existing.Header?.ToString(),segment,StringComparison.CurrentCultureIgnoreCase)<0)
-                        insertion++;
-                    current.Items.Insert(insertion,child);
+                    child=new MenuItem{Header=segment,Tag=new MacroMenuTag("Path",childPos)};
+                    InsertOrdered(current.Items,child,childPos);
                 }
                 current=child;
             }
@@ -2086,6 +2089,18 @@ public partial class MainWindow : Window
         MarkDirty(replaceSelection?"AI replaced the selection.":"AI result inserted.");
         UpdateDocumentStats();
         Editor.Focus();
+    }
+
+    string MacroDirectory()
+    {
+        var dir=MacroDirectory();
+        return dir;
+    }
+
+    void OpenMacroFolder_Click(object s,RoutedEventArgs e)
+    {
+        var dir=MacroDirectory();
+        Process.Start(new ProcessStartInfo("explorer.exe",$"\"{dir}\""){UseShellExecute=true});
     }
 
     void MacroLibrary_Click(object s,RoutedEventArgs e)
