@@ -141,14 +141,14 @@ public static class AiManager
             return macroTarget?.SelectedIndex switch {1=>".vb",2=>".cs",_=>".czm"};
         }
 
-        string BuildPrompt()
+        string BuildPrompt(string? authoringProvider=null)
         {
             var text=instruction.Text.Trim();
             if(macroMode)
             {
                 var ext=CurrentMacroExtension();
                 var reference=ext==".czm"?macroReference:"";
-                return AiResultRenderer.MacroPrompt(text,ext,reference,existingCode);
+                return AiResultRenderer.MacroPrompt(text,ext,reference,existingCode,authoringProvider??"");
             }
             return AiResultRenderer.DocumentPrompt(text,selectedText,documentText,true);
         }
@@ -166,7 +166,7 @@ public static class AiManager
             heading.Text=(macroMode?"AI Macro Assistant":"AI Writing & Research Assistant")+" — working…";
             try
             {
-                result.Text=await AiDirectService.GenerateAsync(name,BuildPrompt(),liveWeb.IsChecked==true);
+                result.Text=await AiDirectService.GenerateAsync(name,BuildPrompt(name),liveWeb.IsChecked==true);
                 heading.Text=macroMode?"AI Macro Assistant — result ready":"AI Writing & Research Assistant — result ready";
             }
             catch(Exception ex)
@@ -188,8 +188,9 @@ public static class AiManager
 
         void OpenBrowser(bool privateMode,bool login)
         {
-            try{Clipboard.SetText(BuildPrompt());}catch{}
-            OpenProvider(provider.SelectedItem?.ToString()??"ChatGPT",privateMode,login);
+            var providerName=provider.SelectedItem?.ToString()??"ChatGPT";
+            try{Clipboard.SetText(BuildPrompt(providerName));}catch{}
+            OpenProvider(providerName,privateMode,login);
         }
 
         free.Click+=(_,__)=>OpenBrowser(true,false);
