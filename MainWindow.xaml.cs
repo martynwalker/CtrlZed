@@ -2151,6 +2151,14 @@ public partial class MainWindow : Window
         DockPanel.SetDock(list,Dock.Top);
         left.Children.Add(list);
 
+        var folderInfo=new TextBlock
+        {
+            Text=dir,FontSize=10.5,Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,
+            ToolTip=dir,Margin=new Thickness(0,6,0,0)
+        };
+        DockPanel.SetDock(folderInfo,Dock.Bottom);
+        left.Children.Add(folderInfo);
+
         var buttons=new WrapPanel{Margin=new Thickness(0,8,0,0)};
         var language=new ComboBox{Width=92,Margin=new Thickness(0,0,5,5),ItemsSource=new[]{"Safe","VB.NET","C#"}};
         language.SelectedIndex=lastMacroLanguage==".czm"?0:lastMacroLanguage==".cs"?2:1;
