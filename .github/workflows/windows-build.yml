@@ -76,4 +76,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 21 fixes accumulating dynamic macro menu entries, removes the unstable live pagination reflow that caused flicker/image resizing/text bounce, clarifies top/bottom margin gaps in side guides, fixes the Macro Manager Save & Exit caption, and adopts the new cyan/gold cyber CtrlZed branding."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 22 makes Fields/Values conversion transactional with rollback and missing-field diagnostics, preserves custom fields and document settings in recovery snapshots, and adds a plain Exit button to Macro Manager alongside Save & Exit."
