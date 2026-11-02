@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     double pageWidth = 794, pageHeight = 1123;
     Thickness pageMargins = new(72);
     readonly DispatcherTimer recoveryTimer;
+    readonly DispatcherTimer uiRefreshTimer;
     readonly string recoveryFile;
     readonly string recoverySettingsFile;
     readonly Dictionary<string,string> customFields = new(StringComparer.OrdinalIgnoreCase);
@@ -100,6 +101,15 @@ public partial class MainWindow : Window
         recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         recoveryTimer.Tick += (_,__) => WriteRecoverySnapshot();
         recoveryTimer.Start();
+
+        uiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+        uiRefreshTimer.Tick += (_,__)=>
+        {
+            uiRefreshTimer.Stop();
+            UpdatePageGuideState();
+            UpdateDocumentStats();
+            if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
+        };
 
         ApplyPage();
         RefreshHeaderFooter();
@@ -253,12 +263,9 @@ public partial class MainWindow : Window
     void Editor_TextChanged(object sender,TextChangedEventArgs e)
     {
         if(!suppressDirty)MarkDirty();
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            UpdatePageGuideState();
-            UpdateDocumentStats();
-            if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
-        }),DispatcherPriority.Background);
+        if(uiRefreshTimer==null)return;
+        uiRefreshTimer.Stop();
+        uiRefreshTimer.Start();
     }
 
     void MarkDirty(string? message=null)
@@ -464,9 +471,53 @@ public partial class MainWindow : Window
         }
     }
 
+    IEnumerable<Paragraph> EnumerateParagraphs(FlowDocument document)
+    {
+        foreach(var block in document.Blocks)
+            foreach(var p in EnumerateParagraphsInBlock(block))
+                yield return p;
+    }
+
+    void ExpandPreviewFields(FlowDocument document)
+    {
+        foreach(var paragraph in EnumerateParagraphs(document).ToList())
+            ExpandPreviewInlineCollection(paragraph.Inlines);
+    }
+
+    void ExpandPreviewInlineCollection(InlineCollection inlines)
+    {
+        foreach(var inline in inlines.ToList())
+        {
+            if(inline is Span span)
+            {
+                ExpandPreviewInlineCollection(span.Inlines);
+                continue;
+            }
+            if(inline is not Run run || string.IsNullOrEmpty(run.Text))continue;
+
+            var matches=System.Text.RegularExpressions.Regex.Matches(run.Text,@"\{(?:field[:.])?[A-Za-z0-9_-]+\}");
+            if(matches.Count==0)continue;
+
+            var replacements=new List<Inline>();
+            var pos=0;
+            foreach(System.Text.RegularExpressions.Match match in matches)
+            {
+                if(match.Index>pos)replacements.Add(CloneRun(run,run.Text[pos..match.Index]));
+                var token=match.Value;
+                replacements.Add(CloneRun(run,TryExpandDocumentField(token,out var expanded)?expanded:token));
+                pos=match.Index+match.Length;
+            }
+            if(pos<run.Text.Length)replacements.Add(CloneRun(run,run.Text[pos..]));
+
+            foreach(var replacement in replacements)inlines.InsertBefore(run,replacement);
+            inlines.Remove(run);
+        }
+    }
+
     HeaderFooterPaginator CreatePreviewPaginator()
     {
         var clone=CloneDocument();
+        ExpandPreviewFields(clone);
         clone.PageWidth=pageWidth;
         clone.PageHeight=pageHeight;
         clone.PagePadding=pageMargins;
@@ -3557,6 +3608,7 @@ INSERT_FIELD date
         if(closingApproved)return;
         if(!CanDiscardChanges()){e.Cancel=true;return;}
         recoveryTimer.Stop();
+        uiRefreshTimer.Stop();
         CaptureWindowPlacement();
         SaveAppSettings();
         TryDeleteRecovery();
