@@ -1246,11 +1246,92 @@ public partial class MainWindow : Window
             documentVersion="1.0";
     }
 
+    UserProfileService.PortablePreferences CapturePortablePreferences()
+        =>new()
+        {
+            ZoomPercent=zoomPercent,
+            ExtendedMacrosEnabled=extendedMacrosEnabled,
+            CompiledMacrosEnabled=compiledMacrosEnabled,
+            LastMacroLanguage=lastMacroLanguage,
+            KeepParagraphTogether=keepParagraphTogether
+        };
+
+    void ApplyPortablePreferences(UserProfileService.PortablePreferences? p)
+    {
+        if(p==null)return;
+        zoomPercent=Math.Clamp(p.ZoomPercent,50,150);
+        extendedMacrosEnabled=p.ExtendedMacrosEnabled;
+        compiledMacrosEnabled=p.CompiledMacrosEnabled;
+        lastMacroLanguage=p.LastMacroLanguage is ".czm" or ".vb" or ".cs"?p.LastMacroLanguage:".vb";
+        keepParagraphTogether=p.KeepParagraphTogether;
+        ApplyZoom();
+        SaveAppSettings();
+    }
+
+    void ExportProfile_Click(Window owner)
+    {
+        var d=new SaveFileDialog
+        {
+            Title="Export CtrlZed Profile",
+            Filter="CtrlZed profile (*.czprofile)|*.czprofile|ZIP archive (*.zip)|*.zip",
+            DefaultExt=".czprofile",
+            AddExtension=true,
+            FileName="CtrlZed-Profile.czprofile"
+        };
+        if(d.ShowDialog(owner)!=true)return;
+        try
+        {
+            UserProfileService.Export(d.FileName,userFields,CapturePortablePreferences(),MacroDirectory());
+            Status.Text="CtrlZed profile exported.";
+            MessageBox.Show(
+                "Profile exported. User fields, central macros and portable preferences are included. Secret values are intentionally excluded.",
+                "Profile exported",MessageBoxButton.OK,MessageBoxImage.Information);
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Profile export failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    void ImportProfile_Click(Window owner)
+    {
+        var d=new OpenFileDialog
+        {
+            Title="Import CtrlZed Profile",
+            Filter="CtrlZed profile (*.czprofile;*.zip)|*.czprofile;*.zip|All files (*.*)|*.*"
+        };
+        if(d.ShowDialog(owner)!=true)return;
+
+        var choice=MessageBox.Show(
+            "Choose how to import this profile.\n\nYes = MERGE: keep existing user fields/macros where names clash.\nNo = REPLACE: replace portable user fields/macros with the imported profile.\nCancel = do nothing.\n\nSecret values are never imported.",
+            "Import CtrlZed Profile",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+        if(choice==MessageBoxResult.Cancel)return;
+        var replace=choice==MessageBoxResult.No;
+
+        try
+        {
+            var result=UserProfileService.Import(d.FileName,replace,userFields,MacroDirectory());
+            PersistentFieldStore.SaveUser(userFields);
+            ApplyPortablePreferences(result.Preferences);
+            RefreshMacroMenus();
+            Status.Text="CtrlZed profile imported.";
+            MessageBox.Show(
+                $"Profile imported.\n\nUser fields: {result.FieldsImported}\nMacros imported: {result.MacrosImported}\nMode: {(replace?"Replace":"Merge")}\n\nSecrets were not imported.",
+                "Profile imported",MessageBoxButton.OK,MessageBoxImage.Information);
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Profile import failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
     void Settings_Click(object s,RoutedEventArgs e)
     {
         var w=new Window
         {
-            Title="CtrlZed Settings",Owner=this,Width=560,Height=330,
+            Title="CtrlZed Settings",Owner=this,Width=600,Height=470,
             WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
             Icon=Branding.CreateIconImageSource()
         };
@@ -1275,6 +1356,20 @@ public partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text="Natural-language font discovery, licensed downloads/install and experimental generated fonts are planned under Coming Soon.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
+        });
+        panel.Children.Add(new Separator());
+        panel.Children.Add(new TextBlock{Text="Portable workspace",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
+        var profileButtons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Left};
+        var exportProfile=new Button{Content="Export Profile…",Width=110,Margin=new Thickness(0,0,8,0)};
+        var importProfile=new Button{Content="Import Profile…",Width=110};
+        exportProfile.Click+=(_,__)=>ExportProfile_Click(w);
+        importProfile.Click+=(_,__)=>ImportProfile_Click(w);
+        profileButtons.Children.Add(exportProfile);profileButtons.Children.Add(importProfile);
+        panel.Children.Add(profileButtons);
+        panel.Children.Add(new TextBlock
+        {
+            Text="Profiles contain user fields, central macros and portable preferences. API keys/secrets are deliberately excluded.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
         });
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
