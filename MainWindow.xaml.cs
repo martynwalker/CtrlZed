@@ -2155,9 +2155,21 @@ public static class CtrlZedMacro
             var reference=ext==".czm"
                 ?(extendedMacrosEnabled?SafeMacroLanguage.ExtendedReference:SafeMacroLanguage.Reference)
                 :"";
-            AiManager.ShowForMacro(w,ext,reference,code.Text,result=>
+            AiManager.ShowForMacro(w,ext,reference,code.Text,(result,targetExt)=>
             {
-                code.Text=result;
+                if(selected==null || !string.Equals(Path.GetExtension(selected),targetExt,StringComparison.OrdinalIgnoreCase))
+                {
+                    var name="Macro_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+targetExt;
+                    File.WriteAllText(Path.Combine(dir,name),result);
+                    refresh(name,false);
+                    selected=name;
+                    selectedEmbedded=false;
+                    code.Text=result;
+                }
+                else
+                {
+                    code.Text=result;
+                }
                 code.CaretIndex=code.Text.Length;
                 code.Focus();
             });
@@ -2713,6 +2725,6 @@ public static class CtrlZedMacro
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.15.0 beta 15").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.15.1 beta 15.1").ShowDialog();
     }
 }
