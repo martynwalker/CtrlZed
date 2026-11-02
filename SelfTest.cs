@@ -42,6 +42,12 @@ End Module
 ",".vb",vbEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
             if(!string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK",StringComparison.Ordinal))return 31;
 
+            var secretName="SelfTest_"+Guid.NewGuid().ToString("N");
+            CtrlZedSecrets.Set(secretName,"secret-value");
+            if(!CtrlZedSecrets.Exists(secretName) || CtrlZedSecrets.Get(secretName)!="secret-value")return 32;
+            CtrlZedSecrets.Remove(secretName);
+            if(CtrlZedSecrets.Exists(secretName))return 33;
+
             var profile=AiDirectService.GetProfile("ChatGPT");
             if(string.IsNullOrWhiteSpace(profile.Model))return 29;
 
