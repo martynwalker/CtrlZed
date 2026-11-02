@@ -42,6 +42,10 @@ public partial class MainWindow : Window
     bool extendedMacrosEnabled;
     bool compiledMacrosEnabled;
     bool fieldValuesVisible;
+    bool keepParagraphTogether=true;
+    bool applyingPaginationFlow;
+    bool paginationFlowScheduled;
+    readonly Dictionary<Paragraph,Thickness> autoPaginationMargins=new();
     string lastMacroLanguage=".vb";
     double savedWindowLeft=double.NaN,savedWindowTop=double.NaN,savedWindowWidth=1100,savedWindowHeight=760;
 
@@ -239,6 +243,7 @@ public partial class MainWindow : Window
         if(!suppressDirty)MarkDirty();
         Dispatcher.BeginInvoke(new Action(() =>
         {
+            ApplyPaginationFlow();
             UpdatePageGuideState();
             UpdateDocumentStats();
             if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
@@ -873,6 +878,7 @@ public partial class MainWindow : Window
         public bool ExtendedMacrosEnabled { get; set; }
         public bool CompiledMacrosEnabled { get; set; }
         public string LastMacroLanguage { get; set; } = ".vb";
+        public bool KeepParagraphTogether { get; set; } = true;
         public double WindowLeft { get; set; } = double.NaN;
         public double WindowTop { get; set; } = double.NaN;
         public double WindowWidth { get; set; } = 1100;
@@ -892,6 +898,7 @@ public partial class MainWindow : Window
             extendedMacrosEnabled=settings.ExtendedMacrosEnabled;
             compiledMacrosEnabled=settings.CompiledMacrosEnabled;
             lastMacroLanguage=settings.LastMacroLanguage is ".czm" or ".vb" or ".cs"?settings.LastMacroLanguage:".vb";
+            keepParagraphTogether=settings.KeepParagraphTogether;
             savedWindowLeft=settings.WindowLeft;savedWindowTop=settings.WindowTop;
             savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
             ApplyZoom();
@@ -910,6 +917,7 @@ public partial class MainWindow : Window
                 ExtendedMacrosEnabled=extendedMacrosEnabled,
                 CompiledMacrosEnabled=compiledMacrosEnabled,
                 LastMacroLanguage=lastMacroLanguage,
+                KeepParagraphTogether=keepParagraphTogether,
                 WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
                 WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight
             }));
@@ -966,6 +974,86 @@ public partial class MainWindow : Window
             documentSubject="CtrlZed document";
         if(string.IsNullOrWhiteSpace(documentVersion))
             documentVersion="1.0";
+    }
+
+    void Settings_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="CtrlZed Settings",Owner=this,Width=560,Height=330,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var panel=new StackPanel{Margin=new Thickness(20)};
+        panel.Children.Add(new TextBlock{Text="Document flow",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,10)});
+        var keep=new CheckBox
+        {
+            Content="Keep paragraph together when it occupies no more than half a page",
+            IsChecked=keepParagraphTogether,Margin=new Thickness(0,4,0,4)
+        };
+        panel.Children.Add(keep);
+        panel.Children.Add(new TextBlock
+        {
+            Text="Inline pictures are always kept together with their containing paragraph. Automatic page-flow adjustments are recalculated as text above them changes.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(20,0,0,18)
+        });
+        panel.Children.Add(new Separator());
+        panel.Children.Add(new TextBlock{Text="Fonts",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
+        var fontFinder=new Button{Content="AI Font Finder…",Width=120,HorizontalAlignment=HorizontalAlignment.Left};
+        fontFinder.Click+=(_,__)=>ShowComingSoon(w,"AI Font Finder");
+        panel.Children.Add(fontFinder);
+        panel.Children.Add(new TextBlock
+        {
+            Text="Natural-language font discovery, licensed downloads/install and experimental generated fonts are planned under Coming Soon.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
+        });
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        var apply=new Button{Content="Apply",Width=80,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
+        apply.Click+=(_,__)=>
+        {
+            keepParagraphTogether=keep.IsChecked==true;
+            SaveAppSettings();
+            ApplyPaginationFlow();
+            Status.Text="Settings updated.";
+        };
+        close.Click+=(_,__)=>w.Close();
+        buttons.Children.Add(apply);buttons.Children.Add(close);panel.Children.Add(buttons);
+        w.Content=panel;w.ShowDialog();
+    }
+
+    void ComingSoon_Click(object s,RoutedEventArgs e)=>ShowComingSoon(this,null);
+
+    void ShowComingSoon(Window owner,string? focus)
+    {
+        var w=new Window
+        {
+            Title=focus==null?"CtrlZed — Coming Soon":$"CtrlZed — Coming Soon: {focus}",
+            Owner=owner,Width=650,Height=470,WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var panel=new StackPanel{Margin=new Thickness(22)};
+        panel.Children.Add(new TextBlock{Text="Coming Soon",FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
+        panel.Children.Add(new TextBlock
+        {
+            Text="Planned work that is useful enough to record, but not yet mature enough to pretend it is finished.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,18)
+        });
+        var items=new[]
+        {
+            "True paged/WYSIWYG editing canvas with discrete page containers and margins.",
+            "AI Font Finder: natural-language search across properly licensed free-font catalogues such as Google Fonts.",
+            "Font download and Windows installation workflow with licence information before installation.",
+            "Requests such as ‘Space: 1999-like’, ‘a big bad font’ or ‘Arial Bold’.",
+            "Experimental AI-generated fonts, including decorative capital alphabets such as animal-shaped letters.",
+            "Further DOCX fidelity, comments/track changes and more advanced publishing layout."
+        };
+        foreach(var item in items)
+            panel.Children.Add(new TextBlock{Text="• "+item,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8,4,0,4)});
+        var close=new Button{Content="Close",Width=90,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,20,0,0)};
+        close.Click+=(_,__)=>w.Close();panel.Children.Add(close);
+        var scroll=new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+        w.Content=scroll;w.ShowDialog();
     }
 
     void OpenGitHub_Click(object s,RoutedEventArgs e)
@@ -2292,7 +2380,8 @@ public partial class MainWindow : Window
 
     string MacroDirectory()
     {
-        var dir=MacroDirectory();
+        var dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed","Macros");
+        Directory.CreateDirectory(dir);
         return dir;
     }
 
