@@ -674,21 +674,23 @@ public partial class MainWindow : Window
 
     static Run CloneRun(Run source,string text)
     {
-        return new Run(text)
+        var clone=new Run(text)
         {
             FontFamily=source.FontFamily,FontSize=source.FontSize,FontWeight=source.FontWeight,
-            FontStyle=source.FontStyle,Foreground=source.Foreground,Background=source.Background,
-            TextDecorations=source.TextDecorations
+            FontStyle=source.FontStyle,Foreground=source.Foreground,Background=source.Background
         };
+        if(source.TextDecorations!=null)
+            clone.TextDecorations=source.TextDecorations.Clone();
+        return clone;
     }
 
-    void ExpandFieldsInInlineCollection(InlineCollection inlines)
+    void ExpandFieldsInInlineCollection(InlineCollection inlines,HashSet<string> missingFields)
     {
         foreach(var inline in inlines.ToList())
         {
             if(inline is Span span)
             {
-                ExpandFieldsInInlineCollection(span.Inlines);
+                ExpandFieldsInInlineCollection(span.Inlines,missingFields);
                 continue;
             }
             if(inline is not Run run || string.IsNullOrEmpty(run.Text) || run.Tag!=null)continue;
@@ -706,10 +708,13 @@ public partial class MainWindow : Window
                 {
                     var fieldRun=CloneRun(run,expanded);
                     fieldRun.Tag=FieldTagPrefix+token;
-                    fieldRun.Background=new SolidColorBrush(Color.FromArgb(36,71,215,255));
                     replacements.Add(fieldRun);
                 }
-                else replacements.Add(CloneRun(run,token));
+                else
+                {
+                    replacements.Add(CloneRun(run,token));
+                    missingFields.Add(token);
+                }
                 pos=match.Index+match.Length;
             }
             if(pos<run.Text.Length)replacements.Add(CloneRun(run,run.Text[pos..]));
@@ -733,19 +738,39 @@ public partial class MainWindow : Window
         }
     }
 
-    void SetFieldValuesVisible(bool visible)
+    byte[] SnapshotEditorRtf()
     {
-        if(visible==fieldValuesVisible)return;
+        using var stream=new MemoryStream();
+        new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(stream,DataFormats.Rtf);
+        return stream.ToArray();
+    }
+
+    void RestoreEditorRtf(byte[] snapshot)
+    {
+        using var stream=new MemoryStream(snapshot,false);
+        Editor.Document=new FlowDocument();
+        new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(stream,DataFormats.Rtf);
+        WirePictureHandlers();
+    }
+
+    bool SetFieldValuesVisible(bool visible,bool showDiagnostics=true)
+    {
+        if(visible==fieldValuesVisible)return true;
+
+        var snapshot=SnapshotEditorRtf();
         var oldSuppress=suppressDirty;
         var oldDirty=dirty;
         suppressDirty=true;
+        var missing=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         try
         {
-            foreach(var paragraph in EnumerateDocumentParagraphs())
+            foreach(var paragraph in EnumerateDocumentParagraphs().ToList())
             {
-                if(visible)ExpandFieldsInInlineCollection(paragraph.Inlines);
+                if(visible)ExpandFieldsInInlineCollection(paragraph.Inlines,missing);
                 else RestoreFieldCodesInInlineCollection(paragraph.Inlines);
             }
+
             fieldValuesVisible=visible;
             if(FieldDisplayToggle!=null)
             {
@@ -753,6 +778,37 @@ public partial class MainWindow : Window
                 FieldDisplayToggle.Content=visible?"Values":"Fields";
                 FieldDisplayToggle.ToolTip=visible?"Show field codes":"Show field values";
             }
+
+            if(visible && showDiagnostics && missing.Count>0)
+            {
+                var names=string.Join(Environment.NewLine,missing.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase));
+                MessageBox.Show(
+                    "These field codes were not found and have been left unchanged:"+Environment.NewLine+Environment.NewLine+names+
+                    Environment.NewLine+Environment.NewLine+"Create the field under Tools → Fields, or correct the field name.",
+                    "Field not found",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            return true;
+        }
+        catch(Exception ex)
+        {
+            try{RestoreEditorRtf(snapshot);}catch{}
+            fieldValuesVisible=false;
+            if(FieldDisplayToggle!=null)
+            {
+                FieldDisplayToggle.IsChecked=false;
+                FieldDisplayToggle.Content="Fields";
+                FieldDisplayToggle.ToolTip="Show field values";
+            }
+            if(showDiagnostics)
+                MessageBox.Show(
+                    "CtrlZed could not display field values. The document has been restored unchanged."+Environment.NewLine+Environment.NewLine+
+                    ex.GetType().Name+": "+ex.Message,
+                    "Field display error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            return false;
         }
         finally
         {
@@ -2514,7 +2570,8 @@ public partial class MainWindow : Window
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
         var saveExit=new Button{Content="Save & Exit",Width=105,Margin=new Thickness(4)};
-        actionBar.Children.Add(run);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);
+        var exit=new Button{Content="Exit",Width=75,Margin=new Thickness(4)};
+        actionBar.Children.Add(run);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
         var code=new TextBox
@@ -2770,6 +2827,7 @@ INSERT_FIELD date
             SaveSelectedMacro();
             w.Close();
         };
+        exit.Click+=(_,__)=>w.Close();
 
         run.Click+=async (_,__)=>
         {
