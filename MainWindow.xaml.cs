@@ -43,9 +43,6 @@ public partial class MainWindow : Window
     bool compiledMacrosEnabled;
     bool fieldValuesVisible;
     bool keepParagraphTogether=true;
-    bool applyingPaginationFlow;
-    bool paginationFlowScheduled;
-    readonly Dictionary<Paragraph,Thickness> autoPaginationMargins=new();
     string lastMacroLanguage=".vb";
     double savedWindowLeft=double.NaN,savedWindowTop=double.NaN,savedWindowWidth=1100,savedWindowHeight=760;
 
@@ -140,7 +137,6 @@ public partial class MainWindow : Window
     {
         if(!CanDiscardChanges())return;
         if(fieldValuesVisible)SetFieldValuesVisible(false);
-        ClearAutoPaginationMargins();
         suppressDirty = true;
         Editor.Document = new FlowDocument();
         currentFile = null;
@@ -203,9 +199,7 @@ public partial class MainWindow : Window
         }
 
         var restoreFields=fieldValuesVisible;
-        var restorePagination=autoPaginationMargins.Count>0;
         if(restoreFields)SetFieldValuesVisible(false);
-        if(restorePagination)ClearAutoPaginationMargins();
         try
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
@@ -229,7 +223,6 @@ public partial class MainWindow : Window
         finally
         {
             if(restoreFields)SetFieldValuesVisible(true);
-            if(restorePagination)Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
         }
     }
 
@@ -247,7 +240,6 @@ public partial class MainWindow : Window
         if(!suppressDirty)MarkDirty();
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            ApplyPaginationFlow();
             UpdatePageGuideState();
             UpdateDocumentStats();
             if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
@@ -287,7 +279,6 @@ public partial class MainWindow : Window
         finally
         {
             if(restoreFields)SetFieldValuesVisible(true);
-            if(restorePagination)Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
         }
     }
 
@@ -460,22 +451,13 @@ public partial class MainWindow : Window
 
     FlowDocument CloneDocument()
     {
-        var restorePagination=autoPaginationMargins.Count>0;
-        if(restorePagination)ClearAutoPaginationMargins();
-        try
-        {
-            using var stream=new MemoryStream();
-            var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
-            source.Save(stream,DataFormats.Rtf);
-            stream.Position=0;
-            var clone=new FlowDocument();
-            new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
-            return clone;
-        }
-        finally
-        {
-            if(restorePagination)Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
-        }
+        using var stream=new MemoryStream();
+        var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
+        source.Save(stream,DataFormats.Rtf);
+        stream.Position=0;
+        var clone=new FlowDocument();
+        new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
+        return clone;
     }
 
     string ExpandFields(string text,int page,int pages)
@@ -861,97 +843,6 @@ public partial class MainWindow : Window
         UpdatePageGuideState();
     }
 
-    void ClearAutoPaginationMargins()
-    {
-        foreach(var pair in autoPaginationMargins.ToList())
-        {
-            try
-            {
-                if(pair.Key.Parent!=null)pair.Key.Margin=pair.Value;
-            }
-            catch{}
-        }
-        autoPaginationMargins.Clear();
-    }
-
-    static int PageIndex(double y,double pageHeight)
-        =>Math.Max(0,(int)Math.Floor(Math.Max(0,y)/Math.Max(1,pageHeight)));
-
-    bool PictureCrossesPage(Paragraph paragraph,double pageContentHeight)
-    {
-        foreach(var inline in paragraph.Inlines)
-        {
-            foreach(var image in EnumeratePicturesInInline(inline))
-            {
-                try
-                {
-                    var height=!double.IsNaN(image.Height)&&image.Height>0?image.Height:image.ActualHeight;
-                    if(height<=0 || height>pageContentHeight)continue;
-                    var origin=image.TranslatePoint(new Point(0,0),Editor);
-                    var top=origin.Y;
-                    var bottom=top+height;
-                    if(PageIndex(top,pageContentHeight)!=PageIndex(Math.Max(top,bottom-1),pageContentHeight))
-                        return true;
-                }
-                catch{}
-            }
-        }
-        return false;
-    }
-
-    void ApplyPaginationFlow()
-    {
-        if(applyingPaginationFlow || Editor==null || Editor.Document==null)return;
-        applyingPaginationFlow=true;
-        try
-        {
-            ClearAutoPaginationMargins();
-            Editor.UpdateLayout();
-
-            var pageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
-            var paragraphs=EnumerateDocumentParagraphs().ToList();
-
-            foreach(var paragraph in paragraphs)
-            {
-                Editor.UpdateLayout();
-                Rect startRect,endRect;
-                try
-                {
-                    startRect=paragraph.ContentStart.GetCharacterRect(LogicalDirection.Forward);
-                    endRect=paragraph.ContentEnd.GetCharacterRect(LogicalDirection.Backward);
-                }
-                catch{continue;}
-
-                if(startRect.IsEmpty || endRect.IsEmpty || double.IsNaN(startRect.Top) || double.IsNaN(endRect.Bottom))continue;
-
-                var top=startRect.Top;
-                var bottom=Math.Max(startRect.Bottom,endRect.Bottom);
-                var height=Math.Max(1,bottom-top);
-                var crosses=PageIndex(top,pageContentHeight)!=PageIndex(Math.Max(top,bottom-1),pageContentHeight);
-                var pictureCrosses=PictureCrossesPage(paragraph,pageContentHeight);
-                var shortParagraph=crosses && keepParagraphTogether && height<=pageContentHeight/2.0;
-                var manualBreak=paragraph.BreakPageBefore;
-
-                if(!manualBreak && !pictureCrosses && !shortParagraph)continue;
-
-                var pageTop=PageIndex(top,pageContentHeight)*pageContentHeight;
-                var offset=top-pageTop;
-                if(offset<=18)continue;
-
-                var spacer=pageContentHeight-offset+18;
-                var original=paragraph.Margin;
-                autoPaginationMargins[paragraph]=original;
-                paragraph.Margin=new Thickness(original.Left,original.Top+spacer,original.Right,original.Bottom);
-            }
-
-            Editor.UpdateLayout();
-        }
-        finally
-        {
-            applyingPaginationFlow=false;
-        }
-    }
-
     void UpdatePageGuideState()
     {
         if(PageGuides==null)return;
@@ -1101,7 +992,7 @@ public partial class MainWindow : Window
         panel.Children.Add(keep);
         panel.Children.Add(new TextBlock
         {
-            Text="Inline pictures are always kept together with their containing paragraph. Automatic page-flow adjustments are recalculated as text above them changes.",
+            Text="Keep-together is honoured by paginated preview/printing without changing recorded picture sizes or live editor paragraph positions. True paged editing remains on the Coming Soon list.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(20,0,0,18)
         });
         panel.Children.Add(new Separator());
@@ -1121,8 +1012,7 @@ public partial class MainWindow : Window
         {
             keepParagraphTogether=keep.IsChecked==true;
             SaveAppSettings();
-            ApplyPaginationFlow();
-            Status.Text="Settings updated.";
+            Status.Text="Settings updated. Keep-together applies to page preview/print; true paged editing remains on the Coming Soon list.";
         };
         close.Click+=(_,__)=>w.Close();
         buttons.Children.Add(apply);buttons.Children.Add(close);panel.Children.Add(buttons);
@@ -1215,8 +1105,7 @@ public partial class MainWindow : Window
         try
         {
             if(fieldValuesVisible)SetFieldValuesVisible(false);
-            ClearAutoPaginationMargins();
-            suppressDirty=true;
+                suppressDirty=true;
             var ext=Path.GetExtension(path).ToLowerInvariant();
             headerText=footerText="";
             documentTitle=documentAuthor=documentSubject=documentKeywords="";
@@ -1822,7 +1711,7 @@ public partial class MainWindow : Window
 
     static void InsertOrdered(ItemCollection items,MenuItem item,int position)
     {
-        item.Tag=position;
+        if(item.Tag is not MacroMenuTag)item.Tag=position;
         var caption=item.Header?.ToString()??"";
         var index=0;
         while(index<items.Count)
@@ -2373,7 +2262,6 @@ public partial class MainWindow : Window
         {
             PageGuides.PageContentHeight=Math.Max(180,pageHeight-pageMargins.Top-pageMargins.Bottom);
             UpdatePageGuideState();
-            Dispatcher.BeginInvoke(new Action(ApplyPaginationFlow),DispatcherPriority.Background);
         }
     }
 
@@ -2596,7 +2484,7 @@ public partial class MainWindow : Window
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
-        var saveExit=new Button{Content="Save && Exit",Width=105,Margin=new Thickness(4)};
+        var saveExit=new Button{Content="Save & Exit",Width=105,Margin=new Thickness(4)};
         actionBar.Children.Add(run);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
