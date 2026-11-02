@@ -9,51 +9,55 @@ $bmp = New-Object System.Drawing.Bitmap $size, $size
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-
-$navy = [System.Drawing.Color]::FromArgb(34,50,76)
-$gold = [System.Drawing.Color]::FromArgb(229,163,65)
-$white = [System.Drawing.Color]::White
-
 $g.Clear([System.Drawing.Color]::Transparent)
 
-$path = New-Object System.Drawing.Drawing2D.GraphicsPath
-$radius = 36
-$rect = New-Object System.Drawing.RectangleF 8,8,240,240
-$diameter = $radius*2
-$path.AddArc($rect.X,$rect.Y,$diameter,$diameter,180,90)
-$path.AddArc($rect.Right-$diameter,$rect.Y,$diameter,$diameter,270,90)
-$path.AddArc($rect.Right-$diameter,$rect.Bottom-$diameter,$diameter,$diameter,0,90)
-$path.AddArc($rect.X,$rect.Bottom-$diameter,$diameter,$diameter,90,90)
-$path.CloseFigure()
-$g.FillPath((New-Object System.Drawing.SolidBrush $navy),$path)
+$bg = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(4,15,24))
+$cyan = [System.Drawing.Color]::FromArgb(55,228,240)
+$cyanPale = [System.Drawing.Color]::FromArgb(185,249,255)
+$gold = [System.Drawing.Color]::FromArgb(255,193,55)
+$steel = [System.Drawing.Color]::FromArgb(214,235,241)
 
-$pen = New-Object System.Drawing.Pen $gold, 24
-$pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-$pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-$g.DrawArc($pen,48,48,160,160,35,285)
+$g.FillEllipse($bg,8,8,240,240)
 
-$arrow = [System.Drawing.PointF[]]@(
-    (New-Object System.Drawing.PointF 72,52),
-    (New-Object System.Drawing.PointF 72,94),
-    (New-Object System.Drawing.PointF 34,76)
+function Draw-Arc($rect,$color,$width,$start,$sweep) {
+    $pen = New-Object System.Drawing.Pen $color,$width
+    $pen.StartCap=[System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap=[System.Drawing.Drawing2D.LineCap]::Round
+    $g.DrawArc($pen,$rect,$start,$sweep)
+    $pen.Dispose()
+}
+
+Draw-Arc (New-Object System.Drawing.Rectangle 22,22,212,212) $cyanPale 7 195 116
+Draw-Arc (New-Object System.Drawing.Rectangle 22,22,212,212) $gold 7 15 116
+Draw-Arc (New-Object System.Drawing.Rectangle 45,45,166,166) $cyan 9 206 96
+Draw-Arc (New-Object System.Drawing.Rectangle 45,45,166,166) $gold 9 26 96
+
+$nodeBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(6,25,34))
+$nodePen = New-Object System.Drawing.Pen $cyan,4
+foreach($p in @(@(32,128),@(224,128),@(128,32),@(128,224))) {
+    $g.FillEllipse($nodeBrush,$p[0]-8,$p[1]-8,16,16)
+    $g.DrawEllipse($nodePen,$p[0]-8,$p[1]-8,16,16)
+}
+
+# Metallic angular Z.
+$z = New-Object System.Drawing.Drawing2D.GraphicsPath
+$pts=[System.Drawing.PointF[]]@(
+    (New-Object System.Drawing.PointF 70,70),
+    (New-Object System.Drawing.PointF 190,70),
+    (New-Object System.Drawing.PointF 163,100),
+    (New-Object System.Drawing.PointF 120,143),
+    (New-Object System.Drawing.PointF 174,143),
+    (New-Object System.Drawing.PointF 198,179),
+    (New-Object System.Drawing.PointF 67,179),
+    (New-Object System.Drawing.PointF 96,145),
+    (New-Object System.Drawing.PointF 144,98),
+    (New-Object System.Drawing.PointF 99,98)
 )
-$g.FillPolygon((New-Object System.Drawing.SolidBrush $gold),$arrow)
-
-$trail1 = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(120,229,163,65)), 10
-$trail1.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-$trail1.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-$g.DrawArc($trail1,66,48,154,154,292,52)
-
-$trail2 = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(60,229,163,65)), 5
-$trail2.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-$trail2.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-$g.DrawArc($trail2,76,52,148,148,295,48)
-
-$font = New-Object System.Drawing.Font "Segoe UI", 92, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
-$format = New-Object System.Drawing.StringFormat
-$format.Alignment = [System.Drawing.StringAlignment]::Center
-$format.LineAlignment = [System.Drawing.StringAlignment]::Center
-$g.DrawString("Z",$font,(New-Object System.Drawing.SolidBrush $white),(New-Object System.Drawing.RectangleF 54,56,150,150),$format)
+$z.AddPolygon($pts)
+$grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush ((New-Object System.Drawing.Point 0,50)),((New-Object System.Drawing.Point 0,190)),$steel,([System.Drawing.Color]::FromArgb(70,155,172))
+$g.FillPath($grad,$z)
+$outline=New-Object System.Drawing.Pen $cyanPale,3
+$g.DrawPath($outline,$z)
 
 $full = [System.IO.Path]::GetFullPath($OutputPath)
 $dir = [System.IO.Path]::GetDirectoryName($full)
@@ -75,6 +79,7 @@ public static class NativeIcon {
 }
 "@
     [NativeIcon]::DestroyIcon($hIcon) | Out-Null
-    $g.Dispose()
-    $bmp.Dispose()
+    $outline.Dispose(); $grad.Dispose(); $z.Dispose()
+    $nodePen.Dispose(); $nodeBrush.Dispose(); $bg.Dispose()
+    $g.Dispose(); $bmp.Dispose()
 }
