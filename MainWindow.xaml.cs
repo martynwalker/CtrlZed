@@ -158,6 +158,33 @@ public partial class MainWindow : Window
         if(d.ShowDialog()==true)OpenPath(d.FileName);
     }
 
+    void Import_Click(object s,RoutedEventArgs e)
+    {
+        var d=new OpenFileDialog
+        {
+            Title="Import into CtrlZed",
+            Filter="Supported files (*.docx;*.rtf;*.txt;*.md;*.markdown;*.html;*.htm;*.pdf)|*.docx;*.rtf;*.txt;*.md;*.markdown;*.html;*.htm;*.pdf|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt|Markdown (*.md;*.markdown)|*.md;*.markdown|HTML (*.html;*.htm)|*.html;*.htm|PDF documents (*.pdf)|*.pdf|All files (*.*)|*.*"
+        };
+        if(d.ShowDialog()!=true)return;
+
+        try
+        {
+            var imported=ImportService.Load(d.FileName);
+            using var stream=new MemoryStream();
+            new TextRange(imported.ContentStart,imported.ContentEnd).Save(stream,DataFormats.Rtf);
+            stream.Position=0;
+            Editor.Selection.Load(stream,DataFormats.Rtf);
+            WirePictureHandlers();
+            MarkDirty($"Imported {Path.GetFileName(d.FileName)}.");
+            UpdateDocumentStats();
+            Editor.Focus();
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.InnerException?.Message??ex.Message,"Import failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
     void Save_Click(object s,RoutedEventArgs e) => SaveCurrent();
 
     bool SaveCurrent()
