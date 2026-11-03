@@ -11,9 +11,13 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      - name: Build application icon resource
+        shell: cmd
+        working-directory: tools\ColourPicker
+        run: rc /nologo ColourPicker.rc
       - name: Build native Win32 executable
         shell: cmd
-        run: cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE tools\\ColourPicker\\ColourPicker.cpp /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib gdiplus.lib crypt32.lib ole32.lib /OUT:ColourPicker.exe
+        run: cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE tools\\ColourPicker\\ColourPicker.cpp tools\\ColourPicker\\ColourPicker.res /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib shell32.lib gdiplus.lib crypt32.lib ole32.lib /OUT:ColourPicker.exe
       - name: Automated tests
         shell: cmd
         run: ColourPicker.exe /test
