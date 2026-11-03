@@ -110,6 +110,7 @@ public partial class MainWindow : Window
         ReloadPersistentFields();
         LoadAppSettings();
         RefreshStyleSetBox();
+        UpdateKeyboardMenuState();
         ApplySavedWindowPlacement();
         EnsureDocumentPropertyDefaults();
         RefreshRecentFilesMenu();
@@ -1283,6 +1284,7 @@ public partial class MainWindow : Window
         public double WindowHeight { get; set; } = 760;
         public string SignatureImagePath { get; set; } = "";
         public string ActiveStyleSet { get; set; } = "Default";
+        public string KeyboardProfile { get; set; } = "Word";
     }
 
     void LoadAppSettings()
@@ -1303,6 +1305,12 @@ public partial class MainWindow : Window
             savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
             signatureImagePath=settings.SignatureImagePath??"";
             activeStyleSet=styleSets.ContainsKey(settings.ActiveStyleSet??"")?settings.ActiveStyleSet:"Default";
+            profile=settings.KeyboardProfile switch
+            {
+                "WordPerfect51"=>KeyboardProfile.WordPerfect51,
+                "WordStar40"=>KeyboardProfile.WordStar40,
+                _=>KeyboardProfile.Word
+            };
             ApplyZoom();
         }
         catch { }
@@ -1323,7 +1331,8 @@ public partial class MainWindow : Window
                 WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
                 WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight,
                 SignatureImagePath=signatureImagePath,
-                ActiveStyleSet=activeStyleSet
+                ActiveStyleSet=activeStyleSet,
+                KeyboardProfile=profile.ToString()
             }));
         }
         catch { }
@@ -2647,7 +2656,7 @@ public partial class MainWindow : Window
         w.ShowDialog();
     }
 
-    static void AddRow(Grid g,int row,string label,Control control)
+    static void AddRow(Grid g,int row,string label,FrameworkElement control)
     {
         var t=new TextBlock{Text=label,VerticalAlignment=VerticalAlignment.Center};
         Grid.SetRow(t,row);Grid.SetColumn(t,0);
@@ -2803,36 +2812,42 @@ public partial class MainWindow : Window
         if(item.Content is string style)ApplyParagraphStyle(style);
     }
 
-    void ApplyParagraphStyle(string style)
+    void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec)
     {
-        if(Editor==null)return;
-        if(!styleSets.TryGetValue(activeStyleSet,out var set))
-        {
-            set=StyleSetStore.Defaults()["Default"];
-            activeStyleSet="Default";
-        }
-        if(!set.Styles.TryGetValue(style,out var spec))
-        {
-            if(!StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec))return;
-        }
-
-        var selection=Editor.Selection;
-        selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
-        selection.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
-        selection.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
-        selection.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
-        selection.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
-        selection.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
-        selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
+        range.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
+        range.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
+        range.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
+        range.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
+        range.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
+        range.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
+        range.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
         {
             "center" or "centre"=>TextAlignment.Center,
             "right"=>TextAlignment.Right,
             "justify"=>TextAlignment.Justify,
             _=>TextAlignment.Left
         });
-        selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
+        range.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
             spec.MarginLeft,spec.MarginTop,spec.MarginRight,spec.MarginBottom));
+    }
 
+    StyleSetStore.TextStyle? ResolveStyle(string style)
+    {
+        if(!styleSets.TryGetValue(activeStyleSet,out var set))
+        {
+            set=StyleSetStore.Defaults()["Default"];
+            activeStyleSet="Default";
+        }
+        if(set.Styles.TryGetValue(style,out var spec))return spec;
+        return StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec)?spec:null;
+    }
+
+    void ApplyParagraphStyle(string style)
+    {
+        if(Editor==null)return;
+        var spec=ResolveStyle(style);
+        if(spec==null)return;
+        ApplyStyleToRange(Editor.Selection,spec);
         MarkDirty($"Style: {style} ({activeStyleSet})");
         Editor.Focus();
     }
@@ -2841,6 +2856,52 @@ public partial class MainWindow : Window
     {
         try{return (Brush)new BrushConverter().ConvertFromString(value)!;}
         catch{return Brushes.Black;}
+    }
+
+    string? PickColour(Window owner,string initial)
+    {
+        var start=Colors.Black;
+        try
+        {
+            if(ColorConverter.ConvertFromString(initial) is Color parsed)start=parsed;
+        }
+        catch { }
+
+        var w=new Window
+        {
+            Title="Choose Colour",Owner=owner,Width=420,Height=310,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<6;i++)root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(70)});
+        root.ColumnDefinitions.Add(new ColumnDefinition());
+
+        Slider MakeSlider(byte value)=>new(){Minimum=0,Maximum=255,Value=value,TickFrequency=1,IsSnapToTickEnabled=true,Margin=new Thickness(0,4,0,8)};
+        var red=MakeSlider(start.R);var green=MakeSlider(start.G);var blue=MakeSlider(start.B);
+        var preview=new Border{Height=46,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(0,5,0,8)};
+        var hex=new TextBox{IsReadOnly=true,Margin=new Thickness(0,4,0,8)};
+        AddRow(root,0,"Red",red);AddRow(root,1,"Green",green);AddRow(root,2,"Blue",blue);AddRow(root,3,"Hex",hex);
+        Grid.SetRow(preview,4);Grid.SetColumnSpan(preview,2);root.Children.Add(preview);
+
+        string CurrentHex()=>"#"+((byte)red.Value).ToString("X2")+((byte)green.Value).ToString("X2")+((byte)blue.Value).ToString("X2");
+        void Refresh()
+        {
+            var value=CurrentHex();
+            hex.Text=value;
+            preview.Background=BrushFromHex(value);
+        }
+        red.ValueChanged+=(_,__)=>Refresh();green.ValueChanged+=(_,__)=>Refresh();blue.ValueChanged+=(_,__)=>Refresh();
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var ok=new Button{Content="OK",Width=80,Margin=new Thickness(4),IsDefault=true};
+        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
+        buttons.Children.Add(ok);buttons.Children.Add(cancel);
+        Grid.SetRow(buttons,5);Grid.SetColumnSpan(buttons,2);root.Children.Add(buttons);
+        ok.Click+=(_,__)=>w.DialogResult=true;
+        Refresh();w.Content=root;
+        return w.ShowDialog()==true?CurrentHex():null;
     }
 
     void RefreshStyleSetBox()
@@ -2873,8 +2934,12 @@ public partial class MainWindow : Window
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
 
         var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
-        var list=new ListBox{ItemsSource=styles,Margin=new Thickness(0,0,12,0)};
-        Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
+        var selectorPanel=new StackPanel{Margin=new Thickness(0,0,12,0)};
+        selectorPanel.Children.Add(new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
+        var stylePicker=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,0,0,8)};
+        selectorPanel.Children.Add(stylePicker);
+        selectorPanel.Children.Add(new TextBlock{Text="Choose the paragraph style here, then edit its settings on the right.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray});
+        Grid.SetColumn(selectorPanel,0);Grid.SetRow(selectorPanel,0);root.Children.Add(selectorPanel);
 
         var form=new Grid();
         for(int i=0;i<11;i++)form.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
@@ -2884,7 +2949,11 @@ public partial class MainWindow : Window
         var setName=new TextBox{Text=activeStyleSet,Margin=new Thickness(0,3,0,8)};
         var font=new ComboBox{ItemsSource=Fonts.SystemFontFamilies.OrderBy(x=>x.Source).ToList(),DisplayMemberPath="Source",Margin=new Thickness(0,3,0,8)};
         var size=new TextBox{Margin=new Thickness(0,3,0,8)};
-        var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true,Margin=new Thickness(0,3,0,8)};
+        var colourPanel=new DockPanel{Margin=new Thickness(0,3,0,8)};
+        var pickColour=new Button{Content="Pick…",Width=70,Margin=new Thickness(6,0,0,0)};
+        DockPanel.SetDock(pickColour,Dock.Right);colourPanel.Children.Add(pickColour);
+        var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true};
+        colourPanel.Children.Add(colour);
         var bold=new CheckBox{Content="Bold",Margin=new Thickness(0,3,0,5)};
         var italic=new CheckBox{Content="Italic",Margin=new Thickness(0,3,0,5)};
         var underline=new CheckBox{Content="Underline",Margin=new Thickness(0,3,0,5)};
@@ -2894,7 +2963,7 @@ public partial class MainWindow : Window
         AddRow(form,0,"Style set",setName);
         AddRow(form,1,"Font",font);
         AddRow(form,2,"Size (pt)",size);
-        AddRow(form,3,"Colour",colour);
+        AddRow(form,3,"Colour",colourPanel);
         AddRow(form,4,"Bold",bold);
         AddRow(form,5,"Italic",italic);
         AddRow(form,6,"Underline",underline);
@@ -2961,10 +3030,15 @@ public partial class MainWindow : Window
             };
         }
 
-        list.SelectionChanged+=(_,__)=>
+        stylePicker.SelectionChanged+=(_,__)=>
         {
             try{SaveCurrentStyle();}catch{}
-            if(list.SelectedItem is string style)LoadStyle(style);
+            if(stylePicker.SelectedItem is string style)LoadStyle(style);
+        };
+        pickColour.Click+=(_,__)=>
+        {
+            var picked=PickColour(w,colour.Text);
+            if(!string.IsNullOrWhiteSpace(picked))colour.Text=picked;
         };
 
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
@@ -3011,7 +3085,47 @@ public partial class MainWindow : Window
         };
         close.Click+=(_,__)=>w.Close();
 
-        list.SelectedIndex=0;
+        stylePicker.SelectedIndex=0;
+        w.Content=root;w.ShowDialog();
+    }
+
+    void ReformatDocument_Click(object s,RoutedEventArgs e)
+    {
+        var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
+        var w=new Window
+        {
+            Title="Reformat Document",Owner=this,Width=440,Height=235,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new StackPanel{Margin=new Thickness(16)};
+        root.Children.Add(new TextBlock
+        {
+            Text=$"Apply one style from the active style set \"{activeStyleSet}\" to the whole document.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
+        });
+        var picker=new ComboBox{ItemsSource=styles,SelectedItem="Normal",Margin=new Thickness(0,0,0,10)};
+        root.Children.Add(picker);
+        root.Children.Add(new TextBlock
+        {
+            Text="This changes paragraph formatting throughout the document. Undo remains available immediately afterwards.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,10)
+        });
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var apply=new Button{Content="Reformat",Width=90,Margin=new Thickness(4),IsDefault=true};
+        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
+        buttons.Children.Add(apply);buttons.Children.Add(cancel);root.Children.Add(buttons);
+        apply.Click+=(_,__)=>
+        {
+            if(picker.SelectedItem is not string style)return;
+            var spec=ResolveStyle(style);
+            if(spec==null)return;
+            foreach(var paragraph in EnumerateDocumentParagraphs())
+                ApplyStyleToRange(new TextRange(paragraph.ContentStart,paragraph.ContentEnd),spec);
+            MarkDirty($"Document reformatted: {style} ({activeStyleSet})");
+            w.DialogResult=true;
+            Editor.Focus();
+        };
         w.Content=root;w.ShowDialog();
     }
 
@@ -3069,7 +3183,8 @@ public partial class MainWindow : Window
                 "Ctrl+Y — Redo",
                 "Ctrl+X — Cut",
                 "Ctrl+C — Copy",
-                "Ctrl+V — Paste"
+                "Ctrl+V — Paste",
+                "F9 — Reformat Document"
             }
         };
 
@@ -3284,10 +3399,11 @@ public partial class MainWindow : Window
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
         var modifyAi=new Button{Content="Ask AI to Modify…",Width=125,Margin=new Thickness(4),IsEnabled=false};
+        var shortcutButton=new Button{Content="Shortcut…",Width=90,Margin=new Thickness(4),IsEnabled=false};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
         var saveExit=new Button{Content="Save & Exit",Width=105,Margin=new Thickness(4)};
         var exit=new Button{Content="Exit",Width=75,Margin=new Thickness(4)};
-        actionBar.Children.Add(run);actionBar.Children.Add(modifyAi);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
+        actionBar.Children.Add(run);actionBar.Children.Add(modifyAi);actionBar.Children.Add(shortcutButton);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
         var code=new ICSharpCode.AvalonEdit.TextEditor
@@ -3484,6 +3600,7 @@ public partial class MainWindow : Window
             rename.IsEnabled=!selectedEmbedded && selected!=null;
             delete.IsEnabled=selected!=null;
             modifyAi.IsEnabled=selected!=null;
+            shortcutButton.IsEnabled=selected!=null;
         };
 
         string StarterFor(string ext)=>ext switch
@@ -3552,6 +3669,17 @@ INSERT_FIELD date
             Status.Text="Macro source saved.";
             RefreshMacroMenus();
         }
+
+        shortcutButton.Click+=(_,__)=>
+        {
+            if(selected==null)return;
+            var current=MacroShortcutFromSource(code.Text)??"";
+            var chosen=CaptureMacroShortcut(w,current,selected);
+            if(chosen==null)return;
+            code.Text=SetMacroShortcutInSource(code.Text,Path.GetExtension(selected),chosen);
+            SaveSelectedMacro();
+            Status.Text=string.IsNullOrWhiteSpace(chosen)?"Macro shortcut cleared.":$"Macro shortcut assigned: {chosen}";
+        };
 
         save.Click+=(_,__)=>SaveSelectedMacro();
         saveExit.Click+=(_,__)=>
@@ -3653,7 +3781,7 @@ INSERT_FIELD date
                 selected=null;
                 code.Text="";
                 refresh();RefreshMacroMenus();
-                run.IsEnabled=false;modifyAi.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+                run.IsEnabled=false;modifyAi.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
             }
             catch(Exception ex)
             {
@@ -3709,7 +3837,7 @@ INSERT_FIELD date
             });
         };
 
-        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+        refresh();run.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
     }
 
@@ -4197,6 +4325,110 @@ INSERT_FIELD date
         MarkDirty($"Inserted {rows} × {cols} table.");
     }
 
+    static string? MacroShortcutFromSource(string source)
+    {
+        foreach(var line in source.Replace("\r\n","\n").Split('\n'))
+        {
+            var trimmed=line.TrimStart();
+            foreach(var prefix in new[]{"# SHORTCUT:","' SHORTCUT:","// SHORTCUT:"})
+                if(trimmed.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))
+                    return trimmed[prefix.Length..].Trim();
+        }
+        return null;
+    }
+
+    static string SetMacroShortcutInSource(string source,string extension,string shortcut)
+    {
+        var lines=source.Replace("\r\n","\n").Split('\n').ToList();
+        lines.RemoveAll(line=>
+        {
+            var trimmed=line.TrimStart();
+            return trimmed.StartsWith("# SHORTCUT:",StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.StartsWith("' SHORTCUT:",StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.StartsWith("// SHORTCUT:",StringComparison.OrdinalIgnoreCase);
+        });
+
+        if(!string.IsNullOrWhiteSpace(shortcut))
+        {
+            var prefix=extension.ToLowerInvariant() switch
+            {
+                ".vb"=>"' SHORTCUT: ",
+                ".cs"=>"// SHORTCUT: ",
+                _=>"# SHORTCUT: "
+            };
+            lines.Insert(0,prefix+shortcut.Trim());
+        }
+        return string.Join(Environment.NewLine,lines);
+    }
+
+    bool IsReservedShortcut(string shortcut)
+    {
+        var reserved=profile switch
+        {
+            KeyboardProfile.WordPerfect51=>new[]{"F3","F7","Shift+F7","Shift+F6"},
+            KeyboardProfile.WordStar40=>new[]{"Ctrl+K","Ctrl+E","Ctrl+X","Ctrl+S","Ctrl+D"},
+            _=>new[]{"Ctrl+N","Ctrl+O","Ctrl+S","Ctrl+Shift+S","Ctrl+P","Ctrl+H","Ctrl+Enter","Ctrl+B","Ctrl+I","Ctrl+U","Ctrl+Z","Ctrl+Y","Ctrl+X","Ctrl+C","Ctrl+V","F9"}
+        };
+        return reserved.Contains(shortcut,StringComparer.OrdinalIgnoreCase);
+    }
+
+    string? CaptureMacroShortcut(Window owner,string current,string? selectedMacro)
+    {
+        string? chosen=null;
+        var w=new Window
+        {
+            Title="Assign Macro Shortcut",Owner=owner,Width=480,Height=245,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new StackPanel{Margin=new Thickness(16)};
+        root.Children.Add(new TextBlock
+        {
+            Text="Press the key combination you want to assign. CtrlZed will reject shortcuts reserved by the selected keyboard profile.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
+        });
+        var display=new TextBox{Text=current,IsReadOnly=true,FontSize=18,Margin=new Thickness(0,0,0,8)};
+        var status=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,MinHeight=38,Margin=new Thickness(0,0,0,8)};
+        root.Children.Add(display);root.Children.Add(status);
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var assign=new Button{Content="Assign",Width=80,Margin=new Thickness(4),IsEnabled=!string.IsNullOrWhiteSpace(current),IsDefault=true};
+        var clear=new Button{Content="Clear",Width=80,Margin=new Thickness(4)};
+        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
+        buttons.Children.Add(clear);buttons.Children.Add(assign);buttons.Children.Add(cancel);root.Children.Add(buttons);
+
+        w.PreviewKeyDown+=(_,e)=>
+        {
+            if(e.Key is Key.Escape or Key.Enter)return;
+            var value=BuildShortcutString(e);
+            if(string.IsNullOrWhiteSpace(value))
+            {
+                status.Text="Use at least one of Ctrl, Alt or Shift with another key.";
+                return;
+            }
+            if(IsReservedShortcut(value))
+            {
+                display.Text=value;assign.IsEnabled=false;
+                status.Text="That combination is reserved by the selected keyboard profile.";
+                e.Handled=true;return;
+            }
+            var conflict=GetMacroSources().FirstOrDefault(m=>
+                !string.Equals(m.Name,selectedMacro,StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(MacroShortcutFromSource(m.Source),value,StringComparison.OrdinalIgnoreCase));
+            if(!string.IsNullOrWhiteSpace(conflict.Name))
+            {
+                display.Text=value;assign.IsEnabled=false;
+                status.Text=$"Already assigned to {conflict.Name}.";
+                e.Handled=true;return;
+            }
+            display.Text=value;status.Text="Available.";assign.IsEnabled=true;e.Handled=true;
+        };
+        assign.Click+=(_,__)=>{chosen=display.Text.Trim();w.DialogResult=true;};
+        clear.Click+=(_,__)=>{chosen="";w.DialogResult=true;};
+        w.Content=root;
+        return w.ShowDialog()==true?chosen:null;
+    }
+
     async Task<bool> TryRunMacroShortcutAsync(KeyEventArgs e)
     {
         if(e.IsRepeat)return false;
@@ -4205,10 +4437,8 @@ INSERT_FIELD date
 
         foreach(var macro in GetMacroSources())
         {
-            var configured=macro.Source.Replace("\r\n","\n").Split('\n')
-                .FirstOrDefault(x=>x.TrimStart().StartsWith("# SHORTCUT:",StringComparison.OrdinalIgnoreCase));
-            if(configured==null)continue;
-            var shortcut=configured[(configured.IndexOf(':')+1)..].Trim();
+            var shortcut=MacroShortcutFromSource(macro.Source);
+            if(string.IsNullOrWhiteSpace(shortcut))continue;
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
                 try{await RunMacroSourceAsync(macro.Name,macro.Source);Status.Text="Macro: "+macro.Name;}
@@ -4232,33 +4462,64 @@ INSERT_FIELD date
         return string.Join("+",parts);
     }
 
+    void UpdateKeyboardMenuState()
+    {
+        if(WordProfile==null)return;
+        WordProfile.IsChecked=profile==KeyboardProfile.Word;
+        WPProfile.IsChecked=profile==KeyboardProfile.WordPerfect51;
+        WSProfile.IsChecked=profile==KeyboardProfile.WordStar40;
+
+        foreach(var item in new[]{NewMenu,OpenMenu,SaveMenu,SaveAsMenu,PrintMenu,ExitMenu,UndoMenu,RedoMenu,CutMenu,CopyMenu,PasteMenu,FindReplaceMenu,PageBreakMenu,BoldMenu,ItalicMenu,UnderlineMenu,CentreMenu,ReformatMenu,AboutMenu})
+            item.InputGestureText="";
+
+        if(profile==KeyboardProfile.Word)
+        {
+            NewMenu.InputGestureText="Ctrl+N";OpenMenu.InputGestureText="Ctrl+O";SaveMenu.InputGestureText="Ctrl+S";SaveAsMenu.InputGestureText="Ctrl+Shift+S";
+            PrintMenu.InputGestureText="Ctrl+P";UndoMenu.InputGestureText="Ctrl+Z";RedoMenu.InputGestureText="Ctrl+Y";
+            CutMenu.InputGestureText="Ctrl+X";CopyMenu.InputGestureText="Ctrl+C";PasteMenu.InputGestureText="Ctrl+V";
+            FindReplaceMenu.InputGestureText="Ctrl+H";PageBreakMenu.InputGestureText="Ctrl+Enter";
+            BoldMenu.InputGestureText="Ctrl+B";ItalicMenu.InputGestureText="Ctrl+I";UnderlineMenu.InputGestureText="Ctrl+U";
+            ReformatMenu.InputGestureText="F9";
+        }
+        else if(profile==KeyboardProfile.WordPerfect51)
+        {
+            PrintMenu.InputGestureText="Shift+F7";ExitMenu.InputGestureText="F7";CentreMenu.InputGestureText="Shift+F6";AboutMenu.InputGestureText="F3";
+        }
+        else
+        {
+            SaveMenu.InputGestureText="Ctrl+K, S";ExitMenu.InputGestureText="Ctrl+K, X";
+        }
+    }
+
     void Keyboard_Click(object s,RoutedEventArgs e)
     {
-        WordProfile.IsChecked=WPProfile.IsChecked=WSProfile.IsChecked=false;
         if(s==WPProfile)
         {
             profile=KeyboardProfile.WordPerfect51;
-            WPProfile.IsChecked=true;
             Status.Text="Keyboard: WordPerfect 5.1 (initial DOS subset)";
         }
         else if(s==WSProfile)
         {
             profile=KeyboardProfile.WordStar40;
-            WSProfile.IsChecked=true;
             Status.Text="Keyboard: WordStar 4.0 (initial subset)";
         }
         else
         {
             profile=KeyboardProfile.Word;
-            WordProfile.IsChecked=true;
             Status.Text="Keyboard: Microsoft Word";
         }
         wordStarPrefix=false;
+        UpdateKeyboardMenuState();
+        SaveAppSettings();
     }
 
     async void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
         if(await TryRunMacroShortcutAsync(e)){e.Handled=true;return;}
+        if(profile==KeyboardProfile.Word && Keyboard.Modifiers==ModifierKeys.None && e.Key==Key.F9)
+        {
+            ReformatDocument_Click(this,new RoutedEventArgs());e.Handled=true;return;
+        }
         if(profile==KeyboardProfile.Word && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift) && e.Key==Key.S)
         {
             SaveAs_Click(this,new RoutedEventArgs());e.Handled=true;return;
@@ -4348,6 +4609,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.27.0 beta 27").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.28.0 beta 28").ShowDialog();
     }
 }
