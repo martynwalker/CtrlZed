@@ -88,4 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 26.1 adds Ask AI to Modify for the selected macro, reusing its current source and language and loading the AI revision into the editor for review without saving automatically."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 27 adds Ask AI to Modify for selected macros, profile-aware keyboard shortcut help, non-printing persistent comments, reusable image signatures, named style sets with toolbar switching, and includes style sets in portable .czprofile export/import. Automatic signature vector tracing remains in Coming Soon."
