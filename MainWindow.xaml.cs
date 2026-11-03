@@ -110,6 +110,7 @@ public partial class MainWindow : Window
         ReloadPersistentFields();
         LoadAppSettings();
         RefreshStyleSetBox();
+        UpdateKeyboardMenuState();
         ApplySavedWindowPlacement();
         EnsureDocumentPropertyDefaults();
         RefreshRecentFilesMenu();
@@ -1283,6 +1284,7 @@ public partial class MainWindow : Window
         public double WindowHeight { get; set; } = 760;
         public string SignatureImagePath { get; set; } = "";
         public string ActiveStyleSet { get; set; } = "Default";
+        public string KeyboardProfile { get; set; } = "Word";
     }
 
     void LoadAppSettings()
@@ -1303,6 +1305,12 @@ public partial class MainWindow : Window
             savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
             signatureImagePath=settings.SignatureImagePath??"";
             activeStyleSet=styleSets.ContainsKey(settings.ActiveStyleSet??"")?settings.ActiveStyleSet:"Default";
+            profile=settings.KeyboardProfile switch
+            {
+                "WordPerfect51"=>KeyboardProfile.WordPerfect51,
+                "WordStar40"=>KeyboardProfile.WordStar40,
+                _=>KeyboardProfile.Word
+            };
             ApplyZoom();
         }
         catch { }
@@ -1323,7 +1331,8 @@ public partial class MainWindow : Window
                 WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
                 WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight,
                 SignatureImagePath=signatureImagePath,
-                ActiveStyleSet=activeStyleSet
+                ActiveStyleSet=activeStyleSet,
+                KeyboardProfile=profile.ToString()
             }));
         }
         catch { }
@@ -2803,36 +2812,42 @@ public partial class MainWindow : Window
         if(item.Content is string style)ApplyParagraphStyle(style);
     }
 
-    void ApplyParagraphStyle(string style)
+    void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec)
     {
-        if(Editor==null)return;
-        if(!styleSets.TryGetValue(activeStyleSet,out var set))
-        {
-            set=StyleSetStore.Defaults()["Default"];
-            activeStyleSet="Default";
-        }
-        if(!set.Styles.TryGetValue(style,out var spec))
-        {
-            if(!StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec))return;
-        }
-
-        var selection=Editor.Selection;
-        selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
-        selection.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
-        selection.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
-        selection.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
-        selection.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
-        selection.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
-        selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
+        range.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
+        range.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
+        range.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
+        range.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
+        range.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
+        range.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
+        range.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
         {
             "center" or "centre"=>TextAlignment.Center,
             "right"=>TextAlignment.Right,
             "justify"=>TextAlignment.Justify,
             _=>TextAlignment.Left
         });
-        selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
+        range.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
             spec.MarginLeft,spec.MarginTop,spec.MarginRight,spec.MarginBottom));
+    }
 
+    StyleSetStore.TextStyle? ResolveStyle(string style)
+    {
+        if(!styleSets.TryGetValue(activeStyleSet,out var set))
+        {
+            set=StyleSetStore.Defaults()["Default"];
+            activeStyleSet="Default";
+        }
+        if(set.Styles.TryGetValue(style,out var spec))return spec;
+        return StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec)?spec:null;
+    }
+
+    void ApplyParagraphStyle(string style)
+    {
+        if(Editor==null)return;
+        var spec=ResolveStyle(style);
+        if(spec==null)return;
+        ApplyStyleToRange(Editor.Selection,spec);
         MarkDirty($"Style: {style} ({activeStyleSet})");
         Editor.Focus();
     }
@@ -2841,6 +2856,52 @@ public partial class MainWindow : Window
     {
         try{return (Brush)new BrushConverter().ConvertFromString(value)!;}
         catch{return Brushes.Black;}
+    }
+
+    string? PickColour(Window owner,string initial)
+    {
+        var start=Colors.Black;
+        try
+        {
+            if(ColorConverter.ConvertFromString(initial) is Color parsed)start=parsed;
+        }
+        catch { }
+
+        var w=new Window
+        {
+            Title="Choose Colour",Owner=owner,Width=420,Height=310,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new Grid{Margin=new Thickness(16)};
+        for(int i=0;i<6;i++)root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(70)});
+        root.ColumnDefinitions.Add(new ColumnDefinition());
+
+        Slider MakeSlider(byte value)=>new(){Minimum=0,Maximum=255,Value=value,TickFrequency=1,IsSnapToTickEnabled=true,Margin=new Thickness(0,4,0,8)};
+        var red=MakeSlider(start.R);var green=MakeSlider(start.G);var blue=MakeSlider(start.B);
+        var preview=new Border{Height=46,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(0,5,0,8)};
+        var hex=new TextBox{IsReadOnly=true,Margin=new Thickness(0,4,0,8)};
+        AddRow(root,0,"Red",red);AddRow(root,1,"Green",green);AddRow(root,2,"Blue",blue);AddRow(root,3,"Hex",hex);
+        Grid.SetRow(preview,4);Grid.SetColumnSpan(preview,2);root.Children.Add(preview);
+
+        string CurrentHex()=>"#"+((byte)red.Value).ToString("X2")+((byte)green.Value).ToString("X2")+((byte)blue.Value).ToString("X2");
+        void Refresh()
+        {
+            var value=CurrentHex();
+            hex.Text=value;
+            preview.Background=BrushFromHex(value);
+        }
+        red.ValueChanged+=(_,__)=>Refresh();green.ValueChanged+=(_,__)=>Refresh();blue.ValueChanged+=(_,__)=>Refresh();
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var ok=new Button{Content="OK",Width=80,Margin=new Thickness(4),IsDefault=true};
+        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
+        buttons.Children.Add(ok);buttons.Children.Add(cancel);
+        Grid.SetRow(buttons,5);Grid.SetColumnSpan(buttons,2);root.Children.Add(buttons);
+        ok.Click+=(_,__)=>w.DialogResult=true;
+        Refresh();w.Content=root;
+        return w.ShowDialog()==true?CurrentHex():null;
     }
 
     void RefreshStyleSetBox()
@@ -2873,8 +2934,12 @@ public partial class MainWindow : Window
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
 
         var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
-        var list=new ListBox{ItemsSource=styles,Margin=new Thickness(0,0,12,0)};
-        Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
+        var selectorPanel=new StackPanel{Margin=new Thickness(0,0,12,0)};
+        selectorPanel.Children.Add(new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
+        var stylePicker=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,0,0,8)};
+        selectorPanel.Children.Add(stylePicker);
+        selectorPanel.Children.Add(new TextBlock{Text="Choose the paragraph style here, then edit its settings on the right.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray});
+        Grid.SetColumn(selectorPanel,0);Grid.SetRow(selectorPanel,0);root.Children.Add(selectorPanel);
 
         var form=new Grid();
         for(int i=0;i<11;i++)form.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
@@ -2884,7 +2949,11 @@ public partial class MainWindow : Window
         var setName=new TextBox{Text=activeStyleSet,Margin=new Thickness(0,3,0,8)};
         var font=new ComboBox{ItemsSource=Fonts.SystemFontFamilies.OrderBy(x=>x.Source).ToList(),DisplayMemberPath="Source",Margin=new Thickness(0,3,0,8)};
         var size=new TextBox{Margin=new Thickness(0,3,0,8)};
-        var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true,Margin=new Thickness(0,3,0,8)};
+        var colourPanel=new DockPanel{Margin=new Thickness(0,3,0,8)};
+        var pickColour=new Button{Content="Pick…",Width=70,Margin=new Thickness(6,0,0,0)};
+        DockPanel.SetDock(pickColour,Dock.Right);colourPanel.Children.Add(pickColour);
+        var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true};
+        colourPanel.Children.Add(colour);
         var bold=new CheckBox{Content="Bold",Margin=new Thickness(0,3,0,5)};
         var italic=new CheckBox{Content="Italic",Margin=new Thickness(0,3,0,5)};
         var underline=new CheckBox{Content="Underline",Margin=new Thickness(0,3,0,5)};
@@ -2894,7 +2963,7 @@ public partial class MainWindow : Window
         AddRow(form,0,"Style set",setName);
         AddRow(form,1,"Font",font);
         AddRow(form,2,"Size (pt)",size);
-        AddRow(form,3,"Colour",colour);
+        AddRow(form,3,"Colour",colourPanel);
         AddRow(form,4,"Bold",bold);
         AddRow(form,5,"Italic",italic);
         AddRow(form,6,"Underline",underline);
@@ -2961,10 +3030,15 @@ public partial class MainWindow : Window
             };
         }
 
-        list.SelectionChanged+=(_,__)=>
+        stylePicker.SelectionChanged+=(_,__)=>
         {
             try{SaveCurrentStyle();}catch{}
-            if(list.SelectedItem is string style)LoadStyle(style);
+            if(stylePicker.SelectedItem is string style)LoadStyle(style);
+        };
+        pickColour.Click+=(_,__)=>
+        {
+            var picked=PickColour(w,colour.Text);
+            if(!string.IsNullOrWhiteSpace(picked))colour.Text=picked;
         };
 
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
@@ -3011,7 +3085,47 @@ public partial class MainWindow : Window
         };
         close.Click+=(_,__)=>w.Close();
 
-        list.SelectedIndex=0;
+        stylePicker.SelectedIndex=0;
+        w.Content=root;w.ShowDialog();
+    }
+
+    void ReformatDocument_Click(object s,RoutedEventArgs e)
+    {
+        var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
+        var w=new Window
+        {
+            Title="Reformat Document",Owner=this,Width=440,Height=235,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new StackPanel{Margin=new Thickness(16)};
+        root.Children.Add(new TextBlock
+        {
+            Text=$"Apply one style from the active style set \"{activeStyleSet}\" to the whole document.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
+        });
+        var picker=new ComboBox{ItemsSource=styles,SelectedItem="Normal",Margin=new Thickness(0,0,0,10)};
+        root.Children.Add(picker);
+        root.Children.Add(new TextBlock
+        {
+            Text="This changes paragraph formatting throughout the document. Undo remains available immediately afterwards.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,10)
+        });
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var apply=new Button{Content="Reformat",Width=90,Margin=new Thickness(4),IsDefault=true};
+        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
+        buttons.Children.Add(apply);buttons.Children.Add(cancel);root.Children.Add(buttons);
+        apply.Click+=(_,__)=>
+        {
+            if(picker.SelectedItem is not string style)return;
+            var spec=ResolveStyle(style);
+            if(spec==null)return;
+            foreach(var paragraph in EnumerateDocumentParagraphs())
+                ApplyStyleToRange(new TextRange(paragraph.ContentStart,paragraph.ContentEnd),spec);
+            MarkDirty($"Document reformatted: {style} ({activeStyleSet})");
+            w.DialogResult=true;
+            Editor.Focus();
+        };
         w.Content=root;w.ShowDialog();
     }
 
@@ -3069,7 +3183,8 @@ public partial class MainWindow : Window
                 "Ctrl+Y — Redo",
                 "Ctrl+X — Cut",
                 "Ctrl+C — Copy",
-                "Ctrl+V — Paste"
+                "Ctrl+V — Paste",
+                "F9 — Reformat Document"
             }
         };
 
@@ -4232,33 +4347,64 @@ INSERT_FIELD date
         return string.Join("+",parts);
     }
 
+    void UpdateKeyboardMenuState()
+    {
+        if(WordProfile==null)return;
+        WordProfile.IsChecked=profile==KeyboardProfile.Word;
+        WPProfile.IsChecked=profile==KeyboardProfile.WordPerfect51;
+        WSProfile.IsChecked=profile==KeyboardProfile.WordStar40;
+
+        foreach(var item in new[]{NewMenu,OpenMenu,SaveMenu,SaveAsMenu,PrintMenu,ExitMenu,UndoMenu,RedoMenu,CutMenu,CopyMenu,PasteMenu,FindReplaceMenu,PageBreakMenu,BoldMenu,ItalicMenu,UnderlineMenu,CentreMenu,ReformatMenu,AboutMenu})
+            item.InputGestureText="";
+
+        if(profile==KeyboardProfile.Word)
+        {
+            NewMenu.InputGestureText="Ctrl+N";OpenMenu.InputGestureText="Ctrl+O";SaveMenu.InputGestureText="Ctrl+S";SaveAsMenu.InputGestureText="Ctrl+Shift+S";
+            PrintMenu.InputGestureText="Ctrl+P";UndoMenu.InputGestureText="Ctrl+Z";RedoMenu.InputGestureText="Ctrl+Y";
+            CutMenu.InputGestureText="Ctrl+X";CopyMenu.InputGestureText="Ctrl+C";PasteMenu.InputGestureText="Ctrl+V";
+            FindReplaceMenu.InputGestureText="Ctrl+H";PageBreakMenu.InputGestureText="Ctrl+Enter";
+            BoldMenu.InputGestureText="Ctrl+B";ItalicMenu.InputGestureText="Ctrl+I";UnderlineMenu.InputGestureText="Ctrl+U";
+            ReformatMenu.InputGestureText="F9";
+        }
+        else if(profile==KeyboardProfile.WordPerfect51)
+        {
+            PrintMenu.InputGestureText="Shift+F7";ExitMenu.InputGestureText="F7";CentreMenu.InputGestureText="Shift+F6";AboutMenu.InputGestureText="F3";
+        }
+        else
+        {
+            SaveMenu.InputGestureText="Ctrl+K, S";ExitMenu.InputGestureText="Ctrl+K, X";
+        }
+    }
+
     void Keyboard_Click(object s,RoutedEventArgs e)
     {
-        WordProfile.IsChecked=WPProfile.IsChecked=WSProfile.IsChecked=false;
         if(s==WPProfile)
         {
             profile=KeyboardProfile.WordPerfect51;
-            WPProfile.IsChecked=true;
             Status.Text="Keyboard: WordPerfect 5.1 (initial DOS subset)";
         }
         else if(s==WSProfile)
         {
             profile=KeyboardProfile.WordStar40;
-            WSProfile.IsChecked=true;
             Status.Text="Keyboard: WordStar 4.0 (initial subset)";
         }
         else
         {
             profile=KeyboardProfile.Word;
-            WordProfile.IsChecked=true;
             Status.Text="Keyboard: Microsoft Word";
         }
         wordStarPrefix=false;
+        UpdateKeyboardMenuState();
+        SaveAppSettings();
     }
 
     async void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
         if(await TryRunMacroShortcutAsync(e)){e.Handled=true;return;}
+        if(profile==KeyboardProfile.Word && Keyboard.Modifiers==ModifierKeys.None && e.Key==Key.F9)
+        {
+            ReformatDocument_Click(this,new RoutedEventArgs());e.Handled=true;return;
+        }
         if(profile==KeyboardProfile.Word && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift) && e.Key==Key.S)
         {
             SaveAs_Click(this,new RoutedEventArgs());e.Handled=true;return;
