@@ -88,4 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 26 adds portable .czprofile export/import for user fields, central macros and non-secret preferences, plus an AvalonEdit-powered Macro Manager editor with line numbers and C#/VB syntax highlighting while preserving existing macro keyboard controls."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 26.1 adds Ask AI to Modify for the selected macro, reusing its current source and language and loading the AI revision into the editor for review without saving automatically."
