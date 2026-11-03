@@ -2812,7 +2812,7 @@ public partial class MainWindow : Window
         selection.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
         selection.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
         selection.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
-        selection.ApplyPropertyValue(TextElement.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
+        selection.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
         selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
         {
             "center" or "centre"=>TextAlignment.Center,
