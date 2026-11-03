@@ -275,7 +275,11 @@ public partial class MainWindow : Window
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
             if(ext==".czd")SaveCzd(currentFile);
-            else if(ext==".docx")DocxInterop.Save(currentFile,Editor.Document,headerText,footerText,pageWidth,pageHeight,pageMargins,documentTitle,documentAuthor,documentSubject,documentKeywords);
+            else if(ext==".docx")
+            {
+                var exportClone=CloneDocument();
+                DocxInterop.Save(currentFile,exportClone,headerText,footerText,pageWidth,pageHeight,pageMargins,documentTitle,documentAuthor,documentSubject,documentKeywords);
+            }
             else if(ext==".txt")File.WriteAllText(currentFile,new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text);
             else SaveRtf(currentFile);
 
@@ -504,7 +508,8 @@ public partial class MainWindow : Window
     void SaveRtf(string path)
     {
         var tmp=path+".tmp";
-        using(var fs=File.Create(tmp))new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(fs,DataFormats.Rtf);
+        var exportClone=CloneDocument();
+        using(var fs=File.Create(tmp))new TextRange(exportClone.ContentStart,exportClone.ContentEnd).Save(fs,DataFormats.Rtf);
         ReplaceFile(tmp,path);
     }
 
