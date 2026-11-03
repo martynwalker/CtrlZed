@@ -2656,7 +2656,7 @@ public partial class MainWindow : Window
         w.ShowDialog();
     }
 
-    static void AddRow(Grid g,int row,string label,Control control)
+    static void AddRow(Grid g,int row,string label,FrameworkElement control)
     {
         var t=new TextBlock{Text=label,VerticalAlignment=VerticalAlignment.Center};
         Grid.SetRow(t,row);Grid.SetColumn(t,0);
