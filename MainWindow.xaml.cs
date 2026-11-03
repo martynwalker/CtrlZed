@@ -2830,6 +2830,272 @@ public partial class MainWindow : Window
         Status.Text="Style set: "+name;
     }
 
+    void Styles_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="CtrlZed Styles",Owner=this,Width=760,Height=560,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new Grid{Margin=new Thickness(14)};
+        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(180)});
+        root.ColumnDefinitions.Add(new ColumnDefinition());
+        root.RowDefinitions.Add(new RowDefinition());
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+
+        var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
+        var list=new ListBox{ItemsSource=styles,Margin=new Thickness(0,0,12,0)};
+        Grid.SetColumn(list,0);Grid.SetRow(list,0);root.Children.Add(list);
+
+        var form=new Grid();
+        for(int i=0;i<11;i++)form.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        form.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(120)});
+        form.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var setName=new TextBox{Text=activeStyleSet,Margin=new Thickness(0,3,0,8)};
+        var font=new ComboBox{ItemsSource=Fonts.SystemFontFamilies.OrderBy(x=>x.Source).ToList(),DisplayMemberPath="Source",Margin=new Thickness(0,3,0,8)};
+        var size=new TextBox{Margin=new Thickness(0,3,0,8)};
+        var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true,Margin=new Thickness(0,3,0,8)};
+        var bold=new CheckBox{Content="Bold",Margin=new Thickness(0,3,0,5)};
+        var italic=new CheckBox{Content="Italic",Margin=new Thickness(0,3,0,5)};
+        var underline=new CheckBox{Content="Underline",Margin=new Thickness(0,3,0,5)};
+        var alignment=new ComboBox{ItemsSource=new[]{"Left","Centre","Right","Justify"},Margin=new Thickness(0,3,0,8)};
+        var margins=new TextBox{Margin=new Thickness(0,3,0,8),ToolTip="Left,Top,Right,Bottom"};
+
+        AddRow(form,0,"Style set",setName);
+        AddRow(form,1,"Font",font);
+        AddRow(form,2,"Size (pt)",size);
+        AddRow(form,3,"Colour",colour);
+        AddRow(form,4,"Bold",bold);
+        AddRow(form,5,"Italic",italic);
+        AddRow(form,6,"Underline",underline);
+        AddRow(form,7,"Alignment",alignment);
+        AddRow(form,8,"Margins",margins);
+
+        var info=new TextBlock
+        {
+            Text="Select one of the six paragraph styles, edit its appearance, then save the set under a name. The active set is selectable from the toolbar.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,8,0,8)
+        };
+        Grid.SetRow(info,9);Grid.SetColumnSpan(info,2);form.Children.Add(info);
+        Grid.SetColumn(form,1);Grid.SetRow(form,0);root.Children.Add(form);
+
+        StyleSetStore.StyleSet working;
+        if(styleSets.TryGetValue(activeStyleSet,out var current))
+        {
+            working=new StyleSetStore.StyleSet
+            {
+                Name=current.Name,
+                Styles=current.Styles.ToDictionary(
+                    x=>x.Key,
+                    x=>new StyleSetStore.TextStyle
+                    {
+                        FontFamily=x.Value.FontFamily,SizePt=x.Value.SizePt,Colour=x.Value.Colour,
+                        Bold=x.Value.Bold,Italic=x.Value.Italic,Underline=x.Value.Underline,
+                        Alignment=x.Value.Alignment,MarginLeft=x.Value.MarginLeft,MarginTop=x.Value.MarginTop,
+                        MarginRight=x.Value.MarginRight,MarginBottom=x.Value.MarginBottom
+                    },
+                    StringComparer.OrdinalIgnoreCase)
+            };
+        }
+        else working=StyleSetStore.Defaults()["Default"];
+
+        string? selectedStyle=null;
+
+        void LoadStyle(string style)
+        {
+            if(!working.Styles.TryGetValue(style,out var spec))return;
+            selectedStyle=style;
+            font.SelectedItem=Fonts.SystemFontFamilies.FirstOrDefault(f=>string.Equals(f.Source,spec.FontFamily,StringComparison.OrdinalIgnoreCase));
+            size.Text=spec.SizePt.ToString("0.##");
+            colour.Text=spec.Colour;
+            bold.IsChecked=spec.Bold;italic.IsChecked=spec.Italic;underline.IsChecked=spec.Underline;
+            alignment.SelectedItem=spec.Alignment=="Center"?"Centre":spec.Alignment;
+            margins.Text=$"{spec.MarginLeft:0.##},{spec.MarginTop:0.##},{spec.MarginRight:0.##},{spec.MarginBottom:0.##}";
+        }
+
+        void SaveCurrentStyle()
+        {
+            if(selectedStyle==null)return;
+            if(!double.TryParse(size.Text,out var pt) || pt<=0)throw new InvalidOperationException("Enter a valid font size.");
+            var parts=margins.Text.Split(',');
+            if(parts.Length!=4 || !parts.All(p=>double.TryParse(p.Trim(),out _)))
+                throw new InvalidOperationException("Margins must be four numbers: Left,Top,Right,Bottom.");
+            var vals=parts.Select(p=>double.Parse(p.Trim())).ToArray();
+            working.Styles[selectedStyle]=new StyleSetStore.TextStyle
+            {
+                FontFamily=(font.SelectedItem as FontFamily)?.Source??font.Text,
+                SizePt=pt,Colour=string.IsNullOrWhiteSpace(colour.Text)?"#000000":colour.Text.Trim(),
+                Bold=bold.IsChecked==true,Italic=italic.IsChecked==true,Underline=underline.IsChecked==true,
+                Alignment=alignment.SelectedItem?.ToString()??"Left",
+                MarginLeft=vals[0],MarginTop=vals[1],MarginRight=vals[2],MarginBottom=vals[3]
+            };
+        }
+
+        list.SelectionChanged+=(_,__)=>
+        {
+            try{SaveCurrentStyle();}catch{}
+            if(list.SelectedItem is string style)LoadStyle(style);
+        };
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        var saveSet=new Button{Content="Save Set",Width=90,Margin=new Thickness(4)};
+        var deleteSet=new Button{Content="Delete Set",Width=90,Margin=new Thickness(4)};
+        var close=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
+        buttons.Children.Add(deleteSet);buttons.Children.Add(saveSet);buttons.Children.Add(close);
+        Grid.SetColumn(buttons,0);Grid.SetColumnSpan(buttons,2);Grid.SetRow(buttons,1);root.Children.Add(buttons);
+
+        saveSet.Click+=(_,__)=>
+        {
+            try
+            {
+                SaveCurrentStyle();
+                var name=setName.Text.Trim();
+                if(string.IsNullOrWhiteSpace(name))throw new InvalidOperationException("Enter a style-set name.");
+                working.Name=name;
+                styleSets[name]=working;
+                activeStyleSet=name;
+                StyleSetStore.Save(styleSets);
+                RefreshStyleSetBox();
+                SaveAppSettings();
+                Status.Text="Style set saved: "+name;
+            }
+            catch(Exception ex){MessageBox.Show(ex.Message,"Save style set",MessageBoxButton.OK,MessageBoxImage.Warning);}
+        };
+
+        deleteSet.Click+=(_,__)=>
+        {
+            var name=setName.Text.Trim();
+            if(string.Equals(name,"Default",StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("The Default style set cannot be deleted.","Styles",MessageBoxButton.OK,MessageBoxImage.Information);
+                return;
+            }
+            if(styleSets.Remove(name))
+            {
+                activeStyleSet="Default";
+                StyleSetStore.Save(styleSets);
+                RefreshStyleSetBox();
+                SaveAppSettings();
+                w.Close();
+            }
+        };
+        close.Click+=(_,__)=>w.Close();
+
+        list.SelectedIndex=0;
+        w.Content=root;w.ShowDialog();
+    }
+
+    void KeyboardShortcuts_Click(object s,RoutedEventArgs e)
+    {
+        var w=new Window
+        {
+            Title="CtrlZed Keyboard Shortcuts",Owner=this,Width=650,Height=520,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new DockPanel{Margin=new Thickness(14)};
+        var profileName=profile switch
+        {
+            KeyboardProfile.WordPerfect51=>"WordPerfect 5.1",
+            KeyboardProfile.WordStar40=>"WordStar 4.0",
+            _=>"Microsoft Word"
+        };
+        var heading=new TextBlock{Text="Selected profile: "+profileName,FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)};
+        DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
+        var search=new TextBox{Margin=new Thickness(0,0,0,8),ToolTip="Filter shortcuts"};
+        DockPanel.SetDock(search,Dock.Top);root.Children.Add(search);
+        var list=new ListBox();root.Children.Add(list);
+
+        var items=profile switch
+        {
+            KeyboardProfile.WordPerfect51=>new[]
+            {
+                "F3 — About CtrlZed",
+                "F7 — Exit",
+                "Shift+F7 — Print",
+                "Shift+F6 — Centre paragraph"
+            },
+            KeyboardProfile.WordStar40=>new[]
+            {
+                "Ctrl+K, S — Save",
+                "Ctrl+K, X — Save and Exit",
+                "Ctrl+E — Move up one line",
+                "Ctrl+X — Move down one line",
+                "Ctrl+S — Move left one character",
+                "Ctrl+D — Move right one character"
+            },
+            _=>new[]
+            {
+                "Ctrl+N — New document",
+                "Ctrl+O — Open",
+                "Ctrl+S — Save",
+                "Ctrl+Shift+S — Save As",
+                "Ctrl+H — Find / Replace",
+                "Ctrl+Enter — Page Break",
+                "Ctrl+B — Bold",
+                "Ctrl+I — Italic",
+                "Ctrl+U — Underline",
+                "Ctrl+Z — Undo",
+                "Ctrl+Y — Redo",
+                "Ctrl+X — Cut",
+                "Ctrl+C — Copy",
+                "Ctrl+V — Paste"
+            }
+        };
+
+        void Refresh()
+        {
+            var q=search.Text.Trim();
+            list.ItemsSource=items.Where(x=>q.Length==0||x.Contains(q,StringComparison.CurrentCultureIgnoreCase)).ToList();
+        }
+        search.TextChanged+=(_,__)=>Refresh();
+        Refresh();
+        w.Content=root;w.ShowDialog();
+    }
+
+    void ConfigureSignature(Window owner)
+    {
+        var d=new OpenFileDialog{Title="Choose signature image",Filter="Signature images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp"};
+        if(d.ShowDialog(owner)!=true)return;
+        try
+        {
+            var root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
+            Directory.CreateDirectory(root);
+            var ext=Path.GetExtension(d.FileName).ToLowerInvariant();
+            var target=Path.Combine(root,"signature"+ext);
+            File.Copy(d.FileName,target,true);
+            signatureImagePath=target;
+            SaveAppSettings();
+            Status.Text="Signature image configured.";
+        }
+        catch(Exception ex){MessageBox.Show(ex.Message,"Signature setup failed",MessageBoxButton.OK,MessageBoxImage.Error);}
+    }
+
+    void Signature_Click(object s,RoutedEventArgs e)
+    {
+        if(string.IsNullOrWhiteSpace(signatureImagePath)||!File.Exists(signatureImagePath))
+        {
+            var choice=MessageBox.Show("No signature is configured. Configure one now?","Insert Signature",MessageBoxButton.YesNo,MessageBoxImage.Question);
+            if(choice!=MessageBoxResult.Yes)return;
+            ConfigureSignature(this);
+            if(string.IsNullOrWhiteSpace(signatureImagePath)||!File.Exists(signatureImagePath))return;
+        }
+        try
+        {
+            var b=new BitmapImage();
+            b.BeginInit();b.CacheOption=BitmapCacheOption.OnLoad;b.UriSource=new Uri(signatureImagePath);b.EndInit();
+            var img=new Image{Source=b,Width=180,Stretch=Stretch.Uniform,Margin=new Thickness(4)};
+            var ui=new InlineUIContainer(img,Editor.CaretPosition);
+            WirePictureContainer(ui,img);
+            Editor.CaretPosition=ui.ElementEnd;
+            MarkDirty("Signature inserted.");
+            Editor.Focus();
+        }
+        catch(Exception ex){MessageBox.Show(ex.Message,"Insert signature failed",MessageBoxButton.OK,MessageBoxImage.Error);}
+    }
+
     void AiManager_Click(object s,RoutedEventArgs e)
     {
         var selected=new TextRange(Editor.Selection.Start,Editor.Selection.End).Text;
