@@ -48,6 +48,9 @@ public partial class MainWindow : Window
     bool fieldValuesVisible;
     bool keepParagraphTogether=true;
     string lastMacroLanguage=".vb";
+    readonly Dictionary<string,StyleSetStore.StyleSet> styleSets=StyleSetStore.Load();
+    string activeStyleSet="Default";
+    string signatureImagePath="";
     double savedWindowLeft=double.NaN,savedWindowTop=double.NaN,savedWindowWidth=1100,savedWindowHeight=760;
 
     sealed class CzdSettings
@@ -67,6 +70,14 @@ public partial class MainWindow : Window
         public string Subject { get; set; } = "";
         public string Keywords { get; set; } = "";
         public string Version { get; set; } = "1.0";
+        public List<DocumentCommentData> Comments { get; set; } = new();
+    }
+
+    sealed class DocumentCommentData
+    {
+        public string Id { get; set; }=Guid.NewGuid().ToString("N");
+        public int Offset { get; set; }
+        public string Text { get; set; }="";
     }
 
     sealed class HeadingItem
@@ -1153,6 +1164,8 @@ public partial class MainWindow : Window
         public double WindowTop { get; set; } = double.NaN;
         public double WindowWidth { get; set; } = 1100;
         public double WindowHeight { get; set; } = 760;
+        public string SignatureImagePath { get; set; } = "";
+        public string ActiveStyleSet { get; set; } = "Default";
     }
 
     void LoadAppSettings()
@@ -1171,6 +1184,8 @@ public partial class MainWindow : Window
             keepParagraphTogether=settings.KeepParagraphTogether;
             savedWindowLeft=settings.WindowLeft;savedWindowTop=settings.WindowTop;
             savedWindowWidth=settings.WindowWidth;savedWindowHeight=settings.WindowHeight;
+            signatureImagePath=settings.SignatureImagePath??"";
+            activeStyleSet=styleSets.ContainsKey(settings.ActiveStyleSet??"")?settings.ActiveStyleSet:"Default";
             ApplyZoom();
         }
         catch { }
@@ -1189,7 +1204,9 @@ public partial class MainWindow : Window
                 LastMacroLanguage=lastMacroLanguage,
                 KeepParagraphTogether=keepParagraphTogether,
                 WindowLeft=savedWindowLeft,WindowTop=savedWindowTop,
-                WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight
+                WindowWidth=savedWindowWidth,WindowHeight=savedWindowHeight,
+                SignatureImagePath=signatureImagePath,
+                ActiveStyleSet=activeStyleSet
             }));
         }
         catch { }
