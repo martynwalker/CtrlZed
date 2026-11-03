@@ -3091,11 +3091,11 @@ public partial class MainWindow : Window
 
     string InferParagraphStyle(Paragraph paragraph,StyleSetStore.StyleSet sourceSet)
     {
-        var pointer=paragraph.ContentStart.GetInsertionPosition(LogicalDirection.Forward)??paragraph.ContentStart;
-        var family=pointer.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
-        var sizeValue=pointer.GetPropertyValue(TextElement.FontSizeProperty);
-        var weightValue=pointer.GetPropertyValue(TextElement.FontWeightProperty);
-        var styleValue=pointer.GetPropertyValue(TextElement.FontStyleProperty);
+        var probe=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
+        var family=probe.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
+        var sizeValue=probe.GetPropertyValue(TextElement.FontSizeProperty);
+        var weightValue=probe.GetPropertyValue(TextElement.FontWeightProperty);
+        var styleValue=probe.GetPropertyValue(TextElement.FontStyleProperty);
         var alignment=paragraph.TextAlignment;
         var margin=paragraph.Margin;
 
