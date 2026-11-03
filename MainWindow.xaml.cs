@@ -3089,40 +3089,100 @@ public partial class MainWindow : Window
         w.Content=root;w.ShowDialog();
     }
 
+    string InferParagraphStyle(Paragraph paragraph,StyleSetStore.StyleSet sourceSet)
+    {
+        var pointer=paragraph.ContentStart.GetInsertionPosition(LogicalDirection.Forward)??paragraph.ContentStart;
+        var family=pointer.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
+        var sizeValue=pointer.GetPropertyValue(TextElement.FontSizeProperty);
+        var weightValue=pointer.GetPropertyValue(TextElement.FontWeightProperty);
+        var styleValue=pointer.GetPropertyValue(TextElement.FontStyleProperty);
+        var alignment=paragraph.TextAlignment;
+        var margin=paragraph.Margin;
+
+        var fontName=family?.Source??"";
+        var size=sizeValue is double d?d*72/96:0;
+        var bold=weightValue is FontWeight fw && fw>=FontWeights.SemiBold;
+        var italic=styleValue is FontStyle fs && fs==FontStyles.Italic;
+
+        foreach(var name in new[]{"Heading 1","Heading 2","Heading 3","Quote","Caption","Normal"})
+        {
+            if(!sourceSet.Styles.TryGetValue(name,out var spec))continue;
+            if(!string.Equals(fontName,spec.FontFamily,StringComparison.OrdinalIgnoreCase))continue;
+            if(Math.Abs(size-spec.SizePt)>0.15)continue;
+            if(bold!=spec.Bold || italic!=spec.Italic)continue;
+
+            var wantedAlignment=spec.Alignment.ToLowerInvariant() switch
+            {
+                "center" or "centre"=>TextAlignment.Center,
+                "right"=>TextAlignment.Right,
+                "justify"=>TextAlignment.Justify,
+                _=>TextAlignment.Left
+            };
+            if(alignment!=wantedAlignment)continue;
+            if(Math.Abs(margin.Left-spec.MarginLeft)>0.5 ||
+               Math.Abs(margin.Top-spec.MarginTop)>0.5 ||
+               Math.Abs(margin.Right-spec.MarginRight)>0.5 ||
+               Math.Abs(margin.Bottom-spec.MarginBottom)>0.5)continue;
+            return name;
+        }
+        return "Normal";
+    }
+
     void ReformatDocument_Click(object s,RoutedEventArgs e)
     {
-        var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
+        var availableSets=styleSets.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+        if(availableSets.Count==0)return;
+
         var w=new Window
         {
-            Title="Reformat Document",Owner=this,Width=440,Height=235,
+            Title="Reformat Document",Owner=this,Width=460,Height=235,
             WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
             Icon=Branding.CreateIconImageSource()
         };
         var root=new StackPanel{Margin=new Thickness(16)};
         root.Children.Add(new TextBlock
         {
-            Text=$"Apply one style from the active style set \"{activeStyleSet}\" to the whole document.",
+            Text="Choose the style set to apply to this document.",
             TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
         });
-        var picker=new ComboBox{ItemsSource=styles,SelectedItem="Normal",Margin=new Thickness(0,0,0,10)};
+        var picker=new ComboBox
+        {
+            ItemsSource=availableSets,
+            SelectedItem=availableSets.Contains(activeStyleSet)?activeStyleSet:availableSets[0],
+            Margin=new Thickness(0,0,0,10)
+        };
         root.Children.Add(picker);
         root.Children.Add(new TextBlock
         {
-            Text="This changes paragraph formatting throughout the document. Undo remains available immediately afterwards.",
+            Text="Headings remain headings, quotes remain quotes, captions remain captions, and normal paragraphs remain normal; each is reformatted using the corresponding definition in the selected style set.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,10)
         });
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
         var apply=new Button{Content="Reformat",Width=90,Margin=new Thickness(4),IsDefault=true};
         var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
         buttons.Children.Add(apply);buttons.Children.Add(cancel);root.Children.Add(buttons);
+
         apply.Click+=(_,__)=>
         {
-            if(picker.SelectedItem is not string style)return;
-            var spec=ResolveStyle(style);
-            if(spec==null)return;
-            foreach(var paragraph in EnumerateDocumentParagraphs())
-                ApplyStyleToRange(new TextRange(paragraph.ContentStart,paragraph.ContentEnd),spec);
-            MarkDirty($"Document reformatted: {style} ({activeStyleSet})");
+            if(picker.SelectedItem is not string targetName || !styleSets.TryGetValue(targetName,out var targetSet))return;
+            if(!styleSets.TryGetValue(activeStyleSet,out var sourceSet))
+                sourceSet=StyleSetStore.Defaults()["Default"];
+
+            var paragraphs=EnumerateDocumentParagraphs().ToList();
+            var mappings=paragraphs.Select(p=>(Paragraph:p,Style:InferParagraphStyle(p,sourceSet))).ToList();
+
+            foreach(var item in mappings)
+            {
+                if(!targetSet.Styles.TryGetValue(item.Style,out var spec) &&
+                   !StyleSetStore.Defaults()["Default"].Styles.TryGetValue(item.Style,out spec))
+                    continue;
+                ApplyStyleToRange(new TextRange(item.Paragraph.ContentStart,item.Paragraph.ContentEnd),spec);
+            }
+
+            activeStyleSet=targetName;
+            RefreshStyleSetBox();
+            SaveAppSettings();
+            MarkDirty($"Document reformatted with style set: {targetName}");
             w.DialogResult=true;
             Editor.Focus();
         };
