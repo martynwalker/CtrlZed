@@ -109,6 +109,7 @@ public partial class MainWindow : Window
         settingsFile = Path.Combine(recoveryDir,"settings.json");
         ReloadPersistentFields();
         LoadAppSettings();
+        RefreshStyleSetBox();
         ApplySavedWindowPlacement();
         EnsureDocumentPropertyDefaults();
         RefreshRecentFilesMenu();
@@ -479,7 +480,8 @@ public partial class MainWindow : Window
         try
         {
             var tmp=recoveryFile+".tmp";
-            using(var fs=File.Create(tmp))new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(fs,DataFormats.Rtf);
+            var recoveryClone=CloneDocument();
+            using(var fs=File.Create(tmp))new TextRange(recoveryClone.ContentStart,recoveryClone.ContentEnd).Save(fs,DataFormats.Rtf);
             File.Move(tmp,recoveryFile,true);
 
             var settingsTmp=recoverySettingsFile+".tmp";
@@ -513,7 +515,8 @@ public partial class MainWindow : Window
         using(var zip=ZipFile.Open(tmp,ZipArchiveMode.Create))
         {
             var doc=zip.CreateEntry("document.rtf");
-            using(var s=doc.Open())new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(s,DataFormats.Rtf);
+            var documentClone=CloneDocument();
+            using(var s=doc.Open())new TextRange(documentClone.ContentStart,documentClone.ContentEnd).Save(s,DataFormats.Rtf);
             var settings=zip.CreateEntry("settings.json");
             var data=CaptureDocumentSettings();
             using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
