@@ -29,6 +29,7 @@ public static class UserProfileService
     {
         public int FieldsImported { get; set; }
         public int MacrosImported { get; set; }
+        public int StyleSetsImported { get; set; }
         public PortablePreferences? Preferences { get; set; }
     }
 
@@ -38,6 +39,7 @@ public static class UserProfileService
         string destination,
         IReadOnlyDictionary<string,string> userFields,
         PortablePreferences preferences,
+        IReadOnlyDictionary<string,StyleSetStore.StyleSet> styleSets,
         string macroDirectory)
     {
         var temp=destination+".tmp";
@@ -49,6 +51,7 @@ public static class UserProfileService
                 userFields.OrderBy(x=>x.Key,StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(x=>x.Key,x=>x.Value,StringComparer.OrdinalIgnoreCase));
             WriteJson(zip,"preferences.json",preferences);
+            WriteJson(zip,"style-sets.json",styleSets);
 
             if(Directory.Exists(macroDirectory))
             {
@@ -69,6 +72,7 @@ public static class UserProfileService
         string source,
         bool replace,
         IDictionary<string,string> userFields,
+        IDictionary<string,StyleSetStore.StyleSet> styleSets,
         string macroDirectory)
     {
         using var zip=ZipFile.OpenRead(source);
@@ -85,6 +89,13 @@ public static class UserProfileService
         foreach(var pair in importedFields)
             if(replace || !userFields.ContainsKey(pair.Key))
                 userFields[pair.Key]=pair.Value??"";
+
+        var importedStyles=ReadJson<Dictionary<string,StyleSetStore.StyleSet>>(zip,"style-sets.json")
+                           ??new Dictionary<string,StyleSetStore.StyleSet>(StringComparer.OrdinalIgnoreCase);
+        if(replace)styleSets.Clear();
+        foreach(var pair in importedStyles)
+            if(replace || !styleSets.ContainsKey(pair.Key))
+                styleSets[pair.Key]=pair.Value;
 
         Directory.CreateDirectory(macroDirectory);
         if(replace)
@@ -109,6 +120,7 @@ public static class UserProfileService
         {
             FieldsImported=importedFields.Count,
             MacrosImported=macroCount,
+            StyleSetsImported=importedStyles.Count,
             Preferences=ReadJson<PortablePreferences>(zip,"preferences.json")
         };
     }
