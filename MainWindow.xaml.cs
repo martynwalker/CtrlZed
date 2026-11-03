@@ -94,6 +94,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Icon=Branding.CreateIconImageSource();
+        RefreshStyleSetBox();
         FontBox.ItemsSource = Fonts.SystemFontFamilies.OrderBy(f => f.Source);
         FontBox.SelectedItem = Fonts.SystemFontFamilies.FirstOrDefault(f => f.Source == "Calibri") ?? Fonts.SystemFontFamilies.First();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
@@ -336,7 +337,8 @@ public partial class MainWindow : Window
             Header=headerText,Footer=footerText,
             CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
             EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
-            Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion
+            Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion,
+            Comments=CaptureComments()
         };
 
     void ApplyRecoveredSettings(CzdSettings v)
@@ -368,6 +370,105 @@ public partial class MainWindow : Window
         ApplyPage();
         RefreshHeaderFooter();
         RefreshMacroMenus();
+        RestoreComments(v.Comments);
+
+    }
+
+    const string CommentTagPrefix="CtrlZedComment:";
+
+    InlineUIContainer CreateCommentContainer(DocumentCommentData data,TextPointer position)
+    {
+        var box=new TextBox
+        {
+            Text=data.Text,
+            AcceptsReturn=true,
+            TextWrapping=TextWrapping.Wrap,
+            MinWidth=180,MaxWidth=280,
+            MinHeight=54,
+            Background=new SolidColorBrush(Color.FromRgb(255,248,168)),
+            BorderThickness=new Thickness(0),
+            Padding=new Thickness(6)
+        };
+        box.TextChanged+=(_,__)=>
+        {
+            if(!suppressDirty)MarkDirty("Comment updated.");
+        };
+        var border=new Border
+        {
+            Child=box,
+            Background=new SolidColorBrush(Color.FromRgb(255,244,128)),
+            BorderBrush=new SolidColorBrush(Color.FromRgb(210,190,70)),
+            BorderThickness=new Thickness(1),
+            CornerRadius=new CornerRadius(3),
+            Margin=new Thickness(4),
+            Padding=new Thickness(2),
+            Tag=CommentTagPrefix+data.Id
+        };
+        var ui=new InlineUIContainer(border,position);
+        return ui;
+    }
+
+    IEnumerable<(InlineUIContainer Container,Border Border,TextBox Box,string Id)> EnumerateComments()
+    {
+        foreach(var paragraph in EnumerateDocumentParagraphs())
+        {
+            foreach(var inline in paragraph.Inlines)
+            {
+                if(inline is not InlineUIContainer ui || ui.Child is not Border border || border.Tag is not string tag || !tag.StartsWith(CommentTagPrefix,StringComparison.Ordinal))continue;
+                if(border.Child is not TextBox box)continue;
+                yield return (ui,border,box,tag[CommentTagPrefix.Length..]);
+            }
+        }
+    }
+
+    List<DocumentCommentData> CaptureComments()
+    {
+        var result=new List<DocumentCommentData>();
+        foreach(var item in EnumerateComments())
+        {
+            try
+            {
+                result.Add(new DocumentCommentData
+                {
+                    Id=item.Id,
+                    Offset=Editor.Document.ContentStart.GetOffsetToPosition(item.Container.ContentStart),
+                    Text=item.Box.Text
+                });
+            }
+            catch{}
+        }
+        return result;
+    }
+
+    void RestoreComments(IEnumerable<DocumentCommentData>? comments)
+    {
+        if(comments==null)return;
+        foreach(var data in comments)
+        {
+            try
+            {
+                var pos=Editor.Document.ContentStart.GetPositionAtOffset(Math.Max(0,data.Offset),LogicalDirection.Forward)
+                        ??Editor.Document.ContentEnd;
+                CreateCommentContainer(data,pos);
+            }
+            catch{}
+        }
+    }
+
+    void SetCommentsVisibility(Visibility visibility)
+    {
+        foreach(var item in EnumerateComments())item.Border.Visibility=visibility;
+    }
+
+    void Comment_Click(object s,RoutedEventArgs e)
+    {
+        var input=ShowMacroInput("Insert Comment","Comment text:");
+        if(input==null)return;
+        var data=new DocumentCommentData{Text=input};
+        CreateCommentContainer(data,Editor.Selection.End);
+        Editor.CaretPosition=Editor.Selection.End;
+        MarkDirty("Comment inserted.");
+        Editor.Focus();
     }
 
     void WriteRecoverySnapshot()
@@ -575,13 +676,21 @@ public partial class MainWindow : Window
 
     FlowDocument CloneDocument()
     {
-        using var stream=new MemoryStream();
-        var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
-        source.Save(stream,DataFormats.Rtf);
-        stream.Position=0;
-        var clone=new FlowDocument();
-        new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
-        return clone;
+        SetCommentsVisibility(Visibility.Collapsed);
+        try
+        {
+            using var stream=new MemoryStream();
+            var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
+            source.Save(stream,DataFormats.Rtf);
+            stream.Position=0;
+            var clone=new FlowDocument();
+            new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
+            return clone;
+        }
+        finally
+        {
+            SetCommentsVisibility(Visibility.Visible);
+        }
     }
 
     string ExpandFields(string text,int page,int pages)
