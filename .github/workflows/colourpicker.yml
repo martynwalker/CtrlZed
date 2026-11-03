@@ -11,6 +11,31 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      - name: Generate Windows icon from embedded swirl artwork
+        shell: pwsh
+        run: |
+          $src = Get-Content 'tools/ColourPicker/ColourPicker.cpp' -Raw
+          $m = [regex]::Match($src, 'SWIRL_PNG_B64\s*=\s*"([^"]+)"')
+          if (-not $m.Success) { throw 'Embedded swirl artwork not found' }
+          $png = [Convert]::FromBase64String($m.Groups[1].Value)
+          $ms = New-Object System.IO.MemoryStream
+          $bw = New-Object System.IO.BinaryWriter($ms)
+          $bw.Write([UInt16]0)
+          $bw.Write([UInt16]1)
+          $bw.Write([UInt16]1)
+          $bw.Write([Byte]0)
+          $bw.Write([Byte]0)
+          $bw.Write([Byte]0)
+          $bw.Write([Byte]0)
+          $bw.Write([UInt16]1)
+          $bw.Write([UInt16]32)
+          $bw.Write([UInt32]$png.Length)
+          $bw.Write([UInt32]22)
+          $bw.Write($png)
+          $bw.Flush()
+          [IO.File]::WriteAllBytes('tools/ColourPicker/ColourPicker.ico', $ms.ToArray())
+          $bw.Dispose()
+          $ms.Dispose()
       - name: Build application icon resource
         shell: cmd
         working-directory: tools\ColourPicker
