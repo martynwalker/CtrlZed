@@ -1415,7 +1415,7 @@ public partial class MainWindow : Window
         if(d.ShowDialog(owner)!=true)return;
         try
         {
-            UserProfileService.Export(d.FileName,userFields,CapturePortablePreferences(),MacroDirectory());
+            UserProfileService.Export(d.FileName,userFields,CapturePortablePreferences(),styleSets,MacroDirectory());
             Status.Text="CtrlZed profile exported.";
             MessageBox.Show(
                 "Profile exported. User fields, central macros and portable preferences are included. Secret values are intentionally excluded.",
@@ -1446,13 +1446,15 @@ public partial class MainWindow : Window
 
         try
         {
-            var result=UserProfileService.Import(d.FileName,replace,userFields,MacroDirectory());
+            var result=UserProfileService.Import(d.FileName,replace,userFields,styleSets,MacroDirectory());
             PersistentFieldStore.SaveUser(userFields);
+            StyleSetStore.Save(styleSets);
+            RefreshStyleSetBox();
             ApplyPortablePreferences(result.Preferences);
             RefreshMacroMenus();
             Status.Text="CtrlZed profile imported.";
             MessageBox.Show(
-                $"Profile imported.\n\nUser fields: {result.FieldsImported}\nMacros imported: {result.MacrosImported}\nMode: {(replace?"Replace":"Merge")}\n\nSecrets were not imported.",
+                $"Profile imported.\n\nUser fields: {result.FieldsImported}\nMacros imported: {result.MacrosImported}\nStyle sets: {result.StyleSetsImported}\nMode: {(replace?"Replace":"Merge")}\n\nSecrets were not imported.",
                 "Profile imported",MessageBoxButton.OK,MessageBoxImage.Information);
         }
         catch(Exception ex)
