@@ -2856,10 +2856,11 @@ public partial class MainWindow : Window
 
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
+        var modifyAi=new Button{Content="Ask AI to Modify…",Width=125,Margin=new Thickness(4),IsEnabled=false};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
         var saveExit=new Button{Content="Save & Exit",Width=105,Margin=new Thickness(4)};
         var exit=new Button{Content="Exit",Width=75,Margin=new Thickness(4)};
-        actionBar.Children.Add(run);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
+        actionBar.Children.Add(run);actionBar.Children.Add(modifyAi);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
         var code=new ICSharpCode.AvalonEdit.TextEditor
@@ -3055,6 +3056,7 @@ public partial class MainWindow : Window
             extract.IsEnabled=selectedEmbedded && selected!=null;
             rename.IsEnabled=!selectedEmbedded && selected!=null;
             delete.IsEnabled=selected!=null;
+            modifyAi.IsEnabled=selected!=null;
         };
 
         string StarterFor(string ext)=>ext switch
@@ -3224,7 +3226,7 @@ INSERT_FIELD date
                 selected=null;
                 code.Text="";
                 refresh();RefreshMacroMenus();
-                run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+                run.IsEnabled=false;modifyAi.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
             }
             catch(Exception ex)
             {
@@ -3233,6 +3235,31 @@ INSERT_FIELD date
         };
 
         secrets.Click+=(_,__)=>ShowMacroSecretsManager(w);
+
+        modifyAi.Click+=(_,__)=>
+        {
+            if(selected==null)return;
+            var ext=Path.GetExtension(selected).ToLowerInvariant();
+            var reference=ext==".czm"
+                ?(extendedMacrosEnabled?SafeMacroLanguage.ExtendedReference:SafeMacroLanguage.Reference)
+                :"";
+            var instruction="Describe the changes you want to make to this selected macro. Preserve its existing purpose and metadata unless your requested change requires otherwise.";
+            AiManager.ShowForMacro(w,ext,reference,code.Text,(result,targetExt)=>
+            {
+                if(!string.Equals(targetExt,ext,StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show(
+                        "The AI response changed macro language. Select the original target language to apply the revision here.",
+                        "Modify macro",MessageBoxButton.OK,MessageBoxImage.Warning);
+                    return;
+                }
+                code.Text=result;
+                ApplyMacroSyntaxHighlighting();
+                code.CaretOffset=0;
+                code.Focus();
+                Status.Text="AI revision loaded in Macro Manager — review and save when ready.";
+            },instruction);
+        };
 
         ai.Click+=(_,__)=>
         {
