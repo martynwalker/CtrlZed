@@ -1457,7 +1457,7 @@ public partial class MainWindow : Window
     {
         var w=new Window
         {
-            Title="CtrlZed Settings",Owner=this,Width=600,Height=470,
+            Title="CtrlZed Settings",Owner=this,Width=620,Height=600,
             WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
             Icon=Branding.CreateIconImageSource()
         };
@@ -1484,6 +1484,23 @@ public partial class MainWindow : Window
             Text="Natural-language font discovery, licensed downloads/install and experimental generated fonts are planned under Coming Soon.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
         });
+        panel.Children.Add(new Separator());
+        panel.Children.Add(new TextBlock{Text="Signature",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
+        var signatureButton=new Button
+        {
+            Content=string.IsNullOrWhiteSpace(signatureImagePath)?"Configure Signature…":"Replace Signature…",
+            Width=130,HorizontalAlignment=HorizontalAlignment.Left
+        };
+        signatureButton.Click+=(_,__)=>ConfigureSignature(w);
+        panel.Children.Add(signatureButton);
+        panel.Children.Add(new TextBlock
+        {
+            Text=string.IsNullOrWhiteSpace(signatureImagePath)
+                ?"No signature image configured."
+                :"Configured: "+signatureImagePath,
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
+        });
+
         panel.Children.Add(new Separator());
         panel.Children.Add(new TextBlock{Text="Portable workspace",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
         var profileButtons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Left};
@@ -1536,6 +1553,7 @@ public partial class MainWindow : Window
             "Font download and Windows installation workflow with licence information before installation.",
             "Requests such as ‘Space: 1999-like’, ‘a big bad font’ or ‘Arial Bold’.",
             "Experimental AI-generated fonts, including decorative capital alphabets such as animal-shaped letters.",
+            "Automatic bitmap-to-vector signature tracing and SVG-native signature handling.",
             "Further DOCX fidelity, comments/track changes and more advanced publishing layout."
         };
         foreach(var item in items)
