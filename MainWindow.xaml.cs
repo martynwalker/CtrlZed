@@ -3399,10 +3399,11 @@ public partial class MainWindow : Window
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
         var modifyAi=new Button{Content="Ask AI to Modify…",Width=125,Margin=new Thickness(4),IsEnabled=false};
+        var shortcutButton=new Button{Content="Shortcut…",Width=90,Margin=new Thickness(4),IsEnabled=false};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
         var saveExit=new Button{Content="Save & Exit",Width=105,Margin=new Thickness(4)};
         var exit=new Button{Content="Exit",Width=75,Margin=new Thickness(4)};
-        actionBar.Children.Add(run);actionBar.Children.Add(modifyAi);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
+        actionBar.Children.Add(run);actionBar.Children.Add(modifyAi);actionBar.Children.Add(shortcutButton);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
         var code=new ICSharpCode.AvalonEdit.TextEditor
@@ -3599,6 +3600,7 @@ public partial class MainWindow : Window
             rename.IsEnabled=!selectedEmbedded && selected!=null;
             delete.IsEnabled=selected!=null;
             modifyAi.IsEnabled=selected!=null;
+            shortcutButton.IsEnabled=selected!=null;
         };
 
         string StarterFor(string ext)=>ext switch
@@ -3667,6 +3669,17 @@ INSERT_FIELD date
             Status.Text="Macro source saved.";
             RefreshMacroMenus();
         }
+
+        shortcutButton.Click+=(_,__)=>
+        {
+            if(selected==null)return;
+            var current=MacroShortcutFromSource(code.Text)??"";
+            var chosen=CaptureMacroShortcut(w,current,selected);
+            if(chosen==null)return;
+            code.Text=SetMacroShortcutInSource(code.Text,Path.GetExtension(selected),chosen);
+            SaveSelectedMacro();
+            Status.Text=string.IsNullOrWhiteSpace(chosen)?"Macro shortcut cleared.":$"Macro shortcut assigned: {chosen}";
+        };
 
         save.Click+=(_,__)=>SaveSelectedMacro();
         saveExit.Click+=(_,__)=>
@@ -3768,7 +3781,7 @@ INSERT_FIELD date
                 selected=null;
                 code.Text="";
                 refresh();RefreshMacroMenus();
-                run.IsEnabled=false;modifyAi.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+                run.IsEnabled=false;modifyAi.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
             }
             catch(Exception ex)
             {
@@ -3824,7 +3837,7 @@ INSERT_FIELD date
             });
         };
 
-        refresh();run.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+        refresh();run.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
     }
 
@@ -4312,6 +4325,110 @@ INSERT_FIELD date
         MarkDirty($"Inserted {rows} × {cols} table.");
     }
 
+    static string? MacroShortcutFromSource(string source)
+    {
+        foreach(var line in source.Replace("\r\n","\n").Split('\n'))
+        {
+            var trimmed=line.TrimStart();
+            foreach(var prefix in new[]{"# SHORTCUT:","' SHORTCUT:","// SHORTCUT:"})
+                if(trimmed.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))
+                    return trimmed[prefix.Length..].Trim();
+        }
+        return null;
+    }
+
+    static string SetMacroShortcutInSource(string source,string extension,string shortcut)
+    {
+        var lines=source.Replace("\r\n","\n").Split('\n').ToList();
+        lines.RemoveAll(line=>
+        {
+            var trimmed=line.TrimStart();
+            return trimmed.StartsWith("# SHORTCUT:",StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.StartsWith("' SHORTCUT:",StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.StartsWith("// SHORTCUT:",StringComparison.OrdinalIgnoreCase);
+        });
+
+        if(!string.IsNullOrWhiteSpace(shortcut))
+        {
+            var prefix=extension.ToLowerInvariant() switch
+            {
+                ".vb"=>"' SHORTCUT: ",
+                ".cs"=>"// SHORTCUT: ",
+                _=>"# SHORTCUT: "
+            };
+            lines.Insert(0,prefix+shortcut.Trim());
+        }
+        return string.Join(Environment.NewLine,lines);
+    }
+
+    bool IsReservedShortcut(string shortcut)
+    {
+        var reserved=profile switch
+        {
+            KeyboardProfile.WordPerfect51=>new[]{"F3","F7","Shift+F7","Shift+F6"},
+            KeyboardProfile.WordStar40=>new[]{"Ctrl+K","Ctrl+E","Ctrl+X","Ctrl+S","Ctrl+D"},
+            _=>new[]{"Ctrl+N","Ctrl+O","Ctrl+S","Ctrl+Shift+S","Ctrl+P","Ctrl+H","Ctrl+Enter","Ctrl+B","Ctrl+I","Ctrl+U","Ctrl+Z","Ctrl+Y","Ctrl+X","Ctrl+C","Ctrl+V","F9"}
+        };
+        return reserved.Contains(shortcut,StringComparer.OrdinalIgnoreCase);
+    }
+
+    string? CaptureMacroShortcut(Window owner,string current,string? selectedMacro)
+    {
+        string? chosen=null;
+        var w=new Window
+        {
+            Title="Assign Macro Shortcut",Owner=owner,Width=480,Height=245,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new StackPanel{Margin=new Thickness(16)};
+        root.Children.Add(new TextBlock
+        {
+            Text="Press the key combination you want to assign. CtrlZed will reject shortcuts reserved by the selected keyboard profile.",
+            TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
+        });
+        var display=new TextBox{Text=current,IsReadOnly=true,FontSize=18,Margin=new Thickness(0,0,0,8)};
+        var status=new TextBlock{Foreground=Brushes.DimGray,TextWrapping=TextWrapping.Wrap,MinHeight=38,Margin=new Thickness(0,0,0,8)};
+        root.Children.Add(display);root.Children.Add(status);
+
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var assign=new Button{Content="Assign",Width=80,Margin=new Thickness(4),IsEnabled=!string.IsNullOrWhiteSpace(current),IsDefault=true};
+        var clear=new Button{Content="Clear",Width=80,Margin=new Thickness(4)};
+        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
+        buttons.Children.Add(clear);buttons.Children.Add(assign);buttons.Children.Add(cancel);root.Children.Add(buttons);
+
+        w.PreviewKeyDown+=(_,e)=>
+        {
+            if(e.Key is Key.Escape or Key.Enter)return;
+            var value=BuildShortcutString(e);
+            if(string.IsNullOrWhiteSpace(value))
+            {
+                status.Text="Use at least one of Ctrl, Alt or Shift with another key.";
+                return;
+            }
+            if(IsReservedShortcut(value))
+            {
+                display.Text=value;assign.IsEnabled=false;
+                status.Text="That combination is reserved by the selected keyboard profile.";
+                e.Handled=true;return;
+            }
+            var conflict=GetMacroSources().FirstOrDefault(m=>
+                !string.Equals(m.Name,selectedMacro,StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(MacroShortcutFromSource(m.Source),value,StringComparison.OrdinalIgnoreCase));
+            if(!string.IsNullOrWhiteSpace(conflict.Name))
+            {
+                display.Text=value;assign.IsEnabled=false;
+                status.Text=$"Already assigned to {conflict.Name}.";
+                e.Handled=true;return;
+            }
+            display.Text=value;status.Text="Available.";assign.IsEnabled=true;e.Handled=true;
+        };
+        assign.Click+=(_,__)=>{chosen=display.Text.Trim();w.DialogResult=true;};
+        clear.Click+=(_,__)=>{chosen="";w.DialogResult=true;};
+        w.Content=root;
+        return w.ShowDialog()==true?chosen:null;
+    }
+
     async Task<bool> TryRunMacroShortcutAsync(KeyEventArgs e)
     {
         if(e.IsRepeat)return false;
@@ -4320,10 +4437,8 @@ INSERT_FIELD date
 
         foreach(var macro in GetMacroSources())
         {
-            var configured=macro.Source.Replace("\r\n","\n").Split('\n')
-                .FirstOrDefault(x=>x.TrimStart().StartsWith("# SHORTCUT:",StringComparison.OrdinalIgnoreCase));
-            if(configured==null)continue;
-            var shortcut=configured[(configured.IndexOf(':')+1)..].Trim();
+            var shortcut=MacroShortcutFromSource(macro.Source);
+            if(string.IsNullOrWhiteSpace(shortcut))continue;
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
                 try{await RunMacroSourceAsync(macro.Name,macro.Source);Status.Text="Macro: "+macro.Name;}
