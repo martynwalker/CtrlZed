@@ -2778,49 +2778,56 @@ public partial class MainWindow : Window
     void ApplyParagraphStyle(string style)
     {
         if(Editor==null)return;
-        var selection=Editor.Selection;
-        selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily("Calibri"));
-        selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Normal);
-        selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Normal);
-        selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.Black);
-        selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,TextAlignment.Left);
-        selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,0,0,8));
-
-        switch(style)
+        if(!styleSets.TryGetValue(activeStyleSet,out var set))
         {
-            case "Heading 1":
-                selection.ApplyPropertyValue(TextElement.FontSizeProperty,24d);
-                selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
-                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,16,0,8));
-                break;
-            case "Heading 2":
-                selection.ApplyPropertyValue(TextElement.FontSizeProperty,20d);
-                selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
-                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,12,0,6));
-                break;
-            case "Heading 3":
-                selection.ApplyPropertyValue(TextElement.FontSizeProperty,17d);
-                selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.SemiBold);
-                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(0,10,0,5));
-                break;
-            case "Quote":
-                selection.ApplyPropertyValue(TextElement.FontSizeProperty,16d);
-                selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
-                selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(36,8,36,8));
-                selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DimGray);
-                break;
-            case "Caption":
-                selection.ApplyPropertyValue(TextElement.FontSizeProperty,13.333d);
-                selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
-                selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,TextAlignment.Center);
-                selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DimGray);
-                break;
-            default:
-                selection.ApplyPropertyValue(TextElement.FontSizeProperty,16d);
-                break;
+            set=StyleSetStore.Defaults()["Default"];
+            activeStyleSet="Default";
         }
-        MarkDirty($"Style: {style}");
+        if(!set.Styles.TryGetValue(style,out var spec))
+        {
+            if(!StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec))return;
+        }
+
+        var selection=Editor.Selection;
+        selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
+        selection.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
+        selection.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
+        selection.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
+        selection.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
+        selection.ApplyPropertyValue(TextElement.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
+        selection.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
+        {
+            "center" or "centre"=>TextAlignment.Center,
+            "right"=>TextAlignment.Right,
+            "justify"=>TextAlignment.Justify,
+            _=>TextAlignment.Left
+        });
+        selection.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
+            spec.MarginLeft,spec.MarginTop,spec.MarginRight,spec.MarginBottom));
+
+        MarkDirty($"Style: {style} ({activeStyleSet})");
         Editor.Focus();
+    }
+
+    static Brush BrushFromHex(string value)
+    {
+        try{return (Brush)new BrushConverter().ConvertFromString(value)!;}
+        catch{return Brushes.Black;}
+    }
+
+    void RefreshStyleSetBox()
+    {
+        if(StyleSetBox==null)return;
+        StyleSetBox.ItemsSource=styleSets.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
+        StyleSetBox.SelectedItem=styleSets.ContainsKey(activeStyleSet)?activeStyleSet:"Default";
+    }
+
+    void StyleSetBox_SelectionChanged(object s,SelectionChangedEventArgs e)
+    {
+        if(!IsLoaded || StyleSetBox.SelectedItem is not string name || !styleSets.ContainsKey(name))return;
+        activeStyleSet=name;
+        SaveAppSettings();
+        Status.Text="Style set: "+name;
     }
 
     void AiManager_Click(object s,RoutedEventArgs e)
