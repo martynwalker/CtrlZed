@@ -89,3 +89,5 @@ jobs:
           }
           $display = $version -replace '-beta\.', ' beta '
           gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 28 builds directly on Beta 27 and adds a dropdown style selector, RGB/hex colour picker, whole-document reformatting (F9 in the Microsoft Word profile), remembered keyboard profiles with profile-aware menu shortcut labels, and user-assignable macro shortcuts with reserved-key and duplicate-assignment checks for Safe, VB.NET and C# macros."
+
+# Beta 28 corrected rebuild
