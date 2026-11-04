@@ -15,6 +15,8 @@ public static class UserProfileService
         public bool CompiledMacrosEnabled { get; set; }
         public string LastMacroLanguage { get; set; }=".vb";
         public bool KeepParagraphTogether { get; set; }=true;
+        public string KeyboardProfile { get; set; }="Word";
+        public string ActiveStyleSet { get; set; }="Default";
     }
 
     public sealed class Manifest
