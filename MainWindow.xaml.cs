@@ -4681,6 +4681,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.28.0 beta 28").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.29.0 beta 29").ShowDialog();
     }
 }
