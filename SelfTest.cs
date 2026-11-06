@@ -1,5 +1,6 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using ICSharpCode.AvalonEdit.Highlighting;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -19,6 +20,18 @@ public static class SelfTest
         try
         {
             if(Branding.CreateIconImageSource()==null)return 26;
+            if(HighlightingManager.Instance.GetDefinition("VBNET")==null)return 35;
+
+            if(!ContextualSpellingEngine.TryFindCompletedSentence("This is complete. ",17,out var simpleSentence) ||
+               simpleSentence.Text!="This is complete.")return 36;
+            if(!ContextualSpellingEngine.TryFindCompletedSentence("Dr. Smith arrived. ",19,out var abbreviationSentence) ||
+               abbreviationSentence.Text!="Dr. Smith arrived.")return 37;
+            if(ContextualSpellingEngine.TryFindCompletedSentence("I spoke to Dr. ",15,out _))return 38;
+            if(!ContextualSpellingEngine.TryFindCompletedSentence("Version 3.2 is stable. ",23,out var decimalSentence) ||
+               decimalSentence.Text!="Version 3.2 is stable.")return 39;
+            if(ContextualSpellingEngine.ChooseHighConfidenceCorrection("adress",new[]{"address","across"})!="address")return 40;
+            if(ContextualSpellingEngine.ChooseHighConfidenceCorrection("Adress",new[]{"Address"})!=null)return 41;
+
             var chart=AiResultRenderer.TryRenderChart("TITLE: Test movements\nFTSE 100|1.2\nDAX|-0.8\nNikkei 225|2.1");
             if(chart==null||chart.PixelWidth<400)return 27;
             var prompt=AiResultRenderer.MacroPrompt("Insert today's date",".czm",SafeMacroLanguage.Reference,"");
