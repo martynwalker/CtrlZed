@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 34.1 corrects the Beta 34 user-test findings while retaining its richer DOCX and keyboard work. Page Preview now uses a light bone-grey surround. About uses one authoritative version handler. Contextual spelling starts sooner and exposes AI activity. WordPerfect and WordStar profiles are substantially expanded. AI Macro Assistant shows visible Direct-generation progress. Macro Manager remembers its window size and position, fixes the Compile & Run caption and adds case-insensitive Ctrl+F. Generated AI macros use a visible AI_API_KEY constant. AI paragraph review displays a green activity indicator and opens the review pane when suggestions arrive. DOCX interchange now preserves Word highlighting and paragraph shading and can read through a shared snapshot while another application permits concurrent access."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 34.2 is a focused correction to the otherwise accepted Beta 34.1 build. Selecting text and deliberately choosing the style already displayed in the toolbar, including Normal, now reapplies that style to the preserved selection. The Macro Manager compiled-macro button now displays Compile & Run with a single ampersand. All Beta 34.1 accessibility, AI progress, keyboard-profile, DOCX fidelity and macro improvements are retained."
 
-# Beta 34.1 release build
+# Beta 34.2 release build
