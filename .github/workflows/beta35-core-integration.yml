@@ -23,32 +23,15 @@ jobs:
           if (-not [regex]::IsMatch($text,$statsPattern)) { throw "Synchronous document-statistics pagination block was not found." }
           $text = [regex]::Replace($text,$statsPattern,'        var pages=GetBeta35PageCountForStats();',1)
 
-          $captureOld = @'
-            ActiveStyleSet=activeStyleSet
-        };
-'@
-          $captureNew = @'
-            ActiveStyleSet=activeStyleSet,
-            EditorViewMode=CurrentEditorViewMode.ToString()
-        };
-'@
-          if (-not $text.Contains($captureOld)) { throw "Portable preference capture block was not found." }
-          $text = $text.Replace($captureOld,$captureNew)
+          $capturePattern = '(?ms)            ActiveStyleSet=activeStyleSet\s*\};'
+          if (-not [regex]::IsMatch($text,$capturePattern)) { throw "Portable preference capture block was not found." }
+          $captureReplacement = "            ActiveStyleSet=activeStyleSet,`r`n            EditorViewMode=CurrentEditorViewMode.ToString()`r`n        };"
+          $text = [regex]::Replace($text,$capturePattern,$captureReplacement,1)
 
-          $applyOld = @'
-        UpdateKeyboardMenuState();
-        RefreshStyleSetBox();
-        ApplyZoom();
-'@
-          $applyNew = @'
-        UpdateKeyboardMenuState();
-        RefreshStyleSetBox();
-        if(Enum.TryParse<EditorViewMode>(p.EditorViewMode,true,out var importedViewMode))
-            ApplyBeta35ViewMode(importedViewMode,true);
-        ApplyZoom();
-'@
-          if (-not $text.Contains($applyOld)) { throw "Portable preference apply block was not found." }
-          $text = $text.Replace($applyOld,$applyNew)
+          $applyPattern = '(?ms)        UpdateKeyboardMenuState\(\);\s*        RefreshStyleSetBox\(\);\s*        ApplyZoom\(\);'
+          if (-not [regex]::IsMatch($text,$applyPattern)) { throw "Portable preference apply block was not found." }
+          $applyReplacement = "        UpdateKeyboardMenuState();`r`n        RefreshStyleSetBox();`r`n        if(Enum.TryParse<EditorViewMode>(p.EditorViewMode,true,out var importedViewMode))`r`n            ApplyBeta35ViewMode(importedViewMode,true);`r`n        ApplyZoom();"
+          $text = [regex]::Replace($text,$applyPattern,$applyReplacement,1)
           [System.IO.File]::WriteAllText($main,$text,[System.Text.UTF8Encoding]::new($false))
 
           $profile = "UserProfileService.cs"
