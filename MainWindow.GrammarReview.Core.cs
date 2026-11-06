@@ -285,7 +285,7 @@ public partial class MainWindow
         if(string.IsNullOrWhiteSpace(text))return;
         grammarAiCancellation?.Cancel();
         grammarAiCancellation=new CancellationTokenSource();
-        Status.Text="AI is reviewing the current paragraph for suggestions…";
+        BeginActivity("AI is reviewing the current paragraph…");
 
         try
         {
@@ -314,6 +314,11 @@ public partial class MainWindow
             Status.Text=findings.Count==0
                 ?"AI found no sufficiently useful contextual grammar suggestions for this paragraph."
                 :$"AI added {findings.Count} contextual suggestion{(findings.Count==1?"":"s")}.";
+            if(findings.Count>0)
+            {
+                ShowGrammarReviewWindow();
+                grammarReviewWindow?.Activate();
+            }
         }
         catch(OperationCanceledException){ }
         catch(Exception ex)
@@ -321,5 +326,6 @@ public partial class MainWindow
             MessageBox.Show(ex.Message,"AI grammar review",MessageBoxButton.OK,MessageBoxImage.Error);
             Status.Text="AI grammar review failed.";
         }
+        finally{EndActivity();}
     }
 }

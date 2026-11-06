@@ -179,7 +179,53 @@ public static class AiManager
             }
 
             generate.IsEnabled=false;
+            free.IsEnabled=false;
+            signed.IsEnabled=false;
+            paste.IsEnabled=false;
+            saveDefault.IsEnabled=false;
+            insert.IsEnabled=false;
+            replace.IsEnabled=false;
+            copy.IsEnabled=false;
             heading.Text=(macroMode?"AI Macro Assistant":"AI Writing & Research Assistant")+" — working…";
+            SetMessage(macroMode?"Generating your macro…":"Generating your document result…");
+
+            var progressText=macroMode?"Generating your macro…":"Generating your document result…";
+            var progressWindow=new Window
+            {
+                Title="CtrlZed AI — working",
+                Owner=w,
+                Width=430,
+                Height=155,
+                ResizeMode=ResizeMode.NoResize,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,
+                ShowInTaskbar=false,
+                Icon=Branding.CreateIconImageSource()
+            };
+            var progressPanel=new StackPanel{Margin=new Thickness(20)};
+            progressPanel.Children.Add(new TextBlock
+            {
+                Text=progressText,
+                FontSize=16,
+                FontWeight=FontWeights.SemiBold,
+                Margin=new Thickness(0,0,0,14)
+            });
+            progressPanel.Children.Add(new ProgressBar
+            {
+                IsIndeterminate=true,
+                Height=18,
+                Foreground=new SolidColorBrush(Color.FromRgb(55,150,85)),
+                Background=new SolidColorBrush(Color.FromRgb(220,232,222))
+            });
+            progressPanel.Children.Add(new TextBlock
+            {
+                Text="The request is running. CtrlZed will return the result here when it is ready.",
+                TextWrapping=TextWrapping.Wrap,
+                Foreground=Brushes.DimGray,
+                Margin=new Thickness(0,10,0,0)
+            });
+            progressWindow.Content=progressPanel;
+            progressWindow.Show();
+
             try
             {
                 result.Text=await AiDirectService.GenerateAsync(name,BuildPrompt(name),liveWeb.IsChecked==true);
@@ -192,7 +238,19 @@ public static class AiManager
                 SetMessage("Direct AI failed: "+ex.Message,true);
                 MessageBox.Show(ex.Message,"Direct AI",MessageBoxButton.OK,MessageBoxImage.Error);
             }
-            finally{generate.IsEnabled=true;}
+            finally
+            {
+                if(progressWindow.IsVisible)progressWindow.Close();
+                generate.IsEnabled=true;
+                free.IsEnabled=true;
+                signed.IsEnabled=true;
+                paste.IsEnabled=true;
+                saveDefault.IsEnabled=true;
+                insert.IsEnabled=true;
+                replace.IsEnabled=!macroMode && !string.IsNullOrWhiteSpace(selectedText);
+                copy.IsEnabled=true;
+                w.Activate();
+            }
         }
 
         generate.Click+=(_,__)=>Generate();

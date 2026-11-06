@@ -105,7 +105,11 @@ public static class DocxInterop
 
     public static DocxLoadResult LoadWithLayout(string path)
     {
-        using var word=WordprocessingDocument.Open(path,false);
+        using var sourceStream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
+        using var snapshot=new MemoryStream();
+        sourceStream.CopyTo(snapshot);
+        snapshot.Position=0;
+        using var word=WordprocessingDocument.Open(snapshot,false);
         var result=new FlowDocument();
         var main=word.MainDocumentPart;
         var body=main?.Document?.Body;
@@ -389,6 +393,14 @@ public static class DocxInterop
         if(paragraph.KeepTogether)properties.Append(new W.KeepLines());
         if(paragraph.BreakPageBefore)properties.Append(new W.PageBreakBefore());
 
+        if(paragraph.Background is SolidColorBrush paragraphBackground && paragraphBackground.Color.A>0)
+            properties.Append(new W.Shading
+            {
+                Val=W.ShadingPatternValues.Clear,
+                Color="auto",
+                Fill=Rgb(paragraphBackground.Color)
+            });
+
         var spacing=new W.SpacingBetweenLines();
         var hasSpacing=false;
         if(Math.Abs(paragraph.Margin.Top)>0.01)
@@ -551,31 +563,62 @@ public static class DocxInterop
 
     static W.Run ToWordRun(Run run)
     {
+        var effective=new TextRange(run.ContentStart,run.ContentEnd);
         var properties=new W.RunProperties();
-        if(!string.IsNullOrWhiteSpace(run.FontFamily?.Source))
-            properties.Append(new W.RunFonts{Ascii=run.FontFamily.Source,HighAnsi=run.FontFamily.Source});
-        if(run.FontWeight.ToOpenTypeWeight()>=600)properties.Append(new W.Bold());
-        if(run.FontStyle==FontStyles.Italic)properties.Append(new W.Italic());
-        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Strikethrough))properties.Append(new W.Strike());
-        if(run.Foreground is SolidColorBrush foreground && foreground.Color.A>0)
+
+        var fontValue=effective.GetPropertyValue(TextElement.FontFamilyProperty);
+        var font=fontValue is FontFamily family?family:run.FontFamily;
+        if(!string.IsNullOrWhiteSpace(font?.Source))
+            properties.Append(new W.RunFonts{Ascii=font.Source,HighAnsi=font.Source});
+
+        var weightValue=effective.GetPropertyValue(TextElement.FontWeightProperty);
+        var weight=weightValue is FontWeight fontWeight?fontWeight:run.FontWeight;
+        if(weight.ToOpenTypeWeight()>=600)properties.Append(new W.Bold());
+
+        var styleValue=effective.GetPropertyValue(TextElement.FontStyleProperty);
+        var style=styleValue is FontStyle fontStyle?fontStyle:run.FontStyle;
+        if(style==FontStyles.Italic)properties.Append(new W.Italic());
+
+        var decorationValue=effective.GetPropertyValue(Inline.TextDecorationsProperty);
+        var decorations=decorationValue as TextDecorationCollection??run.TextDecorations;
+        if(HasDecoration(decorations,TextDecorationLocation.Strikethrough))properties.Append(new W.Strike());
+
+        var foregroundValue=effective.GetPropertyValue(TextElement.ForegroundProperty);
+        var foreground=foregroundValue as SolidColorBrush??run.Foreground as SolidColorBrush;
+        if(foreground!=null && foreground.Color.A>0)
             properties.Append(new W.Color{Val=Rgb(foreground.Color)});
-        if(!double.IsNaN(run.FontSize) && run.FontSize>0)
-            properties.Append(new W.FontSize{Val=((int)Math.Round(run.FontSize*72/96*2)).ToString()});
-        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Underline))
+
+        var sizeValue=effective.GetPropertyValue(TextElement.FontSizeProperty);
+        var size=sizeValue is double fontSize?fontSize:run.FontSize;
+        if(!double.IsNaN(size) && size>0)
+            properties.Append(new W.FontSize{Val=((int)Math.Round(size*72/96*2)).ToString()});
+
+        if(HasDecoration(decorations,TextDecorationLocation.Underline))
             properties.Append(new W.Underline{Val=W.UnderlineValues.Single});
-        if(run.Background is SolidColorBrush background && background.Color.A>0)
-            properties.Append(new W.Shading
+
+        var backgroundValue=effective.GetPropertyValue(TextElement.BackgroundProperty);
+        var background=backgroundValue as SolidColorBrush??run.Background as SolidColorBrush;
+        if(background!=null && background.Color.A>0)
+        {
+            var highlight=ToWordHighlight(background.Color);
+            if(highlight!=null)properties.Append(new W.Highlight{Val=highlight});
+            else properties.Append(new W.Shading
             {
                 Val=W.ShadingPatternValues.Clear,
                 Color="auto",
                 Fill=Rgb(background.Color)
             });
-        if(run.BaselineAlignment==BaselineAlignment.Superscript)
+        }
+
+        var baselineValue=effective.GetPropertyValue(Inline.BaselineAlignmentProperty);
+        var baseline=baselineValue is BaselineAlignment alignment?alignment:run.BaselineAlignment;
+        if(baseline==BaselineAlignment.Superscript)
             properties.Append(new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Superscript});
-        else if(run.BaselineAlignment==BaselineAlignment.Subscript)
+        else if(baseline==BaselineAlignment.Subscript)
             properties.Append(new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Subscript});
-        if(!string.IsNullOrWhiteSpace(run.Language?.IetfLanguageTag))
-            properties.Append(new W.Languages{Val=run.Language.IetfLanguageTag});
+
+        var language=run.Language?.IetfLanguageTag;
+        if(!string.IsNullOrWhiteSpace(language))properties.Append(new W.Languages{Val=language});
         return new W.Run(properties,new W.Text(run.Text??""){Space=SpaceProcessingModeValues.Preserve});
     }
 
@@ -584,6 +627,44 @@ public static class DocxInterop
 
     static string Rgb(System.Windows.Media.Color colour)
         =>$"{colour.R:X2}{colour.G:X2}{colour.B:X2}";
+
+    static W.HighlightColorValues? ToWordHighlight(System.Windows.Media.Color colour)
+    {
+        if(colour.R>220 && colour.G>210 && colour.B<120)return W.HighlightColorValues.Yellow;
+        if(colour.R<120 && colour.G>190 && colour.B<120)return W.HighlightColorValues.Green;
+        if(colour.R<120 && colour.G>190 && colour.B>190)return W.HighlightColorValues.Cyan;
+        if(colour.R>220 && colour.G<150 && colour.B>180)return W.HighlightColorValues.Magenta;
+        if(colour.R>220 && colour.G<140 && colour.B<140)return W.HighlightColorValues.Red;
+        if(colour.R<130 && colour.G<160 && colour.B>200)return W.HighlightColorValues.Blue;
+        return null;
+    }
+
+    static SolidColorBrush? BrushFromHighlight(W.HighlightColorValues value)
+    {
+        var colour=value switch
+        {
+            W.HighlightColorValues.Yellow=>Colors.Yellow,
+            W.HighlightColorValues.Green=>Colors.Lime,
+            W.HighlightColorValues.Cyan=>Colors.Cyan,
+            W.HighlightColorValues.Magenta=>Colors.Magenta,
+            W.HighlightColorValues.Red=>Colors.Red,
+            W.HighlightColorValues.Blue=>Colors.Blue,
+            W.HighlightColorValues.DarkYellow=>Color.FromRgb(128,128,0),
+            W.HighlightColorValues.DarkGreen=>Color.FromRgb(0,128,0),
+            W.HighlightColorValues.DarkCyan=>Color.FromRgb(0,128,128),
+            W.HighlightColorValues.DarkMagenta=>Color.FromRgb(128,0,128),
+            W.HighlightColorValues.DarkRed=>Color.FromRgb(128,0,0),
+            W.HighlightColorValues.DarkBlue=>Color.FromRgb(0,0,128),
+            W.HighlightColorValues.LightGray=>Colors.LightGray,
+            W.HighlightColorValues.DarkGray=>Colors.DarkGray,
+            W.HighlightColorValues.Black=>Colors.Black,
+            _=>Colors.Transparent
+        };
+        if(colour.A==0)return null;
+        var brush=new SolidColorBrush(colour);
+        brush.Freeze();
+        return brush;
+    }
 
     static W.Run ToWordImageRun(
         MainDocumentPart main,BitmapSource bitmap,Image image,ref uint imageId)
@@ -787,8 +868,14 @@ public static class DocxInterop
 
         var colour=properties.GetFirstChild<W.Color>()?.Val?.Value;
         if(TryBrush(colour,out var foreground))target.Foreground=foreground;
-        var fill=properties.GetFirstChild<W.Shading>()?.Fill?.Value;
-        if(TryBrush(fill,out var background))target.Background=background;
+        var highlight=properties.GetFirstChild<W.Highlight>()?.Val?.Value;
+        var highlightBrush=highlight==null?null:BrushFromHighlight(highlight.Value);
+        if(highlightBrush!=null)target.Background=highlightBrush;
+        else
+        {
+            var fill=properties.GetFirstChild<W.Shading>()?.Fill?.Value;
+            if(TryBrush(fill,out var background))target.Background=background;
+        }
 
         if(target is Inline baselineInline)
         {
@@ -835,6 +922,9 @@ public static class DocxInterop
         if(keepLines!=null && (keepLines.Val?.Value??true))paragraph.KeepTogether=true;
         var keepNext=properties.GetFirstChild<W.KeepNext>();
         if(keepNext!=null && (keepNext.Val?.Value??true))paragraph.KeepWithNext=true;
+
+        var paragraphFill=properties.GetFirstChild<W.Shading>()?.Fill?.Value;
+        if(TryBrush(paragraphFill,out var paragraphBackground))paragraph.Background=paragraphBackground;
 
         var margin=paragraph.Margin;
         var spacing=properties.GetFirstChild<W.SpacingBetweenLines>();
