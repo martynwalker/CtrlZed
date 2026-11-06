@@ -171,6 +171,8 @@ public partial class MainWindow
         if(!beta35PaginationInstalled || beta35PaginationTimer==null ||
            CurrentEditorViewMode!=EditorViewMode.Paged)return;
 
+        beta35PaginationCancellation?.Cancel();
+        beta35PaginationGeneration++;
         beta35PaginationTimer.Stop();
         beta35PaginationTimer.Interval=TimeSpan.FromMilliseconds(
             Math.Clamp(delayMilliseconds,100,2500));
