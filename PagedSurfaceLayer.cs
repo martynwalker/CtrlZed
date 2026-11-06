@@ -56,6 +56,9 @@ public partial class MainWindow
         host.Children.Insert(0,beta35PageSurfaceLayer);
         PageBorder.SizeChanged+=(_,__)=>UpdateBeta35PageSurfaceLayout();
         UpdateBeta35PageSurfaceLayout();
+        if(beta35PaginationMap!=null)
+            UpdateBeta35PageSurface(
+                beta35PaginationMap.PageCount,PageGuides.CachedPageStartsY);
         SetBeta35PageSurfaceVisibility();
     }
 
