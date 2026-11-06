@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 32 builds on the user-tested Beta 31 baseline. It corrects dynamically generated ampersand captions and adds writing-mode-aware grammar and style review: thin blue marks, local British-English rules, right-click explanations, a modeless Review Document pane, Apply/Ignore/Ignore Rule controls, optional paragraph-scoped AI review, Help guidance for unresolved words, and regression tests protecting fiction and poetry from office-prose rules. Grammar changes remain suggestions and are never applied automatically."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 32.1 corrects the Beta 32 live-grammar performance regression. Grammar analysis now waits for an idle pause, stale marks are removed while typing, underline geometry is cached rather than recalculated on every layout pass, the review pane no longer jumps the document during refresh, and dynamic menu ampersands are displayed correctly. It retains the Beta 32 mode-aware grammar and style review features."
 
-# Beta 32 release build
+# Beta 32.1 release build
