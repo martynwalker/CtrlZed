@@ -1,0 +1,56 @@
+name: Beta 34.1 highlight compatibility fix
+on:
+  push:
+    branches: [ beta341 ]
+    paths:
+      - ".github/workflows/beta341-highlight-fix.yml"
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta341
+      - name: Replace wrapper switch with comparisons
+        shell: pwsh
+        run: |
+          $path = "DocxInterop.cs"
+          $content = Get-Content $path -Raw
+          $replacement = @'
+              static SolidColorBrush? BrushFromHighlight(W.HighlightColorValues value)
+              {
+                  System.Windows.Media.Color colour;
+                  if(value==W.HighlightColorValues.Yellow)colour=Colors.Yellow;
+                  else if(value==W.HighlightColorValues.Green)colour=Colors.Lime;
+                  else if(value==W.HighlightColorValues.Cyan)colour=Colors.Cyan;
+                  else if(value==W.HighlightColorValues.Magenta)colour=Colors.Magenta;
+                  else if(value==W.HighlightColorValues.Red)colour=Colors.Red;
+                  else if(value==W.HighlightColorValues.Blue)colour=Colors.Blue;
+                  else if(value==W.HighlightColorValues.DarkYellow)colour=Color.FromRgb(128,128,0);
+                  else if(value==W.HighlightColorValues.DarkGreen)colour=Color.FromRgb(0,128,0);
+                  else if(value==W.HighlightColorValues.DarkCyan)colour=Color.FromRgb(0,128,128);
+                  else if(value==W.HighlightColorValues.DarkMagenta)colour=Color.FromRgb(128,0,128);
+                  else if(value==W.HighlightColorValues.DarkRed)colour=Color.FromRgb(128,0,0);
+                  else if(value==W.HighlightColorValues.DarkBlue)colour=Color.FromRgb(0,0,128);
+                  else if(value==W.HighlightColorValues.LightGray)colour=Colors.LightGray;
+                  else if(value==W.HighlightColorValues.DarkGray)colour=Colors.DarkGray;
+                  else if(value==W.HighlightColorValues.Black)colour=Colors.Black;
+                  else return null;
+                  var brush=new SolidColorBrush(colour);
+                  brush.Freeze();
+                  return brush;
+              }
+
+              static W.Run ToWordImageRun
+          '@
+          $pattern = '(?s)    static SolidColorBrush\? BrushFromHighlight\(W\.HighlightColorValues value\).*?    static W\.Run ToWordImageRun'
+          $updated = [regex]::Replace($content,$pattern,$replacement,1)
+          if($updated -eq $content) { throw "Highlight helper patch point not found." }
+          [System.IO.File]::WriteAllText((Resolve-Path $path),$updated,[System.Text.UTF8Encoding]::new($false))
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add $path
+          git commit -m "Fix Open XML highlight wrapper comparisons"
+          git push origin HEAD:beta341
