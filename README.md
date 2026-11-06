@@ -4,9 +4,9 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 28
+## Current release: Beta 29
 
-Beta 28 is the current Windows prerelease. It builds directly on Beta 27 and adds or retains:
+Beta 29 is the current Windows prerelease. It builds directly on Beta 27 and adds or retains:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
@@ -156,3 +156,8 @@ Beta 27 adds Ask AI to Modify for selected macros, keyboard-profile shortcut hel
 ## Beta 28 highlights
 
 Beta 28 adds a dropdown style selector and RGB/hex colour picker in Styles, whole-document reformatting via Format > Reformat Document (F9 in the Microsoft Word profile), remembered keyboard profiles with profile-aware menu shortcut labels, and user-assignable macro shortcuts with reserved-key and duplicate-assignment checks across Safe, VB.NET and C# macros.
+
+
+## Beta 29 highlights
+
+Beta 29 carries the selected keyboard profile and active style set in portable `.czprofile` export/import, restoring both immediately when a profile is imported. It builds directly on the corrected Beta 28 baseline.

@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main ]
+    branches: [ main, beta29 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 28 builds directly on Beta 27 and adds a dropdown style selector, RGB/hex colour picker, whole-document reformatting (F9 in the Microsoft Word profile), remembered keyboard profiles with profile-aware menu shortcut labels, and user-assignable macro shortcuts with reserved-key and duplicate-assignment checks for Safe, VB.NET and C# macros."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 29 builds directly on the corrected Beta 28 baseline and adds portable profile persistence for the selected keyboard profile and active style set, restoring both immediately on profile import."
 
 # Beta 28 corrected rebuild

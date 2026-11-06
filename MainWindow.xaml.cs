@@ -1396,7 +1396,9 @@ public partial class MainWindow : Window
             ExtendedMacrosEnabled=extendedMacrosEnabled,
             CompiledMacrosEnabled=compiledMacrosEnabled,
             LastMacroLanguage=lastMacroLanguage,
-            KeepParagraphTogether=keepParagraphTogether
+            KeepParagraphTogether=keepParagraphTogether,
+            KeyboardProfile=profile.ToString(),
+            ActiveStyleSet=activeStyleSet
         };
 
     void ApplyPortablePreferences(UserProfileService.PortablePreferences? p)
@@ -1407,6 +1409,16 @@ public partial class MainWindow : Window
         compiledMacrosEnabled=p.CompiledMacrosEnabled;
         lastMacroLanguage=p.LastMacroLanguage is ".czm" or ".vb" or ".cs"?p.LastMacroLanguage:".vb";
         keepParagraphTogether=p.KeepParagraphTogether;
+        profile=p.KeyboardProfile switch
+        {
+            "WordPerfect51"=>KeyboardProfile.WordPerfect51,
+            "WordStar40"=>KeyboardProfile.WordStar40,
+            _=>KeyboardProfile.Word
+        };
+        if(!string.IsNullOrWhiteSpace(p.ActiveStyleSet) && styleSets.ContainsKey(p.ActiveStyleSet))
+            activeStyleSet=p.ActiveStyleSet;
+        UpdateKeyboardMenuState();
+        RefreshStyleSetBox();
         ApplyZoom();
         SaveAppSettings();
     }
@@ -4669,6 +4681,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.28.0 beta 28").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.29.0 beta 29").ShowDialog();
     }
 }
