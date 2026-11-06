@@ -69,7 +69,6 @@ public static class DocxInterop
                 Id=main.GetIdOfPart(part)
             });
         }
-
         if(!string.IsNullOrWhiteSpace(footer))
         {
             var part=main.AddNewPart<FooterPart>();
@@ -115,50 +114,51 @@ public static class DocxInterop
         var children=body.ChildElements.ToList();
         for(var i=0;i<children.Count;i++)
         {
-            var child=children[i];
-            if(child is W.Paragraph paragraph)
+            if(children[i] is W.Paragraph paragraph)
             {
                 var info=GetNumberingInfo(main,paragraph);
-                if(info!=null)
+                if(info==null)
                 {
-                    var list=new List{MarkerStyle=info.MarkerStyle};
-                    while(i<children.Count && children[i] is W.Paragraph listParagraph)
-                    {
-                        var current=GetNumberingInfo(main,listParagraph);
-                        if(current==null || current.NumberId!=info.NumberId || current.Level!=info.Level)break;
-                        var item=new ListItem();
-                        item.Blocks.Add(FromWordParagraph(main,listParagraph));
-                        list.ListItems.Add(item);
-                        i++;
-                    }
-                    i--;
-                    result.Blocks.Add(list);
+                    result.Blocks.Add(FromWordParagraph(main,paragraph));
+                    continue;
                 }
-                else result.Blocks.Add(FromWordParagraph(main,paragraph));
+
+                var list=new List{MarkerStyle=info.MarkerStyle};
+                while(i<children.Count && children[i] is W.Paragraph listParagraph)
+                {
+                    var current=GetNumberingInfo(main,listParagraph);
+                    if(current==null || current.NumberId!=info.NumberId || current.Level!=info.Level)break;
+                    var item=new ListItem();
+                    item.Blocks.Add(FromWordParagraph(main,listParagraph));
+                    list.ListItems.Add(item);
+                    i++;
+                }
+                i--;
+                result.Blocks.Add(list);
             }
-            else if(child is W.Table table)result.Blocks.Add(FromWordTable(main,table));
+            else if(children[i] is W.Table table)result.Blocks.Add(FromWordTable(main,table));
         }
 
         var section=body.Descendants<W.SectionProperties>().LastOrDefault()
-                    ?? body.Elements<W.SectionProperties>().LastOrDefault();
+                    ??body.Elements<W.SectionProperties>().LastOrDefault();
         string header="",footer="";
         double width=0,height=0;
         Thickness? margins=null;
 
         if(section!=null)
         {
-            var headerRef=section.Elements<W.HeaderReference>()
+            var headerReference=section.Elements<W.HeaderReference>()
                 .FirstOrDefault(x=>x.Type?.Value==W.HeaderFooterValues.Default)
                 ??section.Elements<W.HeaderReference>().FirstOrDefault();
-            if(headerRef?.Id?.Value is string headerId &&
+            if(headerReference?.Id?.Value is string headerId &&
                main.GetPartById(headerId) is HeaderPart headerPart &&
                headerPart.Header!=null)
                 header=ReadHeaderFooter(headerPart.Header);
 
-            var footerRef=section.Elements<W.FooterReference>()
+            var footerReference=section.Elements<W.FooterReference>()
                 .FirstOrDefault(x=>x.Type?.Value==W.HeaderFooterValues.Default)
                 ??section.Elements<W.FooterReference>().FirstOrDefault();
-            if(footerRef?.Id?.Value is string footerId &&
+            if(footerReference?.Id?.Value is string footerId &&
                main.GetPartById(footerId) is FooterPart footerPart &&
                footerPart.Footer!=null)
                 footer=ReadHeaderFooter(footerPart.Footer);
@@ -206,57 +206,46 @@ public static class DocxInterop
         if(part.Styles!=null && part.Styles.Elements<W.Style>().Any())return;
 
         var styles=new W.Styles();
-        styles.Append(CreateParagraphStyle(
-            "Normal","Normal",null,"Normal",false,22,false,false,
-            new W.StyleParagraphProperties(new W.SpacingBetweenLines{After="120"})));
-        styles.Append(CreateParagraphStyle(
-            "Heading1","heading 1","Normal","Normal",true,32,true,false,
-            new W.StyleParagraphProperties(
-                new W.KeepNext(),new W.KeepLines(),
-                new W.SpacingBetweenLines{Before="240",After="120"},
-                new W.OutlineLevel{Val=0})));
-        styles.Append(CreateParagraphStyle(
-            "Heading2","heading 2","Normal","Normal",true,28,true,false,
-            new W.StyleParagraphProperties(
-                new W.KeepNext(),new W.KeepLines(),
-                new W.SpacingBetweenLines{Before="200",After="100"},
-                new W.OutlineLevel{Val=1})));
-        styles.Append(CreateParagraphStyle(
-            "Heading3","heading 3","Normal","Normal",true,24,true,false,
-            new W.StyleParagraphProperties(
-                new W.KeepNext(),new W.KeepLines(),
-                new W.SpacingBetweenLines{Before="160",After="80"},
-                new W.OutlineLevel{Val=2})));
-        styles.Append(CreateParagraphStyle(
-            "Quote","Quote","Normal","Normal",false,22,false,true,
-            new W.StyleParagraphProperties(
-                new W.Indentation{Left="540",Right="540"},
-                new W.SpacingBetweenLines{Before="120",After="120"})));
-        styles.Append(CreateParagraphStyle(
-            "Caption","Caption","Normal","Normal",false,18,false,true,
-            new W.StyleParagraphProperties(
-                new W.KeepNext(),new W.SpacingBetweenLines{Before="40",After="120"})));
-
+        styles.Append(CreateParagraphStyle("Normal","Normal",null,"Normal",false,22,false,false,0,120,0,0));
+        styles.Append(CreateParagraphStyle("Heading1","heading 1","Normal","Normal",true,32,true,false,240,120,0,0));
+        styles.Append(CreateParagraphStyle("Heading2","heading 2","Normal","Normal",true,28,true,false,200,100,0,0));
+        styles.Append(CreateParagraphStyle("Heading3","heading 3","Normal","Normal",true,24,true,false,160,80,0,0));
+        styles.Append(CreateParagraphStyle("Quote","Quote","Normal","Normal",false,22,false,true,120,120,540,540));
+        styles.Append(CreateParagraphStyle("Caption","Caption","Normal","Normal",false,18,false,true,40,120,0,0));
         part.Styles=styles;
         part.Styles.Save();
     }
 
     static W.Style CreateParagraphStyle(
-        string id,string name,string? basedOn,string next,
-        bool primary,int halfPoints,bool bold,bool italic,
-        W.StyleParagraphProperties paragraphProperties)
+        string id,string name,string? basedOn,string next,bool primary,
+        int halfPoints,bool bold,bool italic,int before,int after,int left,int right)
     {
         var style=new W.Style{Type=W.StyleValues.Paragraph,StyleId=id};
         style.Append(new W.StyleName{Val=name});
         if(!string.IsNullOrWhiteSpace(basedOn))style.Append(new W.BasedOn{Val=basedOn});
         style.Append(new W.NextParagraphStyle{Val=next});
         if(primary)style.Append(new W.PrimaryStyle());
+
+        var paragraphProperties=new W.StyleParagraphProperties();
+        if(id.StartsWith("Heading",StringComparison.Ordinal))
+        {
+            paragraphProperties.Append(new W.KeepNext());
+            paragraphProperties.Append(new W.KeepLines());
+        }
+        paragraphProperties.Append(new W.SpacingBetweenLines
+        {
+            Before=before.ToString(),After=after.ToString()
+        });
+        if(left>0 || right>0)
+            paragraphProperties.Append(new W.Indentation{Left=left.ToString(),Right=right.ToString()});
+        if(id.StartsWith("Heading",StringComparison.Ordinal) && int.TryParse(id[^1..],out var headingLevel))
+            paragraphProperties.Append(new W.OutlineLevel{Val=headingLevel-1});
         style.Append(paragraphProperties);
-        var runProperties=new W.StyleRunProperties(
-            new W.FontSize{Val=halfPoints.ToString()},
-            new W.FontSizeComplexScript{Val=halfPoints.ToString()});
+
+        var runProperties=new W.StyleRunProperties();
         if(bold)runProperties.Append(new W.Bold());
         if(italic)runProperties.Append(new W.Italic());
+        runProperties.Append(new W.FontSize{Val=halfPoints.ToString()});
         style.Append(runProperties);
         return style;
     }
@@ -266,7 +255,6 @@ public static class DocxInterop
         var paragraph=new W.Paragraph();
         paragraph.Append(new W.ParagraphProperties(
             new W.Justification{Val=W.JustificationValues.Center}));
-
         var tokens=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
         {
             ["{page}"]="PAGE",
@@ -396,18 +384,10 @@ public static class DocxInterop
         var wordParagraph=new W.Paragraph();
         var properties=new W.ParagraphProperties();
         var style=DetectStyleId(paragraph);
-        if(style!=null)properties.ParagraphStyleId=new W.ParagraphStyleId{Val=style};
-        if(paragraph.BreakPageBefore)properties.Append(new W.PageBreakBefore());
-        if(paragraph.KeepTogether)properties.Append(new W.KeepLines());
+        if(style!=null)properties.Append(new W.ParagraphStyleId{Val=style});
         if(paragraph.KeepWithNext)properties.Append(new W.KeepNext());
-
-        properties.Justification=new W.Justification{Val=paragraph.TextAlignment switch
-        {
-            TextAlignment.Center=>W.JustificationValues.Center,
-            TextAlignment.Right=>W.JustificationValues.Right,
-            TextAlignment.Justify=>W.JustificationValues.Both,
-            _=>W.JustificationValues.Left
-        }};
+        if(paragraph.KeepTogether)properties.Append(new W.KeepLines());
+        if(paragraph.BreakPageBefore)properties.Append(new W.PageBreakBefore());
 
         var spacing=new W.SpacingBetweenLines();
         var hasSpacing=false;
@@ -448,6 +428,14 @@ public static class DocxInterop
             hasIndentation=true;
         }
         if(hasIndentation)properties.Append(indentation);
+
+        properties.Append(new W.Justification{Val=paragraph.TextAlignment switch
+        {
+            TextAlignment.Center=>W.JustificationValues.Center,
+            TextAlignment.Right=>W.JustificationValues.Right,
+            TextAlignment.Justify=>W.JustificationValues.Both,
+            _=>W.JustificationValues.Left
+        }});
 
         wordParagraph.Append(properties);
         AppendInlines(main,wordParagraph,paragraph.Inlines,ref imageId);
@@ -535,21 +523,19 @@ public static class DocxInterop
     {
         var numberId=NumberIdFor(list.MarkerStyle);
         foreach(var item in list.ListItems)
+        foreach(var block in item.Blocks)
         {
-            foreach(var block in item.Blocks)
+            if(block is Paragraph paragraph)
             {
-                if(block is Paragraph paragraph)
-                {
-                    var wordParagraph=ToWordParagraph(main,paragraph,ref imageId);
-                    wordParagraph.ParagraphProperties??=new W.ParagraphProperties();
-                    wordParagraph.ParagraphProperties.NumberingProperties=new W.NumberingProperties(
-                        new W.NumberingLevelReference{Val=0},
-                        new W.NumberingId{Val=numberId});
-                    target.Append(wordParagraph);
-                }
-                else if(block is Table table)target.Append(ToWordTable(main,table,ref imageId));
-                else if(block is Section section)AppendBlocks(main,target,section.Blocks,ref imageId);
+                var wordParagraph=ToWordParagraph(main,paragraph,ref imageId);
+                wordParagraph.ParagraphProperties??=new W.ParagraphProperties();
+                wordParagraph.ParagraphProperties.NumberingProperties=new W.NumberingProperties(
+                    new W.NumberingLevelReference{Val=0},
+                    new W.NumberingId{Val=numberId});
+                target.Append(wordParagraph);
             }
+            else if(block is Table table)target.Append(ToWordTable(main,table,ref imageId));
+            else if(block is Section section)AppendBlocks(main,target,section.Blocks,ref imageId);
         }
     }
 
@@ -571,41 +557,30 @@ public static class DocxInterop
     static W.Run ToWordRun(Run run)
     {
         var properties=new W.RunProperties();
-        if(run.FontWeight.ToOpenTypeWeight()>=600)properties.Bold=new W.Bold();
-        if(run.FontStyle==FontStyles.Italic)properties.Italic=new W.Italic();
-        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Underline))
-            properties.Underline=new W.Underline{Val=W.UnderlineValues.Single};
-        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Strikethrough))
-            properties.Strike=new W.Strike();
         if(!string.IsNullOrWhiteSpace(run.FontFamily?.Source))
-            properties.RunFonts=new W.RunFonts
-            {
-                Ascii=run.FontFamily.Source,
-                HighAnsi=run.FontFamily.Source,
-                ComplexScript=run.FontFamily.Source
-            };
-        if(!double.IsNaN(run.FontSize) && run.FontSize>0)
-        {
-            var halfPoints=((int)Math.Round(run.FontSize*72/96*2)).ToString();
-            properties.FontSize=new W.FontSize{Val=halfPoints};
-            properties.FontSizeComplexScript=new W.FontSizeComplexScript{Val=halfPoints};
-        }
+            properties.Append(new W.RunFonts{Ascii=run.FontFamily.Source,HighAnsi=run.FontFamily.Source});
+        if(run.FontWeight.ToOpenTypeWeight()>=600)properties.Append(new W.Bold());
+        if(run.FontStyle==FontStyles.Italic)properties.Append(new W.Italic());
+        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Strikethrough))properties.Append(new W.Strike());
         if(run.Foreground is SolidColorBrush foreground && foreground.Color.A>0)
-            properties.Color=new W.Color{Val=Rgb(foreground.Color)};
+            properties.Append(new W.Color{Val=Rgb(foreground.Color)});
+        if(!double.IsNaN(run.FontSize) && run.FontSize>0)
+            properties.Append(new W.FontSize{Val=((int)Math.Round(run.FontSize*72/96*2)).ToString()});
+        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Underline))
+            properties.Append(new W.Underline{Val=W.UnderlineValues.Single});
         if(run.Background is SolidColorBrush background && background.Color.A>0)
-            properties.Shading=new W.Shading
+            properties.Append(new W.Shading
             {
                 Val=W.ShadingPatternValues.Clear,
                 Color="auto",
                 Fill=Rgb(background.Color)
-            };
+            });
         if(run.BaselineAlignment==BaselineAlignment.Superscript)
-            properties.VerticalTextAlignment=new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Superscript};
+            properties.Append(new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Superscript});
         else if(run.BaselineAlignment==BaselineAlignment.Subscript)
-            properties.VerticalTextAlignment=new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Subscript};
+            properties.Append(new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Subscript});
         if(!string.IsNullOrWhiteSpace(run.Language?.IetfLanguageTag))
-            properties.Languages=new W.Languages{Val=run.Language.IetfLanguageTag};
-
+            properties.Append(new W.Languages{Val=run.Language.IetfLanguageTag});
         return new W.Run(properties,new W.Text(run.Text??""){Space=SpaceProcessingModeValues.Preserve});
     }
 
@@ -627,7 +602,6 @@ public static class DocxInterop
         var part=main.AddImagePart(ImagePartType.Png);
         part.FeedData(stream);
         var relationshipId=main.GetIdOfPart(part);
-
         var widthDip=!double.IsNaN(image.Width)&&image.Width>0
             ?image.Width
             :(image.ActualWidth>0?image.ActualWidth:bitmap.PixelWidth*96.0/Math.Max(1,bitmap.DpiX));
@@ -637,37 +611,42 @@ public static class DocxInterop
         var cx=(long)Math.Max(1,widthDip*9525);
         var cy=(long)Math.Max(1,heightDip*9525);
         var id=imageId++;
-        var description=image.ToolTip?.ToString()??"";
 
-        var drawing=new W.Drawing(
-            new DW.Inline(
-                new DW.Extent{Cx=cx,Cy=cy},
-                new DW.EffectExtent{LeftEdge=0L,TopEdge=0L,RightEdge=0L,BottomEdge=0L},
-                new DW.DocProperties{Id=id,Name=$"CtrlZed Picture {id}",Description=description},
-                new DW.NonVisualGraphicFrameDrawingProperties(new A.GraphicFrameLocks{NoChangeAspect=true}),
-                new A.Graphic(
-                    new A.GraphicData(
-                        new PIC.Picture(
-                            new PIC.NonVisualPictureProperties(
-                                new PIC.NonVisualDrawingProperties{Id=id,Name=$"CtrlZed Picture {id}.png"},
-                                new PIC.NonVisualPictureDrawingProperties()),
-                            new PIC.BlipFill(
-                                new A.Blip{Embed=relationshipId},
-                                new A.Stretch(new A.FillRectangle())),
-                            new PIC.ShapeProperties(
-                                new A.Transform2D(
-                                    new A.Offset{X=0L,Y=0L},
-                                    new A.Extents{Cx=cx,Cy=cy}),
-                                new A.PresetGeometry(new A.AdjustValueList())
-                                {Preset=A.ShapeTypeValues.Rectangle})))
-                    {Uri="http://schemas.openxmlformats.org/drawingml/2006/picture"})))
+        var nonVisual=new PIC.NonVisualPictureProperties(
+            new PIC.NonVisualDrawingProperties{Id=id,Name=$"CtrlZed Picture {id}.png"},
+            new PIC.NonVisualPictureDrawingProperties());
+        var blipFill=new PIC.BlipFill(
+            new A.Blip{Embed=relationshipId},
+            new A.Stretch(new A.FillRectangle()));
+        var shapeProperties=new PIC.ShapeProperties(
+            new A.Transform2D(
+                new A.Offset{X=0L,Y=0L},
+                new A.Extents{Cx=cx,Cy=cy}),
+            new A.PresetGeometry(new A.AdjustValueList()){Preset=A.ShapeTypeValues.Rectangle});
+        var picture=new PIC.Picture(nonVisual,blipFill,shapeProperties);
+        var graphicData=new A.GraphicData(picture)
+        {
+            Uri="http://schemas.openxmlformats.org/drawingml/2006/picture"
+        };
+        var graphic=new A.Graphic(graphicData);
+        var inline=new DW.Inline(
+            new DW.Extent{Cx=cx,Cy=cy},
+            new DW.EffectExtent{LeftEdge=0L,TopEdge=0L,RightEdge=0L,BottomEdge=0L},
+            new DW.DocProperties
             {
-                DistanceFromTop=0U,
-                DistanceFromBottom=0U,
-                DistanceFromLeft=0U,
-                DistanceFromRight=0U
-            });
-        return new W.Run(drawing);
+                Id=id,
+                Name=$"CtrlZed Picture {id}",
+                Description=image.ToolTip?.ToString()??""
+            },
+            new DW.NonVisualGraphicFrameDrawingProperties(new A.GraphicFrameLocks{NoChangeAspect=true}),
+            graphic)
+        {
+            DistanceFromTop=0U,
+            DistanceFromBottom=0U,
+            DistanceFromLeft=0U,
+            DistanceFromRight=0U
+        };
+        return new W.Run(new W.Drawing(inline));
     }
 
     static W.Table ToWordTable(MainDocumentPart main,Table table,ref uint imageId)
@@ -686,8 +665,7 @@ public static class DocxInterop
         foreach(var column in table.Columns)
         {
             var gridColumn=new W.GridColumn();
-            if(column.Width.IsAbsolute && column.Width.Value>0)
-                gridColumn.Width=Twips(column.Width.Value);
+            if(column.Width.IsAbsolute && column.Width.Value>0)gridColumn.Width=Twips(column.Width.Value);
             grid.Append(gridColumn);
         }
         wordTable.Append(grid);
@@ -708,12 +686,6 @@ public static class DocxInterop
                         Color="auto",
                         Fill=Rgb(background.Color)
                     });
-                cellProperties.Append(new W.TableCellVerticalAlignment
-                {
-                    Val=cell.TextAlignment==TextAlignment.Center
-                        ?W.TableVerticalAlignmentValues.Center
-                        :W.TableVerticalAlignmentValues.Top
-                });
                 wordCell.Append(cellProperties);
                 AppendBlocks(main,wordCell,cell.Blocks,ref imageId);
                 if(!wordCell.Elements<W.Paragraph>().Any())wordCell.Append(new W.Paragraph());
@@ -743,33 +715,20 @@ public static class DocxInterop
             {
                 foreach(var item in run.ChildElements)
                 {
-                    switch(item)
+                    if(item is W.Text text)target.Inlines.Add(FromWordRun(run,text.Text));
+                    else if(item is W.TabChar)target.Inlines.Add(FromWordRun(run,"\t"));
+                    else if(item is W.Break || item.LocalName=="cr")target.Inlines.Add(new LineBreak());
+                    else if(item.LocalName=="noBreakHyphen")target.Inlines.Add(FromWordRun(run,"‑"));
+                    else if(item.LocalName=="softHyphen")target.Inlines.Add(FromWordRun(run,"\u00AD"));
+                    else if(item is W.Drawing drawing)
                     {
-                        case W.Text text:
-                            target.Inlines.Add(FromWordRun(run,text.Text));
-                            break;
-                        case W.TabChar:
-                            target.Inlines.Add(FromWordRun(run,"\t"));
-                            break;
-                        case W.Break:
-                        case W.CarriageReturn:
-                            target.Inlines.Add(new LineBreak());
-                            break;
-                        case W.NoBreakHyphen:
-                            target.Inlines.Add(FromWordRun(run,"‑"));
-                            break;
-                        case W.SoftHyphen:
-                            target.Inlines.Add(FromWordRun(run,"\u00AD"));
-                            break;
-                        case W.Drawing drawing:
-                            var image=FromWordDrawing(main,drawing);
-                            if(image!=null)target.Inlines.Add(new InlineUIContainer(image));
-                            break;
+                        var image=FromWordDrawing(main,drawing);
+                        if(image!=null)target.Inlines.Add(new InlineUIContainer(image));
                     }
                 }
             }
-            else if(child is W.Hyperlink or W.SmartTag or W.SdtRun or W.InsertedRun or W.SimpleField)
-                AppendParagraphContent(main,target,child);
+            else if(child is OpenXmlCompositeElement composite)
+                AppendParagraphContent(main,target,composite);
         }
     }
 
@@ -789,7 +748,6 @@ public static class DocxInterop
             bitmap.EndInit();
             bitmap.Freeze();
         }
-
         var extent=drawing.Descendants<DW.Extent>().FirstOrDefault();
         var image=new Image{Source=bitmap,Stretch=Stretch.Uniform,Margin=new Thickness(4)};
         if(extent?.Cx?.Value is long cx && cx>0)image.Width=cx/9525.0;
@@ -813,18 +771,23 @@ public static class DocxInterop
         if(bold!=null && (bold.Val?.Value??true))target.FontWeight=FontWeights.Bold;
         var italic=properties.GetFirstChild<W.Italic>();
         if(italic!=null && (italic.Val?.Value??true))target.FontStyle=FontStyles.Italic;
-        var underline=properties.GetFirstChild<W.Underline>()?.Val?.Value;
-        if(underline!=null && underline!=W.UnderlineValues.None)
-            target.TextDecorations=TextDecorations.Underline;
-        var strike=properties.GetFirstChild<W.Strike>();
-        if(strike!=null && (strike.Val?.Value??true))
-            target.TextDecorations=new TextDecorationCollection(TextDecorations.Strikethrough);
+
+        if(target is Inline inline)
+        {
+            var decorations=new TextDecorationCollection();
+            var underline=properties.GetFirstChild<W.Underline>()?.Val?.Value;
+            if(underline!=null && underline!=W.UnderlineValues.None)
+                decorations.Add(TextDecorations.Underline[0]);
+            var strike=properties.GetFirstChild<W.Strike>();
+            if(strike!=null && (strike.Val?.Value??true))
+                decorations.Add(TextDecorations.Strikethrough[0]);
+            if(decorations.Count>0)inline.TextDecorations=decorations;
+        }
 
         var fonts=properties.GetFirstChild<W.RunFonts>();
-        var font=fonts?.Ascii?.Value??fonts?.HighAnsi?.Value??fonts?.ComplexScript?.Value;
+        var font=fonts?.Ascii?.Value??fonts?.HighAnsi?.Value;
         if(!string.IsNullOrWhiteSpace(font))target.FontFamily=new FontFamily(font);
-        var size=properties.GetFirstChild<W.FontSize>()?.Val?.Value
-                 ??properties.GetFirstChild<W.FontSizeComplexScript>()?.Val?.Value;
+        var size=properties.GetFirstChild<W.FontSize>()?.Val?.Value;
         if(double.TryParse(size,out var halfPoints) && halfPoints>0)
             target.FontSize=halfPoints/2*96/72;
 
@@ -833,11 +796,13 @@ public static class DocxInterop
         var fill=properties.GetFirstChild<W.Shading>()?.Fill?.Value;
         if(TryBrush(fill,out var background))target.Background=background;
 
-        var vertical=properties.GetFirstChild<W.VerticalTextAlignment>()?.Val?.Value;
-        if(target is Inline inline)
+        if(target is Inline baselineInline)
         {
-            if(vertical==W.VerticalPositionValues.Superscript)inline.BaselineAlignment=BaselineAlignment.Superscript;
-            else if(vertical==W.VerticalPositionValues.Subscript)inline.BaselineAlignment=BaselineAlignment.Subscript;
+            var vertical=properties.GetFirstChild<W.VerticalTextAlignment>()?.Val?.Value;
+            if(vertical==W.VerticalPositionValues.Superscript)
+                baselineInline.BaselineAlignment=BaselineAlignment.Superscript;
+            else if(vertical==W.VerticalPositionValues.Subscript)
+                baselineInline.BaselineAlignment=BaselineAlignment.Subscript;
         }
         var language=properties.GetFirstChild<W.Languages>()?.Val?.Value;
         if(!string.IsNullOrWhiteSpace(language))
@@ -885,18 +850,22 @@ public static class DocxInterop
         var spacing=properties.GetFirstChild<W.SpacingBetweenLines>();
         if(spacing!=null)
         {
-            var top=TryTwips(spacing.Before?.Value,margin.Top);
-            var bottom=TryTwips(spacing.After?.Value,margin.Bottom);
-            margin=new Thickness(margin.Left,top,margin.Right,bottom);
+            margin=new Thickness(
+                margin.Left,
+                TryTwips(spacing.Before?.Value,margin.Top),
+                margin.Right,
+                TryTwips(spacing.After?.Value,margin.Bottom));
             if(double.TryParse(spacing.Line?.Value,out var line) && line>0)
                 paragraph.LineHeight=line/15.0;
         }
         var indentation=properties.GetFirstChild<W.Indentation>();
         if(indentation!=null)
         {
-            var left=TryTwips(indentation.Left?.Value,margin.Left);
-            var right=TryTwips(indentation.Right?.Value,margin.Right);
-            margin=new Thickness(left,margin.Top,right,margin.Bottom);
+            margin=new Thickness(
+                TryTwips(indentation.Left?.Value,margin.Left),
+                margin.Top,
+                TryTwips(indentation.Right?.Value,margin.Right),
+                margin.Bottom);
             if(double.TryParse(indentation.FirstLine?.Value,out var first))paragraph.TextIndent=first/15.0;
             else if(double.TryParse(indentation.Hanging?.Value,out var hanging))paragraph.TextIndent=-hanging/15.0;
         }
@@ -917,7 +886,7 @@ public static class DocxInterop
         };
         var rows=source.Elements<W.TableRow>().ToList();
         var maxColumns=rows.Select(row=>row.Elements<W.TableCell>()
-                .Sum(cell=>(int)(cell.TableCellProperties?.GridSpan?.Val?.Value??1)))
+                .Sum(cell=>(int)(cell.TableCellProperties?.GetFirstChild<W.GridSpan>()?.Val?.Value??1)))
             .DefaultIfEmpty(1).Max();
         for(var i=0;i<maxColumns;i++)table.Columns.Add(new TableColumn());
 
@@ -937,14 +906,15 @@ public static class DocxInterop
             group.Rows.Add(tableRow);
             foreach(var cell in row.Elements<W.TableCell>())
             {
+                var properties=cell.TableCellProperties;
                 var tableCell=new TableCell
                 {
                     BorderBrush=Brushes.LightGray,
                     BorderThickness=new Thickness(0.5),
                     Padding=new Thickness(5),
-                    ColumnSpan=(int)(cell.TableCellProperties?.GridSpan?.Val?.Value??1)
+                    ColumnSpan=(int)(properties?.GetFirstChild<W.GridSpan>()?.Val?.Value??1)
                 };
-                var fill=cell.TableCellProperties?.Shading?.Fill?.Value;
+                var fill=properties?.GetFirstChild<W.Shading>()?.Fill?.Value;
                 if(TryBrush(fill,out var background))tableCell.Background=background;
                 foreach(var paragraph in cell.Elements<W.Paragraph>())
                     tableCell.Blocks.Add(FromWordParagraph(main,paragraph));
@@ -978,7 +948,6 @@ public static class DocxInterop
     {
         var styles=main.StyleDefinitionsPart?.Styles;
         var visited=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         void Apply(string id)
         {
             if(styles==null || !visited.Add(id))return;
@@ -990,7 +959,6 @@ public static class DocxInterop
             ApplyParagraphProperties(paragraph,style.StyleParagraphProperties);
             ApplyTextProperties(paragraph,style.StyleRunProperties);
         }
-
         Apply(styleId);
         if(visited.Count==0)ApplyBuiltInStyle(paragraph,styleId);
     }
