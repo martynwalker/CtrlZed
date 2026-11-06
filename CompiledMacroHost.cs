@@ -146,7 +146,7 @@ public static class CompiledMacroHost
         }
     }
 
-    static IReadOnlyList<MetadataReference> BuildReferences()
+    internal static IReadOnlyList<MetadataReference> BuildReferences()
     {
         var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
