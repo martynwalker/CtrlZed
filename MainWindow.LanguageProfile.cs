@@ -1,3 +1,7 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+
 namespace CtrlZed;
 
 public partial class MainWindow
@@ -6,7 +10,32 @@ public partial class MainWindow
     {
         base.OnInitialized(e);
         LanguageProfileBridge.ReloadRequested+=ReloadLanguageProfile;
+        AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(LanguageReviewPreviewKeyDown),true);
+        ContentRendered+=(_,__)=>WireReviewShortcutMenu();
         Closed+=(_,__)=>LanguageProfileBridge.ReloadRequested-=ReloadLanguageProfile;
+    }
+
+    void WireReviewShortcutMenu()
+    {
+        var review=MainMenu.Items.OfType<MenuItem>()
+            .FirstOrDefault(x=>(x.Tag as string)=="CtrlZedReviewMenu");
+        if(review==null)return;
+
+        void RefreshShortcut()
+        {
+            var next=review.Items.OfType<MenuItem>().FirstOrDefault();
+            if(next!=null)next.InputGestureText=profile==KeyboardProfile.Word?"F7":"";
+        }
+
+        review.SubmenuOpened+=(_,__)=>RefreshShortcut();
+        RefreshShortcut();
+    }
+
+    void LanguageReviewPreviewKeyDown(object sender,KeyEventArgs e)
+    {
+        if(profile!=KeyboardProfile.Word || Keyboard.Modifiers!=ModifierKeys.None || e.Key!=Key.F7)return;
+        NextSpellingError_Click(this,new RoutedEventArgs());
+        e.Handled=true;
     }
 
     void ReloadLanguageProfile()
