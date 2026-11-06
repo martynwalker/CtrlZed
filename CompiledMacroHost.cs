@@ -119,6 +119,54 @@ public static class CompiledMacroHost
         }
     }
 
+    public static IReadOnlyList<string> Check(string source,string extension)
+    {
+        if(string.IsNullOrWhiteSpace(source))return new[]{"Macro source is empty."};
+        extension=(extension??"").ToLowerInvariant();
+        try{PreflightLanguage(source,extension);}
+        catch(CompiledMacroException ex){return new[]{$"{ex.Stage}: {ex.Message}"};}
+        if(extension is not ".cs" and not ".vb")return new[]{"Compile check applies to C# and VB.NET macros."};
+
+        var references=BuildReferences();
+        var injected=extension==".cs"?"using CtrlZed;\n":"Imports Microsoft.VisualBasic\nImports CtrlZed\n";
+        var injectedLines=extension==".cs"?1:2;
+        var full=injected+source;
+        SyntaxTree tree;
+        Compilation compilation;
+        if(extension==".cs")
+        {
+            tree=CSharpSyntaxTree.ParseText(full,new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest));
+            compilation=CSharpCompilation.Create(
+                "CtrlZedMacroCheck",new[]{tree},references,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        }
+        else
+        {
+            tree=VisualBasicSyntaxTree.ParseText(full,new VisualBasicParseOptions(Microsoft.CodeAnalysis.VisualBasic.LanguageVersion.Latest));
+            compilation=VisualBasicCompilation.Create(
+                "CtrlZedMacroCheck",new[]{tree},references,
+                new VisualBasicCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        }
+
+        var diagnostics=compilation.GetDiagnostics()
+            .Where(d=>d.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning)
+            .Take(100)
+            .Select(d=>
+            {
+                var where="";
+                if(d.Location.IsInSource)
+                {
+                    var p=d.Location.GetLineSpan().StartLinePosition;
+                    var line=Math.Max(1,p.Line+1-injectedLines);
+                    where=$" line {line}, column {p.Character+1}";
+                }
+                return $"{d.Severity} {d.Id}{where}: {d.GetMessage()}";
+            })
+            .ToList();
+        if(diagnostics.Count==0)diagnostics.Add("No C# or VB.NET compiler errors or warnings found.");
+        return diagnostics;
+    }
+
     static void PreflightLanguage(string source,string extension)
     {
         if(extension==".vb")
@@ -146,7 +194,7 @@ public static class CompiledMacroHost
         }
     }
 
-    static IReadOnlyList<MetadataReference> BuildReferences()
+    internal static IReadOnlyList<MetadataReference> BuildReferences()
     {
         var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 

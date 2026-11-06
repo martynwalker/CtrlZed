@@ -127,13 +127,29 @@ public static class AiManager
         };
         Grid.SetRow(result,4);root.Children.Add(result);
 
-        var bottom=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        var bottom=new Grid{Margin=new Thickness(0,12,0,0)};
+        bottom.ColumnDefinitions.Add(new ColumnDefinition());
+        bottom.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+        var message=new TextBlock
+        {
+            Foreground=Brushes.White,VerticalAlignment=VerticalAlignment.Center,
+            Margin=new Thickness(4,0,12,0),TextWrapping=TextWrapping.Wrap
+        };
+        Grid.SetColumn(message,0);bottom.Children.Add(message);
+        var bottomButtons=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
         var insert=new Button{Content=macroMode?"Use in Macro Editor":"Insert at Cursor",Width=125,Margin=new Thickness(4)};
         var replace=new Button{Content="Replace Selection",Width=125,Margin=new Thickness(4),Visibility=macroMode?Visibility.Collapsed:Visibility.Visible,IsEnabled=!string.IsNullOrWhiteSpace(selectedText)};
         var copy=new Button{Content="Copy Result",Width=95,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
-        bottom.Children.Add(insert);bottom.Children.Add(replace);bottom.Children.Add(copy);bottom.Children.Add(close);
+        bottomButtons.Children.Add(insert);bottomButtons.Children.Add(replace);bottomButtons.Children.Add(copy);bottomButtons.Children.Add(close);
+        Grid.SetColumn(bottomButtons,1);bottom.Children.Add(bottomButtons);
         Grid.SetRow(bottom,5);root.Children.Add(bottom);
+
+        void SetMessage(string text,bool error=false)
+        {
+            message.Text=text;
+            message.Foreground=error?Brushes.LightSalmon:Brushes.White;
+        }
 
         string CurrentMacroExtension()
         {
@@ -168,10 +184,12 @@ public static class AiManager
             {
                 result.Text=await AiDirectService.GenerateAsync(name,BuildPrompt(name),liveWeb.IsChecked==true);
                 heading.Text=macroMode?"AI Macro Assistant — result ready":"AI Writing & Research Assistant — result ready";
+                SetMessage("Result generated successfully.");
             }
             catch(Exception ex)
             {
                 heading.Text=macroMode?"AI Macro Assistant":"AI Writing & Research Assistant";
+                SetMessage("Direct AI failed: "+ex.Message,true);
                 MessageBox.Show(ex.Message,"Direct AI",MessageBoxButton.OK,MessageBoxImage.Error);
             }
             finally{generate.IsEnabled=true;}
@@ -184,6 +202,7 @@ public static class AiManager
             settings.Provider=provider.SelectedItem?.ToString()??"ChatGPT";
             Save(settings);
             heading.Text=(macroMode?"AI Macro Assistant":"AI Writing & Research Assistant")+" — default saved";
+            SetMessage("Default AI provider saved.");
         };
 
         void OpenBrowser(bool privateMode,bool login)
@@ -197,8 +216,20 @@ public static class AiManager
         signed.Click+=(_,__)=>OpenBrowser(false,true);
         paste.Click+=(_,__)=>
         {
-            try{if(Clipboard.ContainsText())result.Text=Clipboard.GetText();}
-            catch(Exception ex){MessageBox.Show(ex.Message,"Clipboard",MessageBoxButton.OK,MessageBoxImage.Error);}
+            try
+            {
+                if(Clipboard.ContainsText())
+                {
+                    result.Text=Clipboard.GetText();
+                    SetMessage("Browser result pasted from clipboard.");
+                }
+                else SetMessage("The clipboard does not contain text.",true);
+            }
+            catch(Exception ex)
+            {
+                SetMessage("Clipboard error: "+ex.Message,true);
+                MessageBox.Show(ex.Message,"Clipboard",MessageBoxButton.OK,MessageBoxImage.Error);
+            }
         };
 
         insert.Click+=(_,__)=>
@@ -221,7 +252,20 @@ public static class AiManager
         };
         copy.Click+=(_,__)=>
         {
-            try{Clipboard.SetText(result.Text);}catch{}
+            if(string.IsNullOrWhiteSpace(result.Text))
+            {
+                SetMessage("There is no result to copy.",true);
+                return;
+            }
+            try
+            {
+                Clipboard.SetText(result.Text);
+                SetMessage("Result copied successfully to the clipboard.");
+            }
+            catch(Exception ex)
+            {
+                SetMessage("Copy failed: "+ex.Message,true);
+            }
         };
         close.Click+=(_,__)=>w.Close();
 

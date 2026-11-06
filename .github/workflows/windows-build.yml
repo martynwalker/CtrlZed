@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29 ]
+    branches: [ main, beta29, beta30 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 29 builds directly on the corrected Beta 28 baseline and adds portable profile persistence for the selected keyboard profile and active style set, restoring both immediately on profile import."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 30 builds on the user-tested Beta 29 baseline and adds Roslyn-backed C#/VB.NET macro completion, compile-only copyable diagnostics, and an AI Assistant status/message area including clipboard confirmation."
 
 # Beta 28 corrected rebuild

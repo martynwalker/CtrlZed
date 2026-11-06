@@ -3470,12 +3470,13 @@ public partial class MainWindow : Window
 
         var actionBar=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
         var run=new Button{Content="Run safe macro",Width=110,Margin=new Thickness(4)};
+        var check=new Button{Content="Check",Width=70,Margin=new Thickness(4),IsEnabled=false};
         var modifyAi=new Button{Content="Ask AI to Modify…",Width=125,Margin=new Thickness(4),IsEnabled=false};
         var shortcutButton=new Button{Content="Shortcut…",Width=90,Margin=new Thickness(4),IsEnabled=false};
         var save=new Button{Content="Save source",Width=100,Margin=new Thickness(4)};
         var saveExit=new Button{Content="Save & Exit",Width=105,Margin=new Thickness(4)};
         var exit=new Button{Content="Exit",Width=75,Margin=new Thickness(4)};
-        actionBar.Children.Add(run);actionBar.Children.Add(modifyAi);actionBar.Children.Add(shortcutButton);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
+        actionBar.Children.Add(run);actionBar.Children.Add(check);actionBar.Children.Add(modifyAi);actionBar.Children.Add(shortcutButton);actionBar.Children.Add(save);actionBar.Children.Add(saveExit);actionBar.Children.Add(exit);
         DockPanel.SetDock(actionBar,Dock.Bottom);right.Children.Add(actionBar);
 
         var code=new ICSharpCode.AvalonEdit.TextEditor
@@ -3575,8 +3576,65 @@ public partial class MainWindow : Window
             code.Select(lineStart,replacement.Length);
         }
 
+        ICSharpCode.AvalonEdit.CodeCompletion.CompletionWindow? completionWindow=null;
+
+        (string Prefix,string? Receiver) CompletionContext()
+        {
+            var caret=Math.Clamp(code.CaretOffset,0,code.Text.Length);
+            var before=code.Text[..caret];
+            var p=before.Length;
+            while(p>0 && (char.IsLetterOrDigit(before[p-1]) || before[p-1]=='_'))p--;
+            var prefix=before[p..];
+            string? receiver=null;
+            if(p>0 && before[p-1]=='.')
+            {
+                var end=p-1;
+                var start=end;
+                while(start>0 && (char.IsLetterOrDigit(before[start-1]) || before[start-1]=='_'))start--;
+                if(end>start)receiver=before[start..end];
+            }
+            return (prefix,receiver);
+        }
+
+        void ShowMacroCompletion()
+        {
+            var ext=CurrentMacroEditorExtension();
+            if(ext is not ".cs" and not ".vb")return;
+            try
+            {
+                var context=CompletionContext();
+                var suggestions=MacroIntellisense.GetSuggestions(code.Text,ext,code.CaretOffset,context.Prefix,context.Receiver);
+                if(suggestions.Count==0)return;
+                completionWindow?.Close();
+                completionWindow=new ICSharpCode.AvalonEdit.CodeCompletion.CompletionWindow(code.TextArea)
+                {
+                    StartOffset=Math.Max(0,code.CaretOffset-context.Prefix.Length)
+                };
+                foreach(var suggestion in suggestions)
+                    completionWindow.CompletionList.CompletionData.Add(new MacroIntellisense.CompletionItem(suggestion));
+                completionWindow.Closed+=(_,__)=>completionWindow=null;
+                completionWindow.Show();
+            }
+            catch(Exception ex)
+            {
+                Status.Text="Macro IntelliSense: "+ex.Message;
+            }
+        }
+
+        code.TextArea.TextEntered+=(_,e)=>
+        {
+            if(e.Text==".")ShowMacroCompletion();
+        };
+
         code.PreviewKeyDown+=(_,e)=>
         {
+            if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.Space)
+            {
+                ShowMacroCompletion();
+                e.Handled=true;
+                return;
+            }
+
             if(e.Key==Key.Tab)
             {
                 IndentSelection(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
@@ -3667,6 +3725,7 @@ public partial class MainWindow : Window
             var selectedExt=selected==null?"":Path.GetExtension(selected).ToLowerInvariant();
             run.Content=selectedExt==".czm"?"Run macro":"Compile && Run";
             run.IsEnabled=selected!=null && (selectedExt==".czm" || ((selectedExt==".vb"||selectedExt==".cs") && compiledMacrosEnabled));
+            check.IsEnabled=selectedExt is ".vb" or ".cs";
             embed.IsEnabled=!selectedEmbedded && selected!=null && selectedExt==".czm";
             extract.IsEnabled=selectedEmbedded && selected!=null;
             rename.IsEnabled=!selectedEmbedded && selected!=null;
@@ -3751,6 +3810,39 @@ INSERT_FIELD date
             code.Text=SetMacroShortcutInSource(code.Text,Path.GetExtension(selected),chosen);
             SaveSelectedMacro();
             Status.Text=string.IsNullOrWhiteSpace(chosen)?"Macro shortcut cleared.":$"Macro shortcut assigned: {chosen}";
+        };
+
+        check.Click+=(_,__)=>
+        {
+            if(selected==null)return;
+            var ext=Path.GetExtension(selected).ToLowerInvariant();
+            if(ext is not ".vb" and not ".cs")return;
+            var report=string.Join(Environment.NewLine,CompiledMacroHost.Check(code.Text,ext));
+            var dw=new Window
+            {
+                Title="Macro Compiler Check",Owner=w,Width=760,Height=480,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,
+                Icon=Branding.CreateIconImageSource()
+            };
+            var dp=new DockPanel{Margin=new Thickness(12)};
+            var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+            var copyDiagnostics=new Button{Content="Copy",Width=80,Margin=new Thickness(4)};
+            var closeDiagnostics=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
+            copyDiagnostics.Click+=(_,__)=>
+            {
+                try{Clipboard.SetText(report);Status.Text="Macro diagnostics copied.";}
+                catch(Exception ex){Status.Text="Could not copy diagnostics: "+ex.Message;}
+            };
+            closeDiagnostics.Click+=(_,__)=>dw.Close();
+            buttons.Children.Add(copyDiagnostics);buttons.Children.Add(closeDiagnostics);
+            DockPanel.SetDock(buttons,Dock.Bottom);dp.Children.Add(buttons);
+            dp.Children.Add(new TextBox
+            {
+                Text=report,IsReadOnly=true,AcceptsReturn=true,TextWrapping=TextWrapping.NoWrap,
+                VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+                FontFamily=new FontFamily("Consolas"),FontSize=13
+            });
+            dw.Content=dp;dw.ShowDialog();
         };
 
         save.Click+=(_,__)=>SaveSelectedMacro();
@@ -3853,7 +3945,7 @@ INSERT_FIELD date
                 selected=null;
                 code.Text="";
                 refresh();RefreshMacroMenus();
-                run.IsEnabled=false;modifyAi.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+                run.IsEnabled=false;check.IsEnabled=false;modifyAi.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
             }
             catch(Exception ex)
             {
@@ -3909,7 +4001,7 @@ INSERT_FIELD date
             });
         };
 
-        refresh();run.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
+        refresh();run.IsEnabled=false;check.IsEnabled=false;shortcutButton.IsEnabled=false;embed.IsEnabled=false;extract.IsEnabled=false;rename.IsEnabled=false;delete.IsEnabled=false;
         w.Content=grid;w.ShowDialog();
     }
 
@@ -4681,6 +4773,6 @@ INSERT_FIELD date
 
     void About_Click(object s,RoutedEventArgs e)
     {
-        Branding.CreateAboutWindow(this,"0.29.0 beta 29").ShowDialog();
+        Branding.CreateAboutWindow(this,"0.30.0 beta 30").ShowDialog();
     }
 }
