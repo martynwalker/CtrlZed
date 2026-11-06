@@ -78,7 +78,7 @@ public static class Beta341SelfTest
                 var paragraph=word.MainDocumentPart?.Document?.Body?.Elements<W.Paragraph>().FirstOrDefault();
                 if(paragraph?.ParagraphProperties?.GetFirstChild<W.Shading>()?.Fill?.Value!="E0ECF6")return 88;
                 var highlight=paragraph.Descendants<W.Highlight>().FirstOrDefault()?.Val?.Value;
-                if(highlight==null || highlight.ToString()!="yellow")return 89;
+                if(highlight==null || highlight.Value!=W.HighlightColorValues.Yellow)return 89;
             }
 
             var imported=DocxInterop.LoadWithLayout(path).Document;
