@@ -1,5 +1,6 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using ICSharpCode.AvalonEdit.Highlighting;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -19,6 +20,26 @@ public static class SelfTest
         try
         {
             if(Branding.CreateIconImageSource()==null)return 26;
+            if(HighlightingManager.Instance.GetDefinition("VBNET")==null)return 35;
+
+            const string simpleText="This is complete. ";
+            if(!ContextualSpellingEngine.TryFindCompletedSentence(simpleText,simpleText.Length,out var simpleSentence) ||
+               simpleSentence.Text!="This is complete.")return 36;
+            const string abbreviationText="Dr. Smith arrived. ";
+            if(!ContextualSpellingEngine.TryFindCompletedSentence(abbreviationText,abbreviationText.Length,out var abbreviationSentence) ||
+               abbreviationSentence.Text!="Dr. Smith arrived.")return 37;
+            const string unfinishedAbbreviation="I spoke to Dr. ";
+            if(ContextualSpellingEngine.TryFindCompletedSentence(unfinishedAbbreviation,unfinishedAbbreviation.Length,out _))return 38;
+            const string decimalText="Version 3.2 is stable. ";
+            if(!ContextualSpellingEngine.TryFindCompletedSentence(decimalText,decimalText.Length,out var decimalSentence) ||
+               decimalSentence.Text!="Version 3.2 is stable.")return 39;
+            if(ContextualSpellingEngine.ChooseHighConfidenceCorrection("adress",new[]{"address","across"})!="address")return 40;
+            if(ContextualSpellingEngine.ChooseHighConfidenceCorrection("Adress",new[]{"Address"})!=null)return 41;
+            if(ContextualSpellingEngine.ParseAiChoice("address",new[]{"address","across"})!="address")return 42;
+            if(ContextualSpellingEngine.ParseAiChoice("Perhaps address",new[]{"address","across"})!=null)return 43;
+            var spellingPrompt=ContextualSpellingEngine.BuildAiChoicePrompt("Send it to this adress.","adress",new[]{"address","across"},"Formal letter");
+            if(!spellingPrompt.Contains("Return exactly") || !spellingPrompt.Contains("Send it to this adress."))return 44;
+
             var chart=AiResultRenderer.TryRenderChart("TITLE: Test movements\nFTSE 100|1.2\nDAX|-0.8\nNikkei 225|2.1");
             if(chart==null||chart.PixelWidth<400)return 27;
             var prompt=AiResultRenderer.MacroPrompt("Insert today's date",".czm",SafeMacroLanguage.Reference,"");

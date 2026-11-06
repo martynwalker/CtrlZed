@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30 ]
+    branches: [ main, beta29, beta30, beta31 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 30 builds on the user-tested Beta 29 baseline and adds Roslyn-backed C#/VB.NET macro completion, compile-only copyable diagnostics, and an AI Assistant status/message area including clipboard confirmation."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 31 builds on the user-tested Beta 30 baseline. It restores VB.NET macro colourisation and adds the British-English spelling foundation: Review menu, right-click corrections, personal dictionary, writing modes, profile portability, optional conservative sentence-end autocorrection, and explicitly enabled sentence-scoped AI disambiguation constrained to local spelling candidates. Grammar, thesaurus and poetry rhyme assistance remain queued for later releases."
 
-# Beta 28 corrected rebuild
+# Beta 31 release build

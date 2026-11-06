@@ -4,9 +4,9 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 29
+## Current release: Beta 31
 
-Beta 29 is the current Windows prerelease. It builds directly on Beta 27 and adds or retains:
+Beta 31 is the current Windows prerelease. It builds directly on the user-tested Beta 30 baseline and adds or retains:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
@@ -144,20 +144,37 @@ Browser/free and signed-in handoff remain available for all four providers, with
 
 MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.md).
 
-
 ## Beta 27 highlights
 
 Beta 26.1 adds **Ask AI to Modify…** for the selected macro. CtrlZed sends the current source and language to the existing AI Macro Assistant and loads the proposed revision into the editor for review; saving remains explicit.
 
-
-Beta 27 adds Ask AI to Modify for selected macros, keyboard-profile shortcut help, non-printing comments, reusable image signatures, named style sets and style-set portability in .czprofile archives. Automatic bitmap-to-vector signature tracing remains on the Coming Soon list.
-
+Beta 27 adds Ask AI to Modify for selected macros, keyboard-profile shortcut help, non-printing comments, reusable image signatures, named style sets and style-set portability in `.czprofile` archives. Automatic bitmap-to-vector signature tracing remains in Coming Soon.
 
 ## Beta 28 highlights
 
 Beta 28 adds a dropdown style selector and RGB/hex colour picker in Styles, whole-document reformatting via Format > Reformat Document (F9 in the Microsoft Word profile), remembered keyboard profiles with profile-aware menu shortcut labels, and user-assignable macro shortcuts with reserved-key and duplicate-assignment checks across Safe, VB.NET and C# macros.
 
-
 ## Beta 29 highlights
 
 Beta 29 carries the selected keyboard profile and active style set in portable `.czprofile` export/import, restoring both immediately when a profile is imported. It builds directly on the corrected Beta 28 baseline.
+
+## Beta 30 highlights
+
+Beta 30 adds Roslyn-backed completion for C# and VB.NET macros, copyable compile-only diagnostics, and a reusable status/message area in the AI Assistant, including explicit confirmation when a result is copied.
+
+## Beta 31 highlights
+
+Beta 31 establishes CtrlZed's language-intelligence foundation:
+
+- restores VB.NET syntax colourisation in Macro Manager;
+- adds a top-level Review menu;
+- uses British English (`en-GB`) for spelling by default;
+- provides red spelling marks, right-click correction choices, Ignore All and Add to Personal Dictionary;
+- adds a persistent British-English personal dictionary and manager;
+- adds Next Spelling Error on F7 in the Microsoft Word keyboard profile while preserving WordPerfect's F7 behaviour;
+- adds selectable writing modes for letters, email, business, technical, academic, legal, journalism, speeches, fiction, novels, novellas, short stories, screenplays, poetry and custom use;
+- adds an optional, conservative sentence-completion spelling correction, off by default and immediately undoable;
+- optionally uses a configured direct AI provider to disambiguate a completed sentence, but only with explicit permission, only when local confidence is insufficient, and only by choosing from the local spelling candidates;
+- exports/imports language settings and personal dictionary words with `.czprofile`.
+
+Grammar/style suggestions, the contextual thesaurus and poetry rhyme assistance remain scheduled for subsequent releases; Beta 31 does not silently rewrite grammar or style.
