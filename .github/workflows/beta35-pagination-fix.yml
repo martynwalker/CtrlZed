@@ -1,0 +1,33 @@
+name: Beta 35 pagination syntax fix
+on:
+  push:
+    branches: [ beta35 ]
+    paths:
+      - ".github/workflows/beta35-pagination-fix.yml"
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta35
+      - name: Correct timer lambda
+        shell: pwsh
+        run: |
+          $path = "PaginationMap.cs"
+          $text = [System.IO.File]::ReadAllText($path)
+          $old = 'beta35PaginationTimer.Tick+=async (_,__)='
+          $new = 'beta35PaginationTimer.Tick+=async (_,__)=>'
+          if (-not $text.Contains($old)) { throw "Expected timer lambda was not found." }
+          $text = $text.Replace($old,$new)
+          [System.IO.File]::WriteAllText($path,$text,[System.Text.UTF8Encoding]::new($false))
+      - name: Commit correction
+        shell: pwsh
+        run: |
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add PaginationMap.cs
+          git commit -m "Beta 35: fix pagination timer lambda"
+          git push origin HEAD:beta35
