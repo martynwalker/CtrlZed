@@ -138,6 +138,7 @@ public partial class MainWindow
 
         PageGuides.InvalidateVisual();
         if(persist)EditorViewSettingsStore.Save(mode);
+        OnBeta35ViewModeChanged();
         if(IsLoaded)
             Status.Text=paged
                 ?"Paged Editing view selected."
