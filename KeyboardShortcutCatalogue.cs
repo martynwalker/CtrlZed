@@ -34,34 +34,61 @@ public static class CtrlZedKeyboardCatalogue
     public static IReadOnlyList<CtrlZedShortcut> All { get; }=new CtrlZedShortcut[]
     {
         new("New document","Create a new document.","Ctrl+N","","","File/New"),
-        new("Open","Open an existing document.","Ctrl+O","","","File/Open"),
-        new("Save","Save the current document.","Ctrl+S","","Ctrl+K, S","File/Save"),
+        new("Open","Open or retrieve an existing document.","Ctrl+O","Shift+F10","","File/Open"),
+        new("Import document","Insert another document at the caret.","","","Ctrl+K, R","File/Import"),
+        new("Save","Save the current document.","Ctrl+S","F10","Ctrl+K, S","File/Save"),
+        new("Save and continue","WordStar save-document command.","","","Ctrl+K, D"),
         new("Save As","Save to a new file or format.","Ctrl+Shift+S","","","File/Save As"),
-        new("Print","Print the current document.","Ctrl+P","Shift+F7","","File/Print"),
+        new("Print","Print the current document.","Ctrl+P","Shift+F7","Ctrl+K, P","File/Print"),
         new("Exit","Close CtrlZed.","","F7","Ctrl+K, X","File/Exit"),
+        new("Close document","Close with CtrlZed's normal save prompt.","","","Ctrl+K, Q"),
 
         new("Undo","Undo the most recent editing action.","Ctrl+Z","","","Edit/Undo"),
         new("Redo","Redo the most recently undone action.","Ctrl+Y","","","Edit/Redo"),
         new("Cut","Cut the selection.","Ctrl+X","","","Edit/Cut"),
         new("Copy","Copy the selection.","Ctrl+C","","","Edit/Copy"),
         new("Paste","Paste at the caret.","Ctrl+V","","","Edit/Paste"),
-        new("Find / Replace","Find and replace text.","Ctrl+H","","","Edit/Find / Replace"),
+        new("Find / Replace","Find and replace text.","Ctrl+H","F2","Ctrl+Q, F","Edit/Find / Replace"),
+        new("Replace","Open Find / Replace from WordPerfect or WordStar.","","Alt+F2","Ctrl+Q, A"),
 
         new("Page break","Insert a manual page break.","Ctrl+Enter","","","Insert/Page Break"),
-        new("Bold","Toggle bold formatting.","Ctrl+B","","","Format/Bold"),
+        new("Insert picture","Insert a picture.","","Alt+F9","","Insert/Picture"),
+        new("Bold","Toggle bold formatting.","Ctrl+B","F6","","Format/Bold"),
         new("Italic","Toggle italic formatting.","Ctrl+I","","","Format/Italic"),
-        new("Underline","Toggle underline formatting.","Ctrl+U","","","Format/Underline"),
+        new("Underline","Toggle underline formatting.","Ctrl+U","F8","","Format/Underline"),
+        new("Increase indent","Move the paragraph indentation to the right.","","F4","",""),
+        new("Decrease indent","Move the paragraph indentation to the left.","","Shift+F4","",""),
         new("Centre paragraph","Centre the current paragraph.","","Shift+F6","","Format/Align Centre"),
+        new("Align right","Align the current paragraph to the right.","","Alt+F6","","Format/Align Right"),
+        new("Page setup","Open page and margin settings.","","Shift+F8","","File/Page Setup"),
+        new("Styles","Open the style-set editor.","","Alt+F8","","Format/Styles"),
+        new("Choose font","Move focus to the font selector.","","Ctrl+F8","",""),
         new("Reformat document","Reapply the active style set to the document.","F9","","","Format/Reformat Document"),
 
-        new("Next spelling error","Move to the next red spelling mark.","F7","","","Review/Next Spelling Error"),
+        new("Next spelling error","Move to the next red spelling mark.","F7","Ctrl+F2","","Review/Next Spelling Error"),
         new("Contextual thesaurus","Open contextual alternatives for the selection or current word.","Shift+F7","","","Review/Contextual Thesaurus"),
+        new("Settings","Open CtrlZed settings.","","Shift+F1","","File/Settings"),
+        new("Fields","Open the fields manager.","","Ctrl+F9","","Tools/Fields"),
         new("About CtrlZed","Open the About window.","","F3","","Help/About CtrlZed"),
 
-        new("Move up one line","WordStar cursor movement.","","","Ctrl+E"),
-        new("Move down one line","WordStar cursor movement.","","","Ctrl+X"),
-        new("Move left one character","WordStar cursor movement.","","","Ctrl+S"),
-        new("Move right one character","WordStar cursor movement.","","","Ctrl+D")
+        new("Move up one line","WordStar cursor-diamond movement.","","","Ctrl+E"),
+        new("Move down one line","WordStar cursor-diamond movement.","","","Ctrl+X"),
+        new("Move left one character","WordStar cursor-diamond movement.","","","Ctrl+S"),
+        new("Move right one character","WordStar cursor-diamond movement.","","","Ctrl+D"),
+        new("Move left one word","WordStar cursor-diamond word movement.","","","Ctrl+A"),
+        new("Move right one word","WordStar cursor-diamond word movement.","","","Ctrl+F"),
+        new("Page up","Move up by one page.","","","Ctrl+R"),
+        new("Page down","Move down by one page.","","","Ctrl+C"),
+        new("Scroll up","Move the caret up one line without leaving the WordStar profile.","","","Ctrl+W"),
+        new("Scroll down","Move the caret down one line without leaving the WordStar profile.","","","Ctrl+Z"),
+        new("Beginning of line","Move to the beginning of the current line.","","","Ctrl+Q, S"),
+        new("End of line","Move to the end of the current line.","","","Ctrl+Q, D"),
+        new("Beginning of document","Move to the beginning of the document.","","","Ctrl+Q, R"),
+        new("End of document","Move to the end of the document.","","","Ctrl+Q, C"),
+        new("Delete character","Delete the next character.","","","Ctrl+G"),
+        new("Delete word","Delete the next word.","","","Ctrl+T"),
+        new("Delete line","Delete the current paragraph/line.","","","Ctrl+Y"),
+        new("Open line","Insert a paragraph break.","","","Ctrl+N")
     };
 
     public static IReadOnlyList<string> Validate()
@@ -187,7 +214,7 @@ public partial class MainWindow
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
         var copy=new Button{Content="Copy All",Width=90,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=80,Margin=new Thickness(4),IsDefault=true};
-        copy.Click+=(_,__)=> 
+        copy.Click+=(_,__)=>
         {
             try
             {
