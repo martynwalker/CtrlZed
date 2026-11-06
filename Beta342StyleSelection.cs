@@ -19,9 +19,8 @@ public partial class MainWindow
         if(beta342StyleSelectionInstalled)return;
         beta342StyleSelectionInstalled=true;
 
-        StyleBox.AddHandler(
-            UIElement.PreviewMouseLeftButtonDownEvent,
-            new MouseButtonEventHandler(Beta342StyleChoiceMouseDown),true);
+        foreach(var item in StyleBox.Items.OfType<ComboBoxItem>())
+            item.PreviewMouseLeftButtonDown+=Beta342StyleChoiceMouseDown;
         StyleBox.DropDownClosed+=Beta342StyleBoxDropDownClosed;
     }
 
@@ -31,8 +30,9 @@ public partial class MainWindow
         beta342SelectionStart=null;
         beta342SelectionEnd=null;
 
-        var item=FindComboBoxItem(e.OriginalSource as DependencyObject);
-        if(item==null || !ReferenceEquals(StyleBox.SelectedItem,item) || item.Content is not string style)return;
+        if(sender is not ComboBoxItem item ||
+           !ReferenceEquals(StyleBox.SelectedItem,item) ||
+           item.Content is not string style)return;
 
         // SelectionChanged does not fire when the user deliberately chooses
         // the style that is already displayed (most often Normal). Preserve
@@ -61,13 +61,6 @@ public partial class MainWindow
             Editor.Selection.Select(start,end);
             Editor.Focus();
         }),DispatcherPriority.Input);
-    }
-
-    static ComboBoxItem? FindComboBoxItem(DependencyObject? source)
-    {
-        for(var current=source;current!=null;current=System.Windows.Media.VisualTreeHelper.GetParent(current))
-            if(current is ComboBoxItem item)return item;
-        return null;
     }
 }
 
