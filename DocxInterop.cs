@@ -429,13 +429,11 @@ public static class DocxInterop
         }
         if(hasIndentation)properties.Append(indentation);
 
-        properties.Append(new W.Justification{Val=paragraph.TextAlignment switch
-        {
-            TextAlignment.Center=>W.JustificationValues.Center,
-            TextAlignment.Right=>W.JustificationValues.Right,
-            TextAlignment.Justify=>W.JustificationValues.Both,
-            _=>W.JustificationValues.Left
-        }});
+        var alignment=W.JustificationValues.Left;
+        if(paragraph.TextAlignment==TextAlignment.Center)alignment=W.JustificationValues.Center;
+        else if(paragraph.TextAlignment==TextAlignment.Right)alignment=W.JustificationValues.Right;
+        else if(paragraph.TextAlignment==TextAlignment.Justify)alignment=W.JustificationValues.Both;
+        properties.Append(new W.Justification{Val=alignment});
 
         wordParagraph.Append(properties);
         AppendInlines(main,wordParagraph,paragraph.Inlines,ref imageId);
@@ -496,15 +494,12 @@ public static class DocxInterop
             .FirstOrDefault(x=>x.LevelIndex?.Value==level)
             ??abstractNumber?.Elements<W.Level>().FirstOrDefault();
         var format=levelDefinition?.NumberingFormat?.Val?.Value;
-        var marker=format switch
-        {
-            W.NumberFormatValues.Decimal=>TextMarkerStyle.Decimal,
-            W.NumberFormatValues.LowerLetter=>TextMarkerStyle.LowerLatin,
-            W.NumberFormatValues.UpperLetter=>TextMarkerStyle.UpperLatin,
-            W.NumberFormatValues.LowerRoman=>TextMarkerStyle.LowerRoman,
-            W.NumberFormatValues.UpperRoman=>TextMarkerStyle.UpperRoman,
-            _=>TextMarkerStyle.Disc
-        };
+        var marker=TextMarkerStyle.Disc;
+        if(format==W.NumberFormatValues.Decimal)marker=TextMarkerStyle.Decimal;
+        else if(format==W.NumberFormatValues.LowerLetter)marker=TextMarkerStyle.LowerLatin;
+        else if(format==W.NumberFormatValues.UpperLetter)marker=TextMarkerStyle.UpperLatin;
+        else if(format==W.NumberFormatValues.LowerRoman)marker=TextMarkerStyle.LowerRoman;
+        else if(format==W.NumberFormatValues.UpperRoman)marker=TextMarkerStyle.UpperRoman;
         return new NumberingInfo(numberId.Value,level,marker);
     }
 
@@ -832,13 +827,9 @@ public static class DocxInterop
     {
         if(properties==null)return;
         var justification=properties.GetFirstChild<W.Justification>()?.Val?.Value;
-        paragraph.TextAlignment=justification switch
-        {
-            W.JustificationValues.Center=>TextAlignment.Center,
-            W.JustificationValues.Right=>TextAlignment.Right,
-            W.JustificationValues.Both=>TextAlignment.Justify,
-            _=>paragraph.TextAlignment
-        };
+        if(justification==W.JustificationValues.Center)paragraph.TextAlignment=TextAlignment.Center;
+        else if(justification==W.JustificationValues.Right)paragraph.TextAlignment=TextAlignment.Right;
+        else if(justification==W.JustificationValues.Both)paragraph.TextAlignment=TextAlignment.Justify;
         var pageBreak=properties.GetFirstChild<W.PageBreakBefore>();
         if(pageBreak!=null && (pageBreak.Val?.Value??true))paragraph.BreakPageBefore=true;
         var keepLines=properties.GetFirstChild<W.KeepLines>();
