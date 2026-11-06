@@ -1,0 +1,49 @@
+name: Beta 34.2 validation
+on:
+  push:
+    branches: [ beta342 ]
+permissions:
+  contents: read
+concurrency:
+  group: ctrlzed-beta342-validation
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build
+        run: dotnet build CtrlZed.csproj -c Release
+      - name: Publish validation build
+        run: dotnet publish CtrlZed.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o artifacts/CtrlZed
+      - name: Smoke launch
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -PassThru
+          $ready = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            $p.Refresh()
+            if ($p.HasExited) { throw "CtrlZed exited during smoke launch with code $($p.ExitCode)" }
+            if ($p.MainWindowHandle -ne 0 -and $p.Responding) {
+              $ready = $true
+              break
+            }
+          }
+          if (-not $ready) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw "CtrlZed did not create a responsive main window within 10 seconds."
+          }
+          Stop-Process -Id $p.Id -Force
+      - name: Functional self-test
+        shell: pwsh
+        run: |
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "CtrlZed self-test failed with code $($t.ExitCode)"
+          }

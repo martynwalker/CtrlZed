@@ -178,7 +178,8 @@ Requirements:
   or an async Task-returning equivalent with the same RichTextBox parameter.
 - CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
-- Never embed API keys, passwords, tokens or other secrets in source. If the user has not explicitly named a secret, use CtrlZedSecrets.Get(CtrlZedSecrets.DefaultName(""ProviderName"")) at runtime. CtrlZed's defaults are ChatGPTKey, GeminiKey and ClaudeKey. Tell the user which provider default is required, but never invent a different secret name.
+- Never embed API keys, passwords, tokens or other secrets in source.
+- When this macro uses an AI service, declare one clearly visible constant near the top of the macro class, for example: public const string AI_API_KEY = ""ChatGPTKey""; Choose ChatGPTKey, GeminiKey or ClaudeKey to match the provider, then retrieve it only with CtrlZedSecrets.Get(AI_API_KEY). Do not bury the secret name inside an HTTP helper or method.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
 - If the user does not name an external AI provider, prefer the provider authoring this macro ({authoringProvider}) rather than inventing a different provider or secret name. Never assume which secrets exist.
 - Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
@@ -215,7 +216,8 @@ Requirements:
   or an Async Function Run(Editor As System.Windows.Controls.RichTextBox) As Task.
 - CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
-- Never embed API keys, passwords, tokens or other secrets in source. Use CtrlZedSecrets.Get(""SecretName"") at runtime and tell the user which named secret must be configured in Macro Manager → Secrets.
+- Never embed API keys, passwords, tokens or other secrets in source.
+- When this macro uses an AI service, declare one clearly visible constant near the top of the Module or Class, for example: Public Const AI_API_KEY As String = ""ChatGPTKey"". Choose ChatGPTKey, GeminiKey or ClaudeKey to match the provider, then retrieve it only with CtrlZedSecrets.Get(AI_API_KEY). Do not bury the secret name inside an HTTP helper or method.
 - Do not hard-code AI provider model IDs unless the user explicitly requests a fixed model. Use CtrlZedAi.GetModel(""Gemini""), CtrlZedAi.GetModel(""ChatGPT""), or CtrlZedAi.GetModel(""Claude"") so macros automatically follow CtrlZed's configured model.
 - If the user does not name an external AI provider, prefer the provider authoring this macro ({authoringProvider}) rather than inventing a different provider or secret name. Never assume which secrets exist.
 - Macro menu metadata uses language-native constants. MENU_POSITION is the macro's order; MENU_OPTION is a legacy alias.
@@ -262,6 +264,7 @@ Only return an unsupported-capability explanation when the required capability i
     {
         source=(source??"").Trim();
         instruction=(instruction??"").Trim();
+        source=EnsureVisibleAiApiKeyConstant(source,macroExtension,provider);
         if(string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(instruction))return source;
         if(source.Contains("CTRLZED AI PROMPT",StringComparison.OrdinalIgnoreCase))return source;
 
@@ -277,6 +280,37 @@ Only return an unsupported-capability explanation when the required capability i
         header.Add($"{prefix} END CTRLZED AI PROMPT");
         header.Add("");
         return string.Join(Environment.NewLine,header)+source;
+    }
+
+    static string EnsureVisibleAiApiKeyConstant(string source,string macroExtension,string provider)
+    {
+        macroExtension=(macroExtension??"").ToLowerInvariant();
+        if(macroExtension is not ".cs" and not ".vb")return source;
+        if(source.Contains("AI_API_KEY",StringComparison.OrdinalIgnoreCase))return source;
+
+        var usesAiSecret=source.Contains("CtrlZedSecrets",StringComparison.OrdinalIgnoreCase) ||
+                         source.Contains("CtrlZedAi.GetModel",StringComparison.OrdinalIgnoreCase);
+        if(!usesAiSecret)return source;
+
+        var key=source.Contains("Gemini",StringComparison.OrdinalIgnoreCase)?"GeminiKey":
+                source.Contains("Claude",StringComparison.OrdinalIgnoreCase) || source.Contains("Anthropic",StringComparison.OrdinalIgnoreCase)?"ClaudeKey":
+                source.Contains("ChatGPT",StringComparison.OrdinalIgnoreCase) || source.Contains("OpenAI",StringComparison.OrdinalIgnoreCase)?"ChatGPTKey":
+                provider.Equals("Gemini",StringComparison.OrdinalIgnoreCase)?"GeminiKey":
+                provider.Equals("Claude",StringComparison.OrdinalIgnoreCase)?"ClaudeKey":"ChatGPTKey";
+
+        var knownSecretPattern=@"CtrlZedSecrets\.Get\(\s*(?:CtrlZedSecrets\.DefaultName\(\s*""(?:ChatGPT|Gemini|Claude)""\s*\)|""(?:ChatGPTKey|GeminiKey|ClaudeKey)"")\s*\)";
+        source=Regex.Replace(source,knownSecretPattern,"CtrlZedSecrets.Get(AI_API_KEY)",RegexOptions.IgnoreCase);
+
+        if(macroExtension==".cs")
+        {
+            var match=Regex.Match(source,@"\b(?:public\s+)?(?:static\s+)?class\s+\w+[^\{]*\{",RegexOptions.IgnoreCase);
+            if(!match.Success)return source;
+            return source.Insert(match.Index+match.Length,$"{Environment.NewLine}    public const string AI_API_KEY = \"{key}\";{Environment.NewLine}");
+        }
+
+        var vbMatch=Regex.Match(source,@"(?im)^\s*(?:Public\s+)?(?:Module|Class)\s+\w+[^\r\n]*");
+        if(!vbMatch.Success)return source;
+        return source.Insert(vbMatch.Index+vbMatch.Length,$"{Environment.NewLine}    Public Const AI_API_KEY As String = \"{key}\"{Environment.NewLine}");
     }
 
     static string TrimContext(string text,int max)
