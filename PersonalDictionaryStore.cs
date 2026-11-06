@@ -64,6 +64,8 @@ public static class PersonalDictionaryStore
         return true;
     }
 
+    public static void ReplaceWords(IEnumerable<string> words)=>WriteWords(words);
+
     static string NormaliseWord(string value)
     {
         if(string.IsNullOrWhiteSpace(value))return "";
