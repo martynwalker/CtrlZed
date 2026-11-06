@@ -34,23 +34,27 @@ public partial class MainWindow
     CancellationTokenSource? grammarAiCancellation;
     bool grammarReviewInitialised;
     bool grammarAnalysisRunning;
+    bool grammarReviewPending;
 
     internal void InitialiseBeta32GrammarReview()
     {
         if(grammarReviewInitialised)return;
         grammarReviewInitialised=true;
 
-        grammarReviewTimer=new DispatcherTimer(DispatcherPriority.Background)
+        // Grammar must never compete with keystrokes.  It runs only after an
+        // idle pause, on the UI thread once WPF has finished laying out text.
+        grammarReviewTimer=new DispatcherTimer(DispatcherPriority.ApplicationIdle)
         {
-            Interval=TimeSpan.FromMilliseconds(900)
+            Interval=TimeSpan.FromMilliseconds(1100)
         };
         grammarReviewTimer.Tick+=GrammarReviewTimer_Tick;
         Editor.TextChanged+=GrammarEditor_TextChanged;
-        Editor.LayoutUpdated+=(_,__)=>grammarAdorner?.InvalidateVisual();
+        Editor.SizeChanged+=(_,__)=>grammarAdorner?.InvalidateVisual();
         LanguageProfileBridge.ReloadRequested+=GrammarProfileReloaded;
         Closed+=(_,__)=>
         {
             grammarAiCancellation?.Cancel();
+            grammarReviewTimer?.Stop();
             LanguageProfileBridge.ReloadRequested-=GrammarProfileReloaded;
         };
 
@@ -69,13 +73,27 @@ public partial class MainWindow
             InstallGrammarUi();
             if(languageSettings.GrammarAndStyleSuggestions)ScheduleGrammarReview(true);
             else ClearGrammarIssues();
-        }),DispatcherPriority.Background);
+        }),DispatcherPriority.ApplicationIdle);
     }
 
     void GrammarEditor_TextChanged(object sender,TextChangedEventArgs e)
     {
         if(!languageSettings.GrammarAndStyleSuggestions || grammarReviewTimer==null)return;
+
         grammarReviewTimer.Stop();
+        grammarReviewPending=true;
+
+        // TextPointers track edits, but a previously drawn underline can be
+        // misleading while the paragraph is being changed.  Hide stale marks
+        // immediately and rebuild once typing has paused.
+        if(grammarIssues.Count>0)
+        {
+            grammarIssues.Clear();
+            grammarAdorner?.SetRanges(Array.Empty<GrammarMarkedRange>());
+            if(grammarReviewList!=null)grammarReviewList.ItemsSource=null;
+        }
+
+        UpdateGrammarStatus();
         grammarReviewTimer.Start();
     }
 
@@ -89,9 +107,11 @@ public partial class MainWindow
     {
         if(!languageSettings.GrammarAndStyleSuggestions || grammarReviewTimer==null)return;
         grammarReviewTimer.Stop();
+        grammarReviewPending=true;
+        UpdateGrammarStatus();
         if(immediate)
         {
-            Dispatcher.BeginInvoke(new Action(RunLocalGrammarReview),DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(new Action(RunLocalGrammarReview),DispatcherPriority.ApplicationIdle);
             return;
         }
         grammarReviewTimer.Start();
@@ -101,6 +121,7 @@ public partial class MainWindow
     {
         if(grammarAnalysisRunning || !languageSettings.GrammarAndStyleSuggestions)return;
         grammarAnalysisRunning=true;
+        grammarReviewPending=false;
         try
         {
             grammarIssues.Clear();
@@ -119,10 +140,14 @@ public partial class MainWindow
             }
 
             RefreshGrammarMarks();
-            RefreshGrammarReviewWindow();
+            RefreshGrammarReviewWindowWithoutJumping();
             UpdateGrammarStatus();
         }
-        finally{grammarAnalysisRunning=false;}
+        finally
+        {
+            grammarAnalysisRunning=false;
+            UpdateGrammarStatus();
+        }
     }
 
     void AddGrammarFinding(Paragraph paragraph,GrammarFinding finding)
@@ -163,12 +188,23 @@ public partial class MainWindow
             .ToList());
     }
 
+    void RefreshGrammarReviewWindowWithoutJumping()
+    {
+        if(grammarReviewList==null)return;
+        var selected=grammarReviewList.SelectedItem as GrammarIssueView;
+        grammarReviewList.ItemsSource=null;
+        grammarReviewList.ItemsSource=grammarIssues.ToList();
+        if(selected!=null && grammarIssues.Contains(selected))grammarReviewList.SelectedItem=selected;
+    }
+
     void ClearGrammarIssues(string? message=null)
     {
         grammarAiCancellation?.Cancel();
+        grammarReviewTimer?.Stop();
+        grammarReviewPending=false;
         grammarIssues.Clear();
         grammarAdorner?.SetRanges(Array.Empty<GrammarMarkedRange>());
-        RefreshGrammarReviewWindow();
+        RefreshGrammarReviewWindowWithoutJumping();
         UpdateGrammarStatus();
         if(!string.IsNullOrWhiteSpace(message))Status.Text=message;
     }
@@ -178,7 +214,11 @@ public partial class MainWindow
         if(grammarStatus==null)return;
         grammarStatus.Text=!languageSettings.GrammarAndStyleSuggestions
             ?"Grammar: off"
-            :$"Grammar: {grammarIssues.Count}";
+            :grammarReviewPending
+                ?"Grammar: waiting…"
+                :grammarAnalysisRunning
+                    ?"Grammar: checking…"
+                    :$"Grammar: {grammarIssues.Count}";
     }
 
     void ApplyGrammarIssue(GrammarIssueView issue)
@@ -205,7 +245,7 @@ public partial class MainWindow
     {
         grammarIssues.Remove(issue);
         RefreshGrammarMarks();
-        RefreshGrammarReviewWindow();
+        RefreshGrammarReviewWindowWithoutJumping();
         UpdateGrammarStatus();
         Status.Text="Grammar suggestion ignored until the text is analysed again.";
     }
@@ -215,7 +255,7 @@ public partial class MainWindow
         ignoredGrammarRules.Add(ruleId);
         grammarIssues.RemoveAll(x=>string.Equals(x.Finding.RuleId,ruleId,StringComparison.OrdinalIgnoreCase));
         RefreshGrammarMarks();
-        RefreshGrammarReviewWindow();
+        RefreshGrammarReviewWindowWithoutJumping();
         UpdateGrammarStatus();
         Status.Text="Grammar rule ignored for this CtrlZed session.";
     }
@@ -269,7 +309,7 @@ public partial class MainWindow
 
             grammarIssues.Sort((a,b)=>a.Start.CompareTo(b.Start));
             RefreshGrammarMarks();
-            RefreshGrammarReviewWindow();
+            RefreshGrammarReviewWindowWithoutJumping();
             UpdateGrammarStatus();
             Status.Text=findings.Count==0
                 ?"AI found no sufficiently useful contextual grammar suggestions for this paragraph."
