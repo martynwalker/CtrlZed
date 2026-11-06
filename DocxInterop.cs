@@ -641,26 +641,23 @@ public static class DocxInterop
 
     static SolidColorBrush? BrushFromHighlight(W.HighlightColorValues value)
     {
-        var colour=value switch
-        {
-            W.HighlightColorValues.Yellow=>Colors.Yellow,
-            W.HighlightColorValues.Green=>Colors.Lime,
-            W.HighlightColorValues.Cyan=>Colors.Cyan,
-            W.HighlightColorValues.Magenta=>Colors.Magenta,
-            W.HighlightColorValues.Red=>Colors.Red,
-            W.HighlightColorValues.Blue=>Colors.Blue,
-            W.HighlightColorValues.DarkYellow=>Color.FromRgb(128,128,0),
-            W.HighlightColorValues.DarkGreen=>Color.FromRgb(0,128,0),
-            W.HighlightColorValues.DarkCyan=>Color.FromRgb(0,128,128),
-            W.HighlightColorValues.DarkMagenta=>Color.FromRgb(128,0,128),
-            W.HighlightColorValues.DarkRed=>Color.FromRgb(128,0,0),
-            W.HighlightColorValues.DarkBlue=>Color.FromRgb(0,0,128),
-            W.HighlightColorValues.LightGray=>Colors.LightGray,
-            W.HighlightColorValues.DarkGray=>Colors.DarkGray,
-            W.HighlightColorValues.Black=>Colors.Black,
-            _=>Colors.Transparent
-        };
-        if(colour.A==0)return null;
+        System.Windows.Media.Color colour;
+        if(value==W.HighlightColorValues.Yellow)colour=Colors.Yellow;
+        else if(value==W.HighlightColorValues.Green)colour=Colors.Lime;
+        else if(value==W.HighlightColorValues.Cyan)colour=Colors.Cyan;
+        else if(value==W.HighlightColorValues.Magenta)colour=Colors.Magenta;
+        else if(value==W.HighlightColorValues.Red)colour=Colors.Red;
+        else if(value==W.HighlightColorValues.Blue)colour=Colors.Blue;
+        else if(value==W.HighlightColorValues.DarkYellow)colour=Color.FromRgb(128,128,0);
+        else if(value==W.HighlightColorValues.DarkGreen)colour=Color.FromRgb(0,128,0);
+        else if(value==W.HighlightColorValues.DarkCyan)colour=Color.FromRgb(0,128,128);
+        else if(value==W.HighlightColorValues.DarkMagenta)colour=Color.FromRgb(128,0,128);
+        else if(value==W.HighlightColorValues.DarkRed)colour=Color.FromRgb(128,0,0);
+        else if(value==W.HighlightColorValues.DarkBlue)colour=Color.FromRgb(0,0,128);
+        else if(value==W.HighlightColorValues.LightGray)colour=Colors.LightGray;
+        else if(value==W.HighlightColorValues.DarkGray)colour=Colors.DarkGray;
+        else if(value==W.HighlightColorValues.Black)colour=Colors.Black;
+        else return null;
         var brush=new SolidColorBrush(colour);
         brush.Freeze();
         return brush;
