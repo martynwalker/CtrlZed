@@ -596,8 +596,7 @@ public static class DocxInterop
         if(HasDecoration(decorations,TextDecorationLocation.Underline))
             properties.Append(new W.Underline{Val=W.UnderlineValues.Single});
 
-        var backgroundValue=effective.GetPropertyValue(TextElement.BackgroundProperty);
-        var background=backgroundValue as SolidColorBrush??run.Background as SolidColorBrush;
+        var background=EffectiveInlineBackground(run);
         if(background!=null && background.Color.A>0)
         {
             var highlight=ToWordHighlight(background.Color);
@@ -620,6 +619,21 @@ public static class DocxInterop
         var language=run.Language?.IetfLanguageTag;
         if(!string.IsNullOrWhiteSpace(language))properties.Append(new W.Languages{Val=language});
         return new W.Run(properties,new W.Text(run.Text??""){Space=SpaceProcessingModeValues.Preserve});
+    }
+
+    static SolidColorBrush? EffectiveInlineBackground(Run run)
+    {
+        if(run.ReadLocalValue(TextElement.BackgroundProperty) is SolidColorBrush local && local.Color.A>0)
+            return local;
+
+        DependencyObject? current=run.Parent as DependencyObject;
+        while(current is Span span)
+        {
+            if(span.ReadLocalValue(TextElement.BackgroundProperty) is SolidColorBrush spanBackground && spanBackground.Color.A>0)
+                return spanBackground;
+            current=span.Parent as DependencyObject;
+        }
+        return null;
     }
 
     static bool HasDecoration(TextDecorationCollection? collection,TextDecorationLocation location)
