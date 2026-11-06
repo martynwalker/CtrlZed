@@ -154,6 +154,7 @@ public partial class MainWindow
 
     internal void OnBeta35ViewModeChanged()
     {
+        SetBeta35PageSurfaceVisibility();
         if(!beta35PaginationInstalled)return;
         if(CurrentEditorViewMode==EditorViewMode.Paged)
             ScheduleBeta35PaginationMap(120);
@@ -247,6 +248,8 @@ public partial class MainWindow
         PageGuides.CachedPageStartsY=yStarts;
         PageGuides.UseCachedPaginationMap=true;
         PageGuides.InvalidateVisual();
+        UpdateBeta35PageSurface(map.PageCount,yStarts);
+        UpdateDocumentStats();
         UpdateBeta35PageStatus();
     }
 
