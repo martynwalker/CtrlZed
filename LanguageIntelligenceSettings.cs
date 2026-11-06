@@ -64,7 +64,7 @@ public sealed record WritingModeProfile(
 
 public static class WritingModeProfiles
 {
-    public static IReadOnlyList<WritingModeProfile> All { get; }=new[]
+    public static IReadOnlyList<WritingModeProfile> All { get; }=new WritingModeProfile[]
     {
         new(WritingMode.General,"General / neutral prose","Balanced checking without imposing a house style.",3,3,2,3,4),
         new(WritingMode.PersonalLetter,"Personal letter","Warm correspondence with natural contractions and conversational rhythm.",2,4,3,2,5),
