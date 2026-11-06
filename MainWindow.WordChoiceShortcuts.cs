@@ -32,7 +32,7 @@ public partial class MainWindow
 
     void Beta33WordChoicePreviewKeyDown(object sender,KeyEventArgs e)
     {
-        if(profile!=KeyboardProfile.Word || Keyboard.Modifiers!=ModifierKeys.Shift || e.Key!=Key.F7)return;
+        if(e.Handled || profile!=KeyboardProfile.Word || Keyboard.Modifiers!=ModifierKeys.Shift || e.Key!=Key.F7)return;
         ContextualThesaurus_Click(this,new RoutedEventArgs());
         e.Handled=true;
     }
