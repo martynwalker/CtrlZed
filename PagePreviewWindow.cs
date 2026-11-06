@@ -7,6 +7,7 @@ namespace CtrlZed;
 
 public sealed class PagePreviewWindow : Window
 {
+    static readonly Brush PreviewSurround=CreatePreviewSurround();
     readonly DocumentPaginator paginator;
     readonly Border pageHost;
     readonly TextBlock pageLabel;
@@ -21,11 +22,11 @@ public sealed class PagePreviewWindow : Window
         Width=1000;
         Height=820;
         WindowStartupLocation=WindowStartupLocation.CenterOwner;
-        Background=Brushes.DimGray;
+        Background=PreviewSurround;
 
         paginator.ComputePageCount();
 
-        var root=new DockPanel();
+        var root=new DockPanel{Background=PreviewSurround};
         var bar=new StackPanel
         {
             Orientation=Orientation.Horizontal,
@@ -70,23 +71,38 @@ public sealed class PagePreviewWindow : Window
         pageHost=new Border
         {
             Background=Brushes.White,
-            BorderBrush=Brushes.Gray,
+            BorderBrush=new SolidColorBrush(Color.FromRgb(184,181,172)),
             BorderThickness=new Thickness(1),
             HorizontalAlignment=HorizontalAlignment.Center,
             VerticalAlignment=VerticalAlignment.Top,
-            Margin=new Thickness(24)
+            Margin=new Thickness(24),
+            Effect=new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius=7,
+                ShadowDepth=2,
+                Opacity=0.18,
+                Color=Colors.Black
+            }
         };
 
         var scroll=new ScrollViewer
         {
             VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+            Background=PreviewSurround,
             Content=pageHost
         };
         root.Children.Add(scroll);
 
         Content=root;
         RenderPage();
+    }
+
+    static Brush CreatePreviewSurround()
+    {
+        var brush=new SolidColorBrush(Color.FromRgb(239,237,229));
+        brush.Freeze();
+        return brush;
     }
 
     void RenderPage()
