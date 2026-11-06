@@ -3723,7 +3723,7 @@ public partial class MainWindow : Window
             }
             ApplyMacroSyntaxHighlighting();
             var selectedExt=selected==null?"":Path.GetExtension(selected).ToLowerInvariant();
-            run.Content=selectedExt==".czm"?"Run macro":"Compile && Run";
+            run.Content=selectedExt==".czm"?"Run macro":"Compile & Run";
             run.IsEnabled=selected!=null && (selectedExt==".czm" || ((selectedExt==".vb"||selectedExt==".cs") && compiledMacrosEnabled));
             check.IsEnabled=selectedExt is ".vb" or ".cs";
             embed.IsEnabled=!selectedEmbedded && selected!=null && selectedExt==".czm";
