@@ -18,9 +18,10 @@ public partial class MainWindow
             AboutMenu.Click-=About_Click;
             AboutMenu.Click+=Beta32About_Click;
             if(Status.Text.StartsWith("Ready — CtrlZed beta",StringComparison.OrdinalIgnoreCase))
-                Status.Text="Ready — CtrlZed beta 32";
-            if(string.Equals(Title,"CtrlZed — beta 31",StringComparison.Ordinal))
-                Title="CtrlZed — beta 32";
+                Status.Text="Ready — CtrlZed beta 32.1";
+            if(string.Equals(Title,"CtrlZed — beta 31",StringComparison.Ordinal) ||
+               string.Equals(Title,"CtrlZed — beta 32",StringComparison.Ordinal))
+                Title="CtrlZed — beta 32.1";
         }));
         Closed+=(_,__)=>LanguageProfileBridge.ReloadRequested-=ReloadLanguageProfile;
     }
@@ -76,7 +77,7 @@ public partial class MainWindow
     }
 
     void Beta32About_Click(object sender,RoutedEventArgs e)
-        =>Branding.CreateAboutWindow(this,"0.32.0 beta 32").ShowDialog();
+        =>Branding.CreateAboutWindow(this,"0.32.1 beta 32.1").ShowDialog();
 
     void ReloadLanguageProfile()
     {
