@@ -32,6 +32,8 @@ public static class UserProfileService
         public int FieldsImported { get; set; }
         public int MacrosImported { get; set; }
         public int StyleSetsImported { get; set; }
+        public int DictionaryWordsImported { get; set; }
+        public bool LanguageSettingsImported { get; set; }
         public PortablePreferences? Preferences { get; set; }
     }
 
@@ -54,6 +56,8 @@ public static class UserProfileService
                     .ToDictionary(x=>x.Key,x=>x.Value,StringComparer.OrdinalIgnoreCase));
             WriteJson(zip,"preferences.json",preferences);
             WriteJson(zip,"style-sets.json",styleSets);
+            WriteJson(zip,"language-settings.json",LanguageIntelligenceSettingsStore.Load());
+            WriteJson(zip,"personal-dictionary.json",PersonalDictionaryStore.LoadWords());
 
             if(Directory.Exists(macroDirectory))
             {
@@ -118,11 +122,40 @@ public static class UserProfileService
             macroCount++;
         }
 
+        var languageSettingsImported=false;
+        var importedLanguage=ReadJson<LanguageIntelligenceSettings>(zip,"language-settings.json");
+        if(importedLanguage!=null)
+        {
+            LanguageIntelligenceSettingsStore.Save(importedLanguage);
+            languageSettingsImported=true;
+        }
+
+        var dictionaryWordsImported=0;
+        if(zip.GetEntry("personal-dictionary.json")!=null)
+        {
+            var importedWords=ReadJson<List<string>>(zip,"personal-dictionary.json")??new List<string>();
+            if(replace)
+            {
+                PersonalDictionaryStore.ReplaceWords(importedWords);
+                dictionaryWordsImported=importedWords.Distinct(StringComparer.CurrentCultureIgnoreCase).Count();
+            }
+            else
+            {
+                foreach(var word in importedWords)
+                    if(PersonalDictionaryStore.Add(word))dictionaryWordsImported++;
+            }
+        }
+
+        if(languageSettingsImported || dictionaryWordsImported>0 || replace)
+            LanguageProfileBridge.NotifyReloadRequested();
+
         return new ImportResult
         {
             FieldsImported=importedFields.Count,
             MacrosImported=macroCount,
             StyleSetsImported=importedStyles.Count,
+            DictionaryWordsImported=dictionaryWordsImported,
+            LanguageSettingsImported=languageSettingsImported,
             Preferences=ReadJson<PortablePreferences>(zip,"preferences.json")
         };
     }
