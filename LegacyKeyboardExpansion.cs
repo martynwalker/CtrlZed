@@ -32,6 +32,10 @@ public partial class MainWindow
                     FindReplace_Click(this,new RoutedEventArgs());
                     e.Handled=true;
                     return;
+                case Key.F3:
+                    AboutMenu.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+                    e.Handled=true;
+                    return;
                 case Key.F4:
                     EditingCommands.IncreaseIndentation.Execute(null,Editor);
                     e.Handled=true;
