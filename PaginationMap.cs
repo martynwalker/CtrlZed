@@ -131,7 +131,7 @@ public partial class MainWindow
         {
             Interval=TimeSpan.FromMilliseconds(850)
         };
-        beta35PaginationTimer.Tick+=async (_,__)=
+        beta35PaginationTimer.Tick+=async (_,__)=>
         {
             beta35PaginationTimer.Stop();
             await RebuildBeta35PaginationMapAsync();
