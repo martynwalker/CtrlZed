@@ -3575,8 +3575,65 @@ public partial class MainWindow : Window
             code.Select(lineStart,replacement.Length);
         }
 
+        ICSharpCode.AvalonEdit.CodeCompletion.CompletionWindow? completionWindow=null;
+
+        (string Prefix,string? Receiver) CompletionContext()
+        {
+            var caret=Math.Clamp(code.CaretOffset,0,code.Text.Length);
+            var before=code.Text[..caret];
+            var p=before.Length;
+            while(p>0 && (char.IsLetterOrDigit(before[p-1]) || before[p-1]=='_'))p--;
+            var prefix=before[p..];
+            string? receiver=null;
+            if(p>0 && before[p-1]=='.')
+            {
+                var end=p-1;
+                var start=end;
+                while(start>0 && (char.IsLetterOrDigit(before[start-1]) || before[start-1]=='_'))start--;
+                if(end>start)receiver=before[start..end];
+            }
+            return (prefix,receiver);
+        }
+
+        void ShowMacroCompletion()
+        {
+            var ext=CurrentMacroEditorExtension();
+            if(ext is not ".cs" and not ".vb")return;
+            try
+            {
+                var context=CompletionContext();
+                var suggestions=MacroIntellisense.GetSuggestions(code.Text,ext,code.CaretOffset,context.Prefix,context.Receiver);
+                if(suggestions.Count==0)return;
+                completionWindow?.Close();
+                completionWindow=new ICSharpCode.AvalonEdit.CodeCompletion.CompletionWindow(code.TextArea)
+                {
+                    StartOffset=Math.Max(0,code.CaretOffset-context.Prefix.Length)
+                };
+                foreach(var suggestion in suggestions)
+                    completionWindow.CompletionList.CompletionData.Add(new MacroIntellisense.CompletionItem(suggestion));
+                completionWindow.Closed+=(_,__)=>completionWindow=null;
+                completionWindow.Show();
+            }
+            catch(Exception ex)
+            {
+                Status.Text="Macro IntelliSense: "+ex.Message;
+            }
+        }
+
+        code.TextArea.TextEntered+=(_,e)=>
+        {
+            if(e.Text==".")ShowMacroCompletion();
+        };
+
         code.PreviewKeyDown+=(_,e)=>
         {
+            if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.Space)
+            {
+                ShowMacroCompletion();
+                e.Handled=true;
+                return;
+            }
+
             if(e.Key==Key.Tab)
             {
                 IndentSelection(Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
