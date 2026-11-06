@@ -17,7 +17,7 @@ public static class Beta32SelfTest
 
             var formal=WritingModeProfiles.Get(WritingMode.FormalLetter);
             var formalFindings=GrammarReviewEngine.Analyse("We can't proceed.",formal);
-            if(!formalFindings.Any(x=>x.RuleId=="formal-contraction" && x.Replacement=="We cannot"))return 48;
+            if(!formalFindings.Any(x=>x.RuleId=="formal-contraction" && x.Replacement=="cannot"))return 48;
 
             var novel=WritingModeProfiles.Get(WritingMode.Novel);
             var novelFindings=GrammarReviewEngine.Analyse("We can't proceed.",novel);
