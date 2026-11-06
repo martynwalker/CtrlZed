@@ -32,6 +32,10 @@ public partial class MainWindow
                     FindReplace_Click(this,new RoutedEventArgs());
                     e.Handled=true;
                     return;
+                case Key.F4:
+                    EditingCommands.IncreaseIndentation.Execute(null,Editor);
+                    e.Handled=true;
+                    return;
                 case Key.F6:
                     EditingCommands.ToggleBold.Execute(null,Editor);
                     e.Handled=true;
@@ -96,10 +100,6 @@ public partial class MainWindow
             {
                 case Key.F2:
                     NextSpellingError_Click(this,new RoutedEventArgs());
-                    e.Handled=true;
-                    return;
-                case Key.F4:
-                    EditingCommands.IncreaseIndentation.Execute(null,Editor);
                     e.Handled=true;
                     return;
                 case Key.F8:
