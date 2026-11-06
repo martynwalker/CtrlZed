@@ -1,0 +1,59 @@
+name: Beta 34.1 span highlight export fix
+on:
+  push:
+    branches: [ beta341 ]
+    paths:
+      - ".github/workflows/beta341-span-highlight-fix.yml"
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta341
+      - name: Resolve explicit WPF span backgrounds
+        shell: pwsh
+        run: |
+          $path = "DocxInterop.cs"
+          $content = Get-Content $path -Raw
+          $old = @'
+                  var backgroundValue=effective.GetPropertyValue(TextElement.BackgroundProperty);
+                  var background=backgroundValue as SolidColorBrush??run.Background as SolidColorBrush;
+          '@
+          $new = @'
+                  var background=EffectiveInlineBackground(run);
+          '@
+          if(-not $content.Contains($old)) { throw "Run background patch point not found." }
+          $content=$content.Replace($old,$new)
+
+          $marker = @'
+              static bool HasDecoration(TextDecorationCollection? collection,TextDecorationLocation location)
+          '@
+          $helper = @'
+              static SolidColorBrush? EffectiveInlineBackground(Run run)
+              {
+                  if(run.ReadLocalValue(TextElement.BackgroundProperty) is SolidColorBrush local && local.Color.A>0)
+                      return local;
+
+                  DependencyObject? current=run.Parent as DependencyObject;
+                  while(current is Span span)
+                  {
+                      if(span.ReadLocalValue(TextElement.BackgroundProperty) is SolidColorBrush spanBackground && spanBackground.Color.A>0)
+                          return spanBackground;
+                      current=span.Parent as DependencyObject;
+                  }
+                  return null;
+              }
+
+              static bool HasDecoration(TextDecorationCollection? collection,TextDecorationLocation location)
+          '@
+          if(-not $content.Contains($marker)) { throw "Inline background helper insertion point not found." }
+          $content=$content.Replace($marker,$helper)
+          [System.IO.File]::WriteAllText((Resolve-Path $path),$content,[System.Text.UTF8Encoding]::new($false))
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add $path
+          git commit -m "Export explicit WPF span highlighting to DOCX"
+          git push origin HEAD:beta341
