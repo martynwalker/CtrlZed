@@ -1,0 +1,39 @@
+name: Beta 35 stale-map cancellation fix
+on:
+  push:
+    branches: [ beta35 ]
+    paths:
+      - ".github/workflows/beta35-stale-map-fix.yml"
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta35
+      - name: Cancel stale map immediately
+        shell: pwsh
+        run: |
+          $path = "PaginationMap.cs"
+          $text = [System.IO.File]::ReadAllText($path)
+          $method = $text.IndexOf("void ScheduleBeta35PaginationMap")
+          if ($method -lt 0) { throw "ScheduleBeta35PaginationMap was not found." }
+          $needle = "        beta35PaginationTimer.Stop();"
+          $index = $text.IndexOf($needle,$method)
+          if ($index -lt 0) { throw "Pagination timer stop was not found." }
+          $insert = "        beta35PaginationCancellation?.Cancel();`r`n        beta35PaginationGeneration++;`r`n"
+          if (-not $text.Substring($method,$index-$method).Contains("beta35PaginationGeneration++"))
+          {
+              $text = $text.Insert($index,$insert)
+          }
+          [System.IO.File]::WriteAllText($path,$text,[System.Text.UTF8Encoding]::new($false))
+      - name: Commit correction
+        shell: pwsh
+        run: |
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add PaginationMap.cs
+          git commit -m "Beta 35: cancel stale pagination as soon as editing resumes"
+          git push origin HEAD:beta35
