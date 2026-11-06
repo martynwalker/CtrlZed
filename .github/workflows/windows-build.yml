@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 34 builds on the user-tested Beta 33 baseline. It centralises Microsoft Word, WordPerfect 5.1 and WordStar 4.0 keyboard commands so menu labels and Help are generated from one catalogue, including F7 spelling and Shift+F7 contextual thesaurus commands. DOCX interchange now preserves a safer richer subset: named styles, paragraph spacing and indentation, keep settings, text colour and shading, strikethrough, superscript/subscript, language, more list marker types, basic table spans/shading and picture dimensions/description. The release gate includes Open XML schema validation and formatting round-trip regression tests."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 34.1 corrects the Beta 34 user-test findings while retaining its richer DOCX and keyboard work. Page Preview now uses a light bone-grey surround. About uses one authoritative version handler. Contextual spelling starts sooner and exposes AI activity. WordPerfect and WordStar profiles are substantially expanded. AI Macro Assistant shows visible Direct-generation progress. Macro Manager remembers its window size and position, fixes the Compile & Run caption and adds case-insensitive Ctrl+F. Generated AI macros use a visible AI_API_KEY constant. AI paragraph review displays a green activity indicator and opens the review pane when suggestions arrive. DOCX interchange now preserves Word highlighting and paragraph shading and can read through a shared snapshot while another application permits concurrent access."
 
-# Beta 34 release build
+# Beta 34.1 release build
