@@ -22,6 +22,7 @@ public static class PersonalDictionaryStore
     {
         if(!File.Exists(DictionaryPath))
             WriteWords(Array.Empty<string>());
+        else EnsureLocaleHeader();
         return new Uri(DictionaryPath,UriKind.Absolute);
     }
 
@@ -30,8 +31,11 @@ public static class PersonalDictionaryStore
         try
         {
             if(!File.Exists(DictionaryPath))return Array.Empty<string>();
-            return File.ReadAllLines(DictionaryPath,Encoding.Unicode)
-                .Skip(1)
+            var lines=File.ReadAllLines(DictionaryPath,Encoding.Unicode);
+            var start=lines.Length>0 && (lines[0].StartsWith("#LID ",StringComparison.OrdinalIgnoreCase) ||
+                                         int.TryParse(lines[0],NumberStyles.Integer,CultureInfo.InvariantCulture,out _))
+                ?1:0;
+            return lines.Skip(start)
                 .Select(x=>x.Trim())
                 .Where(x=>x.Length>0)
                 .Distinct(StringComparer.CurrentCultureIgnoreCase)
@@ -66,6 +70,21 @@ public static class PersonalDictionaryStore
         return value.Trim().Trim('“','”','‘','’','\'','"','.',',',';',':','!','?','(',')','[',']','{','}');
     }
 
+    static void EnsureLocaleHeader()
+    {
+        try
+        {
+            var lines=File.ReadAllLines(DictionaryPath,Encoding.Unicode);
+            var expected=$"#LID {BritishEnglishLcid}";
+            if(lines.Length>0 && string.Equals(lines[0],expected,StringComparison.OrdinalIgnoreCase))return;
+            WriteWords(LoadWords());
+        }
+        catch
+        {
+            WriteWords(Array.Empty<string>());
+        }
+    }
+
     static void WriteWords(IEnumerable<string> words)
     {
         var ordered=words
@@ -75,7 +94,7 @@ public static class PersonalDictionaryStore
             .OrderBy(x=>x,StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        var lines=new List<string>{BritishEnglishLcid.ToString(CultureInfo.InvariantCulture)};
+        var lines=new List<string>{$"#LID {BritishEnglishLcid}"};
         lines.AddRange(ordered);
         var temporary=DictionaryPath+".tmp";
         File.WriteAllLines(temporary,lines,Encoding.Unicode);
