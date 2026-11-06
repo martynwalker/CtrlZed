@@ -1398,7 +1398,8 @@ public partial class MainWindow : Window
             LastMacroLanguage=lastMacroLanguage,
             KeepParagraphTogether=keepParagraphTogether,
             KeyboardProfile=profile.ToString(),
-            ActiveStyleSet=activeStyleSet
+            ActiveStyleSet=activeStyleSet,
+            EditorViewMode=CurrentEditorViewMode.ToString()
         };
 
     void ApplyPortablePreferences(UserProfileService.PortablePreferences? p)
@@ -1419,6 +1420,8 @@ public partial class MainWindow : Window
             activeStyleSet=p.ActiveStyleSet;
         UpdateKeyboardMenuState();
         RefreshStyleSetBox();
+        if(Enum.TryParse<EditorViewMode>(p.EditorViewMode,true,out var importedViewMode))
+            ApplyBeta35ViewMode(importedViewMode,true);
         ApplyZoom();
         SaveAppSettings();
     }
@@ -1749,14 +1752,7 @@ public partial class MainWindow : Window
         var text=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text;
         var chars=text.TrimEnd('\r','\n').Length;
         var words=System.Text.RegularExpressions.Regex.Matches(text,@"\b[\p{L}\p{N}’'-]+\b").Count;
-        var pages=1;
-        try
-        {
-            var paginator=CreatePreviewPaginator();
-            paginator.ComputePageCount();
-            pages=Math.Max(1,paginator.PageCount);
-        }
-        catch { }
+        var pages=GetBeta35PageCountForStats();
         DocumentStats.Text=$"{words:N0} words · {chars:N0} characters · {pages:N0} page{(pages==1?"":"s")}";
     }
 

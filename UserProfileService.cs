@@ -17,6 +17,7 @@ public static class UserProfileService
         public bool KeepParagraphTogether { get; set; }=true;
         public string KeyboardProfile { get; set; }="Word";
         public string ActiveStyleSet { get; set; }="Default";
+        public string EditorViewMode { get; set; }="Paged";
     }
 
     public sealed class Manifest
