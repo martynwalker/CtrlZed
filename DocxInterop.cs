@@ -30,37 +30,44 @@ public sealed class DocxLoadResult
 
 public static class DocxInterop
 {
-    public static void Save(string path,FlowDocument document)
-        => Save(path,document,"","",794,1123,new Thickness(72),"","","","");
+    sealed record NumberingInfo(int NumberId,int Level,TextMarkerStyle MarkerStyle);
 
-    public static void Save(string path,FlowDocument document,string header,string footer,double pageWidth,double pageHeight,Thickness margins,string title,string author,string subject,string keywords)
+    public static void Save(string path,FlowDocument document)
+        =>Save(path,document,"","",794,1123,new Thickness(72),"","","","");
+
+    public static void Save(
+        string path,FlowDocument document,string header,string footer,
+        double pageWidth,double pageHeight,Thickness margins,
+        string title,string author,string subject,string keywords)
     {
         using var word=WordprocessingDocument.Create(path,WordprocessingDocumentType.Document);
         var main=word.AddMainDocumentPart();
         main.Document=new W.Document(new W.Body());
         var body=main.Document.Body ?? main.Document.AppendChild(new W.Body());
+
         word.PackageProperties.Title=title??"";
         word.PackageProperties.Creator=author??"";
         word.PackageProperties.Subject=subject??"";
         word.PackageProperties.Keywords=keywords??"";
-        EnsureNumbering(main);
-        uint imageId=1;
 
-        foreach(var block in document.Blocks)
-        {
-            if(block is Paragraph p)body.Append(ToWordParagraph(main,p,ref imageId));
-            else if(block is Table t)body.Append(ToWordTable(main,t,ref imageId));
-            else if(block is List list)AppendList(main,body,list,ref imageId);
-        }
+        EnsureStyles(main);
+        EnsureNumbering(main);
+        EnsureDocumentSettings(main);
+
+        uint imageId=1;
+        AppendBlocks(main,body,document.Blocks,ref imageId);
 
         var section=new W.SectionProperties();
-
         if(!string.IsNullOrWhiteSpace(header))
         {
             var part=main.AddNewPart<HeaderPart>();
             part.Header=new W.Header(BuildHeaderFooterParagraph(header));
             part.Header.Save();
-            section.Append(new W.HeaderReference{Type=W.HeaderFooterValues.Default,Id=main.GetIdOfPart(part)});
+            section.Append(new W.HeaderReference
+            {
+                Type=W.HeaderFooterValues.Default,
+                Id=main.GetIdOfPart(part)
+            });
         }
 
         if(!string.IsNullOrWhiteSpace(footer))
@@ -68,7 +75,11 @@ public static class DocxInterop
             var part=main.AddNewPart<FooterPart>();
             part.Footer=new W.Footer(BuildHeaderFooterParagraph(footer));
             part.Footer.Save();
-            section.Append(new W.FooterReference{Type=W.HeaderFooterValues.Default,Id=main.GetIdOfPart(part)});
+            section.Append(new W.FooterReference
+            {
+                Type=W.HeaderFooterValues.Default,
+                Id=main.GetIdOfPart(part)
+            });
         }
 
         section.Append(new W.PageSize
@@ -76,7 +87,6 @@ public static class DocxInterop
             Width=(UInt32Value)(uint)Math.Max(1,Math.Round(pageWidth*15)),
             Height=(UInt32Value)(uint)Math.Max(1,Math.Round(pageHeight*15))
         });
-
         section.Append(new W.PageMargin
         {
             Top=(Int32Value)(int)Math.Round(margins.Top*15),
@@ -103,59 +113,68 @@ public static class DocxInterop
         if(main==null || body==null)return new DocxLoadResult{Document=result};
 
         var children=body.ChildElements.ToList();
-        for(int i=0;i<children.Count;i++)
+        for(var i=0;i<children.Count;i++)
         {
             var child=children[i];
-            if(child is W.Paragraph p)
+            if(child is W.Paragraph paragraph)
             {
-                var numId=GetNumberingId(p);
-                if(numId!=null)
+                var info=GetNumberingInfo(main,paragraph);
+                if(info!=null)
                 {
-                    var list=new List{MarkerStyle=numId==2?TextMarkerStyle.Decimal:TextMarkerStyle.Disc};
-                    while(i<children.Count && children[i] is W.Paragraph lp && GetNumberingId(lp)==numId)
+                    var list=new List{MarkerStyle=info.MarkerStyle};
+                    while(i<children.Count && children[i] is W.Paragraph listParagraph)
                     {
+                        var current=GetNumberingInfo(main,listParagraph);
+                        if(current==null || current.NumberId!=info.NumberId || current.Level!=info.Level)break;
                         var item=new ListItem();
-                        item.Blocks.Add(FromWordParagraph(main,lp));
+                        item.Blocks.Add(FromWordParagraph(main,listParagraph));
                         list.ListItems.Add(item);
                         i++;
                     }
                     i--;
                     result.Blocks.Add(list);
                 }
-                else result.Blocks.Add(FromWordParagraph(main,p));
+                else result.Blocks.Add(FromWordParagraph(main,paragraph));
             }
-            else if(child is W.Table t)result.Blocks.Add(FromWordTable(main,t));
+            else if(child is W.Table table)result.Blocks.Add(FromWordTable(main,table));
         }
 
-        var section=body.Descendants<W.SectionProperties>().LastOrDefault() ?? body.Elements<W.SectionProperties>().LastOrDefault();
+        var section=body.Descendants<W.SectionProperties>().LastOrDefault()
+                    ?? body.Elements<W.SectionProperties>().LastOrDefault();
         string header="",footer="";
         double width=0,height=0;
         Thickness? margins=null;
 
         if(section!=null)
         {
-            var headerRef=section.Elements<W.HeaderReference>().FirstOrDefault(h=>h.Type?.Value==W.HeaderFooterValues.Default)
-                          ?? section.Elements<W.HeaderReference>().FirstOrDefault();
-            if(headerRef?.Id?.Value is string headerId && main.GetPartById(headerId) is HeaderPart hp && hp.Header!=null)
-                header=ReadHeaderFooter(hp.Header);
+            var headerRef=section.Elements<W.HeaderReference>()
+                .FirstOrDefault(x=>x.Type?.Value==W.HeaderFooterValues.Default)
+                ??section.Elements<W.HeaderReference>().FirstOrDefault();
+            if(headerRef?.Id?.Value is string headerId &&
+               main.GetPartById(headerId) is HeaderPart headerPart &&
+               headerPart.Header!=null)
+                header=ReadHeaderFooter(headerPart.Header);
 
-            var footerRef=section.Elements<W.FooterReference>().FirstOrDefault(h=>h.Type?.Value==W.HeaderFooterValues.Default)
-                          ?? section.Elements<W.FooterReference>().FirstOrDefault();
-            if(footerRef?.Id?.Value is string footerId && main.GetPartById(footerId) is FooterPart fp && fp.Footer!=null)
-                footer=ReadHeaderFooter(fp.Footer);
+            var footerRef=section.Elements<W.FooterReference>()
+                .FirstOrDefault(x=>x.Type?.Value==W.HeaderFooterValues.Default)
+                ??section.Elements<W.FooterReference>().FirstOrDefault();
+            if(footerRef?.Id?.Value is string footerId &&
+               main.GetPartById(footerId) is FooterPart footerPart &&
+               footerPart.Footer!=null)
+                footer=ReadHeaderFooter(footerPart.Footer);
 
             var size=section.GetFirstChild<W.PageSize>();
             if(size?.Width?.Value is uint w && w>0)width=w/15.0;
             if(size?.Height?.Value is uint h && h>0)height=h/15.0;
 
-            var pm=section.GetFirstChild<W.PageMargin>();
-            if(pm!=null)
+            var pageMargin=section.GetFirstChild<W.PageMargin>();
+            if(pageMargin!=null)
             {
                 margins=new Thickness(
-                    (pm.Left?.Value??1440U)/15.0,
-                    (pm.Top?.Value??1440)/15.0,
-                    (pm.Right?.Value??1440U)/15.0,
-                    (pm.Bottom?.Value??1440)/15.0);
+                    (pageMargin.Left?.Value??1440U)/15.0,
+                    (pageMargin.Top?.Value??1440)/15.0,
+                    (pageMargin.Right?.Value??1440U)/15.0,
+                    (pageMargin.Bottom?.Value??1440)/15.0);
             }
         }
 
@@ -174,11 +193,79 @@ public static class DocxInterop
         };
     }
 
+    static void EnsureDocumentSettings(MainDocumentPart main)
+    {
+        var part=main.DocumentSettingsPart??main.AddNewPart<DocumentSettingsPart>();
+        part.Settings=new W.Settings(new W.UpdateFieldsOnOpen{Val=true});
+        part.Settings.Save();
+    }
+
+    static void EnsureStyles(MainDocumentPart main)
+    {
+        var part=main.StyleDefinitionsPart??main.AddNewPart<StyleDefinitionsPart>();
+        if(part.Styles!=null && part.Styles.Elements<W.Style>().Any())return;
+
+        var styles=new W.Styles();
+        styles.Append(CreateParagraphStyle(
+            "Normal","Normal",null,"Normal",false,22,false,false,
+            new W.StyleParagraphProperties(new W.SpacingBetweenLines{After="120"})));
+        styles.Append(CreateParagraphStyle(
+            "Heading1","heading 1","Normal","Normal",true,32,true,false,
+            new W.StyleParagraphProperties(
+                new W.KeepNext(),new W.KeepLines(),
+                new W.SpacingBetweenLines{Before="240",After="120"},
+                new W.OutlineLevel{Val=0})));
+        styles.Append(CreateParagraphStyle(
+            "Heading2","heading 2","Normal","Normal",true,28,true,false,
+            new W.StyleParagraphProperties(
+                new W.KeepNext(),new W.KeepLines(),
+                new W.SpacingBetweenLines{Before="200",After="100"},
+                new W.OutlineLevel{Val=1})));
+        styles.Append(CreateParagraphStyle(
+            "Heading3","heading 3","Normal","Normal",true,24,true,false,
+            new W.StyleParagraphProperties(
+                new W.KeepNext(),new W.KeepLines(),
+                new W.SpacingBetweenLines{Before="160",After="80"},
+                new W.OutlineLevel{Val=2})));
+        styles.Append(CreateParagraphStyle(
+            "Quote","Quote","Normal","Normal",false,22,false,true,
+            new W.StyleParagraphProperties(
+                new W.Indentation{Left="540",Right="540"},
+                new W.SpacingBetweenLines{Before="120",After="120"})));
+        styles.Append(CreateParagraphStyle(
+            "Caption","Caption","Normal","Normal",false,18,false,true,
+            new W.StyleParagraphProperties(
+                new W.KeepNext(),new W.SpacingBetweenLines{Before="40",After="120"})));
+
+        part.Styles=styles;
+        part.Styles.Save();
+    }
+
+    static W.Style CreateParagraphStyle(
+        string id,string name,string? basedOn,string next,
+        bool primary,int halfPoints,bool bold,bool italic,
+        W.StyleParagraphProperties paragraphProperties)
+    {
+        var style=new W.Style{Type=W.StyleValues.Paragraph,StyleId=id};
+        style.Append(new W.StyleName{Val=name});
+        if(!string.IsNullOrWhiteSpace(basedOn))style.Append(new W.BasedOn{Val=basedOn});
+        style.Append(new W.NextParagraphStyle{Val=next});
+        if(primary)style.Append(new W.PrimaryStyle());
+        style.Append(paragraphProperties);
+        var runProperties=new W.StyleRunProperties(
+            new W.FontSize{Val=halfPoints.ToString()},
+            new W.FontSizeComplexScript{Val=halfPoints.ToString()});
+        if(bold)runProperties.Append(new W.Bold());
+        if(italic)runProperties.Append(new W.Italic());
+        style.Append(runProperties);
+        return style;
+    }
+
     static W.Paragraph BuildHeaderFooterParagraph(string template)
     {
-        var p=new W.Paragraph();
-        var props=new W.ParagraphProperties(new W.Justification{Val=W.JustificationValues.Center});
-        p.Append(props);
+        var paragraph=new W.Paragraph();
+        paragraph.Append(new W.ParagraphProperties(
+            new W.Justification{Val=W.JustificationValues.Center}));
 
         var tokens=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -189,82 +276,132 @@ public static class DocxInterop
             ["{time}"]="TIME \\@ \"HH:mm\""
         };
 
-        var i=0;
-        while(i<template.Length)
+        var index=0;
+        while(index<template.Length)
         {
             var match=tokens
-                .Select(kv=>(Index:template.IndexOf(kv.Key,i,StringComparison.OrdinalIgnoreCase),Token:kv.Key,Field:kv.Value))
+                .Select(pair=>(Index:template.IndexOf(pair.Key,index,StringComparison.OrdinalIgnoreCase),Token:pair.Key,Field:pair.Value))
                 .Where(x=>x.Index>=0)
                 .OrderBy(x=>x.Index)
                 .FirstOrDefault();
-
             if(match.Token==null)
             {
-                AppendPlainText(p,template[i..]);
+                AppendPlainText(paragraph,template[index..]);
                 break;
             }
-
-            if(match.Index>i)AppendPlainText(p,template[i..match.Index]);
-            AppendField(p,match.Field,match.Token);
-            i=match.Index+match.Token.Length;
+            if(match.Index>index)AppendPlainText(paragraph,template[index..match.Index]);
+            AppendField(paragraph,match.Field,match.Token);
+            index=match.Index+match.Token.Length;
         }
-        return p;
+        return paragraph;
     }
 
-    static void AppendPlainText(W.Paragraph p,string text)
+    static void AppendPlainText(W.Paragraph paragraph,string text)
     {
         if(text.Length==0)return;
-        p.Append(new W.Run(new W.Text(text){Space=SpaceProcessingModeValues.Preserve}));
+        var buffer=new StringBuilder();
+        void Flush()
+        {
+            if(buffer.Length==0)return;
+            paragraph.Append(new W.Run(new W.Text(buffer.ToString()){Space=SpaceProcessingModeValues.Preserve}));
+            buffer.Clear();
+        }
+        foreach(var character in text)
+        {
+            if(character=='\t')
+            {
+                Flush();
+                paragraph.Append(new W.Run(new W.TabChar()));
+            }
+            else if(character is '\r' or '\n')
+            {
+                if(character=='\n')continue;
+                Flush();
+                paragraph.Append(new W.Run(new W.Break()));
+            }
+            else buffer.Append(character);
+        }
+        Flush();
     }
 
-    static void AppendField(W.Paragraph p,string instruction,string fallback)
+    static void AppendField(W.Paragraph paragraph,string instruction,string fallback)
     {
-        p.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.Begin}));
-        p.Append(new W.Run(new W.FieldCode(" "+instruction+" "){Space=SpaceProcessingModeValues.Preserve}));
-        p.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.Separate}));
-        p.Append(new W.Run(new W.Text(fallback)));
-        p.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.End}));
+        paragraph.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.Begin}));
+        paragraph.Append(new W.Run(new W.FieldCode(" "+instruction+" "){Space=SpaceProcessingModeValues.Preserve}));
+        paragraph.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.Separate}));
+        paragraph.Append(new W.Run(new W.Text(fallback)));
+        paragraph.Append(new W.Run(new W.FieldChar{FieldCharType=W.FieldCharValues.End}));
     }
 
     static string ReadHeaderFooter(OpenXmlElement root)
     {
-        var sb=new StringBuilder();
+        var result=new StringBuilder();
         var inField=false;
         var fieldCode="";
-
         foreach(var element in root.Descendants())
         {
-            if(element is W.FieldChar fc)
+            if(element is W.FieldChar fieldCharacter)
             {
-                var type=fc.FieldCharType?.Value;
-                if(type==W.FieldCharValues.Begin){inField=true;fieldCode="";}
+                var type=fieldCharacter.FieldCharType?.Value;
+                if(type==W.FieldCharValues.Begin)
+                {
+                    inField=true;
+                    fieldCode="";
+                }
                 else if(type==W.FieldCharValues.End)
                 {
                     var code=fieldCode.Trim().ToUpperInvariant();
-                    if(code.StartsWith("NUMPAGES"))sb.Append("{pages}");
-                    else if(code.StartsWith("PAGE"))sb.Append("{page}");
-                    else if(code.StartsWith("FILENAME"))sb.Append("{filename}");
-                    else if(code.StartsWith("DATE"))sb.Append("{date}");
-                    else if(code.StartsWith("TIME"))sb.Append("{time}");
+                    if(code.StartsWith("NUMPAGES"))result.Append("{pages}");
+                    else if(code.StartsWith("PAGE"))result.Append("{page}");
+                    else if(code.StartsWith("FILENAME"))result.Append("{filename}");
+                    else if(code.StartsWith("DATE"))result.Append("{date}");
+                    else if(code.StartsWith("TIME"))result.Append("{time}");
                     inField=false;
                     fieldCode="";
                 }
             }
             else if(element is W.FieldCode code && inField)fieldCode+=code.Text;
-            else if(element is W.Text text && !inField)sb.Append(text.Text);
+            else if(element is W.Text text && !inField)result.Append(text.Text);
+            else if(element is W.TabChar && !inField)result.Append('\t');
+            else if(element is W.Break && !inField)result.AppendLine();
         }
-        return sb.ToString();
+        return result.ToString().TrimEnd('\r','\n');
     }
 
-    static W.Paragraph ToWordParagraph(MainDocumentPart main,Paragraph p,ref uint imageId)
+    static void AppendBlocks(
+        MainDocumentPart main,OpenXmlCompositeElement target,IEnumerable<Block> blocks,ref uint imageId)
     {
-        var wp=new W.Paragraph();
-        var pp=new W.ParagraphProperties();
+        foreach(var block in blocks)
+        {
+            switch(block)
+            {
+                case Paragraph paragraph:
+                    target.Append(ToWordParagraph(main,paragraph,ref imageId));
+                    break;
+                case Table table:
+                    target.Append(ToWordTable(main,table,ref imageId));
+                    break;
+                case List list:
+                    AppendList(main,target,list,ref imageId);
+                    break;
+                case Section section:
+                    AppendBlocks(main,target,section.Blocks,ref imageId);
+                    break;
+            }
+        }
+    }
 
-        var style=DetectStyleId(p);
-        if(style!=null)pp.ParagraphStyleId=new W.ParagraphStyleId{Val=style};
-        if(p.BreakPageBefore)pp.Append(new W.PageBreakBefore());
-        pp.Justification=new W.Justification{Val=p.TextAlignment switch
+    static W.Paragraph ToWordParagraph(MainDocumentPart main,Paragraph paragraph,ref uint imageId)
+    {
+        var wordParagraph=new W.Paragraph();
+        var properties=new W.ParagraphProperties();
+        var style=DetectStyleId(paragraph);
+        if(style!=null)properties.ParagraphStyleId=new W.ParagraphStyleId{Val=style};
+        if(paragraph.BreakPageBefore)properties.Append(new W.PageBreakBefore());
+        if(paragraph.KeepTogether)properties.Append(new W.KeepLines());
+        if(paragraph.KeepWithNext)properties.Append(new W.KeepNext());
+
+        properties.Justification=new W.Justification{Val=paragraph.TextAlignment switch
         {
             TextAlignment.Center=>W.JustificationValues.Center,
             TextAlignment.Right=>W.JustificationValues.Right,
@@ -272,116 +409,241 @@ public static class DocxInterop
             _=>W.JustificationValues.Left
         }};
 
-        wp.Append(pp);
-        AppendInlines(main,wp,p.Inlines,ref imageId);
-        return wp;
+        var spacing=new W.SpacingBetweenLines();
+        var hasSpacing=false;
+        if(Math.Abs(paragraph.Margin.Top)>0.01)
+        {
+            spacing.Before=Twips(paragraph.Margin.Top);
+            hasSpacing=true;
+        }
+        if(Math.Abs(paragraph.Margin.Bottom)>0.01)
+        {
+            spacing.After=Twips(paragraph.Margin.Bottom);
+            hasSpacing=true;
+        }
+        if(!double.IsNaN(paragraph.LineHeight) && paragraph.LineHeight>0)
+        {
+            spacing.Line=Twips(paragraph.LineHeight);
+            spacing.LineRule=W.LineSpacingRuleValues.AtLeast;
+            hasSpacing=true;
+        }
+        if(hasSpacing)properties.Append(spacing);
+
+        var indentation=new W.Indentation();
+        var hasIndentation=false;
+        if(Math.Abs(paragraph.Margin.Left)>0.01)
+        {
+            indentation.Left=Twips(paragraph.Margin.Left);
+            hasIndentation=true;
+        }
+        if(Math.Abs(paragraph.Margin.Right)>0.01)
+        {
+            indentation.Right=Twips(paragraph.Margin.Right);
+            hasIndentation=true;
+        }
+        if(Math.Abs(paragraph.TextIndent)>0.01)
+        {
+            if(paragraph.TextIndent>0)indentation.FirstLine=Twips(paragraph.TextIndent);
+            else indentation.Hanging=Twips(-paragraph.TextIndent);
+            hasIndentation=true;
+        }
+        if(hasIndentation)properties.Append(indentation);
+
+        wordParagraph.Append(properties);
+        AppendInlines(main,wordParagraph,paragraph.Inlines,ref imageId);
+        return wordParagraph;
     }
+
+    static string Twips(double dip)=>Math.Max(0,(int)Math.Round(dip*15)).ToString();
 
     static void EnsureNumbering(MainDocumentPart main)
     {
-        var part=main.NumberingDefinitionsPart ?? main.AddNewPart<NumberingDefinitionsPart>();
+        var part=main.NumberingDefinitionsPart??main.AddNewPart<NumberingDefinitionsPart>();
         if(part.Numbering!=null)return;
 
-        var bulletAbstract=new W.AbstractNum{AbstractNumberId=1};
-        bulletAbstract.Append(new W.MultiLevelType{Val=W.MultiLevelValues.SingleLevel});
-        bulletAbstract.Append(new W.Level(
-            new W.StartNumberingValue{Val=1},
-            new W.NumberingFormat{Val=W.NumberFormatValues.Bullet},
-            new W.LevelText{Val="•"},
-            new W.LevelJustification{Val=W.LevelJustificationValues.Left},
-            new W.PreviousParagraphProperties(new W.Indentation{Left="720",Hanging="360"})
-        ){LevelIndex=0});
-
-        var decimalAbstract=new W.AbstractNum{AbstractNumberId=2};
-        decimalAbstract.Append(new W.MultiLevelType{Val=W.MultiLevelValues.SingleLevel});
-        decimalAbstract.Append(new W.Level(
-            new W.StartNumberingValue{Val=1},
-            new W.NumberingFormat{Val=W.NumberFormatValues.Decimal},
-            new W.LevelText{Val="%1."},
-            new W.LevelJustification{Val=W.LevelJustificationValues.Left},
-            new W.PreviousParagraphProperties(new W.Indentation{Left="720",Hanging="360"})
-        ){LevelIndex=0});
-
-        part.Numbering=new W.Numbering(
-            bulletAbstract,
-            decimalAbstract,
-            new W.NumberingInstance(new W.AbstractNumId{Val=1}){NumberID=1},
-            new W.NumberingInstance(new W.AbstractNumId{Val=2}){NumberID=2});
+        var definitions=new (int Id,W.NumberFormatValues Format,string LevelText)[]
+        {
+            (1,W.NumberFormatValues.Bullet,"•"),
+            (2,W.NumberFormatValues.Decimal,"%1."),
+            (3,W.NumberFormatValues.LowerLetter,"%1."),
+            (4,W.NumberFormatValues.UpperLetter,"%1."),
+            (5,W.NumberFormatValues.LowerRoman,"%1."),
+            (6,W.NumberFormatValues.UpperRoman,"%1.")
+        };
+        var numbering=new W.Numbering();
+        foreach(var definition in definitions)
+        {
+            var abstractNumber=new W.AbstractNum{AbstractNumberId=definition.Id};
+            abstractNumber.Append(new W.MultiLevelType{Val=W.MultiLevelValues.SingleLevel});
+            abstractNumber.Append(new W.Level(
+                new W.StartNumberingValue{Val=1},
+                new W.NumberingFormat{Val=definition.Format},
+                new W.LevelText{Val=definition.LevelText},
+                new W.LevelJustification{Val=W.LevelJustificationValues.Left},
+                new W.PreviousParagraphProperties(new W.Indentation{Left="720",Hanging="360"}))
+            {LevelIndex=0});
+            numbering.Append(abstractNumber);
+        }
+        foreach(var definition in definitions)
+            numbering.Append(new W.NumberingInstance(new W.AbstractNumId{Val=definition.Id}){NumberID=definition.Id});
+        part.Numbering=numbering;
         part.Numbering.Save();
     }
 
-    static int? GetNumberingId(W.Paragraph p)
+    static NumberingInfo? GetNumberingInfo(MainDocumentPart main,W.Paragraph paragraph)
     {
-        return p.ParagraphProperties?.NumberingProperties?.NumberingId?.Val?.Value;
+        var properties=paragraph.ParagraphProperties?.NumberingProperties;
+        var numberId=properties?.NumberingId?.Val?.Value;
+        if(numberId==null)return null;
+        var level=properties?.NumberingLevelReference?.Val?.Value??0;
+        var numbering=main.NumberingDefinitionsPart?.Numbering;
+        if(numbering==null)return new NumberingInfo(numberId.Value,level,TextMarkerStyle.Disc);
+
+        var instance=numbering.Elements<W.NumberingInstance>()
+            .FirstOrDefault(x=>x.NumberID?.Value==numberId.Value);
+        var abstractId=instance?.AbstractNumId?.Val?.Value;
+        var abstractNumber=numbering.Elements<W.AbstractNum>()
+            .FirstOrDefault(x=>x.AbstractNumberId?.Value==abstractId);
+        var levelDefinition=abstractNumber?.Elements<W.Level>()
+            .FirstOrDefault(x=>x.LevelIndex?.Value==level)
+            ??abstractNumber?.Elements<W.Level>().FirstOrDefault();
+        var format=levelDefinition?.NumberingFormat?.Val?.Value;
+        var marker=format switch
+        {
+            W.NumberFormatValues.Decimal=>TextMarkerStyle.Decimal,
+            W.NumberFormatValues.LowerLetter=>TextMarkerStyle.LowerLatin,
+            W.NumberFormatValues.UpperLetter=>TextMarkerStyle.UpperLatin,
+            W.NumberFormatValues.LowerRoman=>TextMarkerStyle.LowerRoman,
+            W.NumberFormatValues.UpperRoman=>TextMarkerStyle.UpperRoman,
+            _=>TextMarkerStyle.Disc
+        };
+        return new NumberingInfo(numberId.Value,level,marker);
     }
 
-    static void AppendList(MainDocumentPart main,W.Body body,List list,ref uint imageId)
+    static int NumberIdFor(TextMarkerStyle style)=>style switch
     {
-        var numId=list.MarkerStyle==TextMarkerStyle.Decimal?2:1;
+        TextMarkerStyle.Decimal=>2,
+        TextMarkerStyle.LowerLatin=>3,
+        TextMarkerStyle.UpperLatin=>4,
+        TextMarkerStyle.LowerRoman=>5,
+        TextMarkerStyle.UpperRoman=>6,
+        _=>1
+    };
+
+    static void AppendList(
+        MainDocumentPart main,OpenXmlCompositeElement target,List list,ref uint imageId)
+    {
+        var numberId=NumberIdFor(list.MarkerStyle);
         foreach(var item in list.ListItems)
         {
             foreach(var block in item.Blocks)
             {
-                if(block is not Paragraph p)continue;
-                var wp=ToWordParagraph(main,p,ref imageId);
-                wp.ParagraphProperties ??= new W.ParagraphProperties();
-                wp.ParagraphProperties.NumberingProperties=new W.NumberingProperties(
-                    new W.NumberingLevelReference{Val=0},
-                    new W.NumberingId{Val=numId});
-                body.Append(wp);
+                if(block is Paragraph paragraph)
+                {
+                    var wordParagraph=ToWordParagraph(main,paragraph,ref imageId);
+                    wordParagraph.ParagraphProperties??=new W.ParagraphProperties();
+                    wordParagraph.ParagraphProperties.NumberingProperties=new W.NumberingProperties(
+                        new W.NumberingLevelReference{Val=0},
+                        new W.NumberingId{Val=numberId});
+                    target.Append(wordParagraph);
+                }
+                else if(block is Table table)target.Append(ToWordTable(main,table,ref imageId));
+                else if(block is Section section)AppendBlocks(main,target,section.Blocks,ref imageId);
             }
         }
     }
 
-    static void AppendInlines(MainDocumentPart main,W.Paragraph target,InlineCollection inlines,ref uint imageId)
+    static void AppendInlines(
+        MainDocumentPart main,W.Paragraph target,InlineCollection inlines,ref uint imageId)
     {
         foreach(var inline in inlines)
         {
             if(inline is Run run)target.Append(ToWordRun(run));
             else if(inline is LineBreak)target.Append(new W.Run(new W.Break()));
             else if(inline is Span span)AppendInlines(main,target,span.Inlines,ref imageId);
-            else if(inline is InlineUIContainer ui && ui.Child is Image img && img.Source is BitmapSource bitmap)
-                target.Append(ToWordImageRun(main,bitmap,img,ref imageId));
+            else if(inline is InlineUIContainer container &&
+                    container.Child is Image image &&
+                    image.Source is BitmapSource bitmap)
+                target.Append(ToWordImageRun(main,bitmap,image,ref imageId));
         }
     }
 
     static W.Run ToWordRun(Run run)
     {
-        var props=new W.RunProperties();
-        if(run.FontWeight.ToOpenTypeWeight()>=600)props.Bold=new W.Bold();
-        if(run.FontStyle==FontStyles.Italic)props.Italic=new W.Italic();
-        if(run.TextDecorations==TextDecorations.Underline)props.Underline=new W.Underline{Val=W.UnderlineValues.Single};
+        var properties=new W.RunProperties();
+        if(run.FontWeight.ToOpenTypeWeight()>=600)properties.Bold=new W.Bold();
+        if(run.FontStyle==FontStyles.Italic)properties.Italic=new W.Italic();
+        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Underline))
+            properties.Underline=new W.Underline{Val=W.UnderlineValues.Single};
+        if(HasDecoration(run.TextDecorations,TextDecorationLocation.Strikethrough))
+            properties.Strike=new W.Strike();
         if(!string.IsNullOrWhiteSpace(run.FontFamily?.Source))
-            props.RunFonts=new W.RunFonts{Ascii=run.FontFamily.Source,HighAnsi=run.FontFamily.Source};
+            properties.RunFonts=new W.RunFonts
+            {
+                Ascii=run.FontFamily.Source,
+                HighAnsi=run.FontFamily.Source,
+                ComplexScript=run.FontFamily.Source
+            };
         if(!double.IsNaN(run.FontSize) && run.FontSize>0)
-            props.FontSize=new W.FontSize{Val=((int)Math.Round(run.FontSize*72/96*2)).ToString()};
+        {
+            var halfPoints=((int)Math.Round(run.FontSize*72/96*2)).ToString();
+            properties.FontSize=new W.FontSize{Val=halfPoints};
+            properties.FontSizeComplexScript=new W.FontSizeComplexScript{Val=halfPoints};
+        }
+        if(run.Foreground is SolidColorBrush foreground && foreground.Color.A>0)
+            properties.Color=new W.Color{Val=Rgb(foreground.Color)};
+        if(run.Background is SolidColorBrush background && background.Color.A>0)
+            properties.Shading=new W.Shading
+            {
+                Val=W.ShadingPatternValues.Clear,
+                Color="auto",
+                Fill=Rgb(background.Color)
+            };
+        if(run.BaselineAlignment==BaselineAlignment.Superscript)
+            properties.VerticalTextAlignment=new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Superscript};
+        else if(run.BaselineAlignment==BaselineAlignment.Subscript)
+            properties.VerticalTextAlignment=new W.VerticalTextAlignment{Val=W.VerticalPositionValues.Subscript};
+        if(!string.IsNullOrWhiteSpace(run.Language?.IetfLanguageTag))
+            properties.Languages=new W.Languages{Val=run.Language.IetfLanguageTag};
 
-        return new W.Run(props,new W.Text(run.Text??""){Space=SpaceProcessingModeValues.Preserve});
+        return new W.Run(properties,new W.Text(run.Text??""){Space=SpaceProcessingModeValues.Preserve});
     }
 
-    static W.Run ToWordImageRun(MainDocumentPart main,BitmapSource bitmap,Image image,ref uint imageId)
+    static bool HasDecoration(TextDecorationCollection? collection,TextDecorationLocation location)
+        =>collection?.Any(x=>x.Location==location)==true;
+
+    static string Rgb(System.Windows.Media.Color colour)
+        =>$"{colour.R:X2}{colour.G:X2}{colour.B:X2}";
+
+    static W.Run ToWordImageRun(
+        MainDocumentPart main,BitmapSource bitmap,Image image,ref uint imageId)
     {
         var encoder=new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var ms=new MemoryStream();
-        encoder.Save(ms);
-        ms.Position=0;
+        using var stream=new MemoryStream();
+        encoder.Save(stream);
+        stream.Position=0;
 
         var part=main.AddImagePart(ImagePartType.Png);
-        part.FeedData(ms);
-        var relId=main.GetIdOfPart(part);
+        part.FeedData(stream);
+        var relationshipId=main.GetIdOfPart(part);
 
-        var widthDip=!double.IsNaN(image.Width)&&image.Width>0?image.Width:(image.ActualWidth>0?image.ActualWidth:bitmap.PixelWidth*96.0/Math.Max(1,bitmap.DpiX));
-        var heightDip=!double.IsNaN(image.Height)&&image.Height>0?image.Height:(image.ActualHeight>0?image.ActualHeight:bitmap.PixelHeight*96.0/Math.Max(1,bitmap.DpiY));
+        var widthDip=!double.IsNaN(image.Width)&&image.Width>0
+            ?image.Width
+            :(image.ActualWidth>0?image.ActualWidth:bitmap.PixelWidth*96.0/Math.Max(1,bitmap.DpiX));
+        var heightDip=!double.IsNaN(image.Height)&&image.Height>0
+            ?image.Height
+            :(image.ActualHeight>0?image.ActualHeight:bitmap.PixelHeight*96.0/Math.Max(1,bitmap.DpiY));
         var cx=(long)Math.Max(1,widthDip*9525);
         var cy=(long)Math.Max(1,heightDip*9525);
         var id=imageId++;
+        var description=image.ToolTip?.ToString()??"";
 
         var drawing=new W.Drawing(
             new DW.Inline(
                 new DW.Extent{Cx=cx,Cy=cy},
                 new DW.EffectExtent{LeftEdge=0L,TopEdge=0L,RightEdge=0L,BottomEdge=0L},
-                new DW.DocProperties{Id=id,Name=$"CtrlZed Picture {id}"},
+                new DW.DocProperties{Id=id,Name=$"CtrlZed Picture {id}",Description=description},
                 new DW.NonVisualGraphicFrameDrawingProperties(new A.GraphicFrameLocks{NoChangeAspect=true}),
                 new A.Graphic(
                     new A.GraphicData(
@@ -390,94 +652,132 @@ public static class DocxInterop
                                 new PIC.NonVisualDrawingProperties{Id=id,Name=$"CtrlZed Picture {id}.png"},
                                 new PIC.NonVisualPictureDrawingProperties()),
                             new PIC.BlipFill(
-                                new A.Blip{Embed=relId},
+                                new A.Blip{Embed=relationshipId},
                                 new A.Stretch(new A.FillRectangle())),
                             new PIC.ShapeProperties(
                                 new A.Transform2D(
                                     new A.Offset{X=0L,Y=0L},
                                     new A.Extents{Cx=cx,Cy=cy}),
-                                new A.PresetGeometry(new A.AdjustValueList()){Preset=A.ShapeTypeValues.Rectangle})
-                        )
-                    ){Uri="http://schemas.openxmlformats.org/drawingml/2006/picture"}
-                )
-            )
+                                new A.PresetGeometry(new A.AdjustValueList())
+                                {Preset=A.ShapeTypeValues.Rectangle})))
+                    {Uri="http://schemas.openxmlformats.org/drawingml/2006/picture"})))
             {
-                DistanceFromTop=0U,DistanceFromBottom=0U,DistanceFromLeft=0U,DistanceFromRight=0U
+                DistanceFromTop=0U,
+                DistanceFromBottom=0U,
+                DistanceFromLeft=0U,
+                DistanceFromRight=0U
             });
         return new W.Run(drawing);
     }
 
     static W.Table ToWordTable(MainDocumentPart main,Table table,ref uint imageId)
     {
-        var wt=new W.Table();
-        var borders=new W.TableBorders(
-            new W.TopBorder{Val=W.BorderValues.Single,Size=4},
-            new W.LeftBorder{Val=W.BorderValues.Single,Size=4},
-            new W.BottomBorder{Val=W.BorderValues.Single,Size=4},
-            new W.RightBorder{Val=W.BorderValues.Single,Size=4},
-            new W.InsideHorizontalBorder{Val=W.BorderValues.Single,Size=2},
-            new W.InsideVerticalBorder{Val=W.BorderValues.Single,Size=2});
-        wt.AppendChild(new W.TableProperties(borders));
+        var wordTable=new W.Table();
+        wordTable.AppendChild(new W.TableProperties(
+            new W.TableBorders(
+                new W.TopBorder{Val=W.BorderValues.Single,Size=4},
+                new W.LeftBorder{Val=W.BorderValues.Single,Size=4},
+                new W.BottomBorder{Val=W.BorderValues.Single,Size=4},
+                new W.RightBorder{Val=W.BorderValues.Single,Size=4},
+                new W.InsideHorizontalBorder{Val=W.BorderValues.Single,Size=2},
+                new W.InsideVerticalBorder{Val=W.BorderValues.Single,Size=2})));
+
         var grid=new W.TableGrid();
-        foreach(var _ in table.Columns)grid.Append(new W.GridColumn());
-        wt.Append(grid);
+        foreach(var column in table.Columns)
+        {
+            var gridColumn=new W.GridColumn();
+            if(column.Width.IsAbsolute && column.Width.Value>0)
+                gridColumn.Width=Twips(column.Width.Value);
+            grid.Append(gridColumn);
+        }
+        wordTable.Append(grid);
 
         foreach(var group in table.RowGroups)
         foreach(var row in group.Rows)
         {
-            var wr=new W.TableRow();
+            var wordRow=new W.TableRow();
             foreach(var cell in row.Cells)
             {
-                var wc=new W.TableCell();
-                foreach(var block in cell.Blocks)
-                    if(block is Paragraph p)wc.Append(ToWordParagraph(main,p,ref imageId));
-                if(!wc.Elements<W.Paragraph>().Any())wc.Append(new W.Paragraph());
-                wr.Append(wc);
+                var wordCell=new W.TableCell();
+                var cellProperties=new W.TableCellProperties();
+                if(cell.ColumnSpan>1)cellProperties.Append(new W.GridSpan{Val=cell.ColumnSpan});
+                if(cell.Background is SolidColorBrush background && background.Color.A>0)
+                    cellProperties.Append(new W.Shading
+                    {
+                        Val=W.ShadingPatternValues.Clear,
+                        Color="auto",
+                        Fill=Rgb(background.Color)
+                    });
+                cellProperties.Append(new W.TableCellVerticalAlignment
+                {
+                    Val=cell.TextAlignment==TextAlignment.Center
+                        ?W.TableVerticalAlignmentValues.Center
+                        :W.TableVerticalAlignmentValues.Top
+                });
+                wordCell.Append(cellProperties);
+                AppendBlocks(main,wordCell,cell.Blocks,ref imageId);
+                if(!wordCell.Elements<W.Paragraph>().Any())wordCell.Append(new W.Paragraph());
+                wordRow.Append(wordCell);
             }
-            wt.Append(wr);
+            wordTable.Append(wordRow);
         }
-        return wt;
+        return wordTable;
     }
 
-    static Paragraph FromWordParagraph(MainDocumentPart main,W.Paragraph p)
+    static Paragraph FromWordParagraph(MainDocumentPart main,W.Paragraph source)
     {
         var result=new Paragraph();
-        var pp=p.ParagraphProperties;
-        if(pp?.PageBreakBefore!=null)result.BreakPageBefore=true;
-        var justification=pp?.Justification?.Val?.Value;
-        if(justification!=null)
-        {
-            if(justification==W.JustificationValues.Center)result.TextAlignment=TextAlignment.Center;
-            else if(justification==W.JustificationValues.Right)result.TextAlignment=TextAlignment.Right;
-            else if(justification==W.JustificationValues.Both)result.TextAlignment=TextAlignment.Justify;
-            else result.TextAlignment=TextAlignment.Left;
-        }
+        var style=source.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+        if(!string.IsNullOrWhiteSpace(style))ApplyImportedStyle(main,result,style);
+        ApplyParagraphProperties(result,source.ParagraphProperties);
+        AppendParagraphContent(main,result,source);
+        return result;
+    }
 
-        var style=pp?.ParagraphStyleId?.Val?.Value;
-        if(style!=null)ApplyImportedStyle(result,style);
-
-        foreach(var r in p.Elements<W.Run>())
+    static void AppendParagraphContent(MainDocumentPart main,Paragraph target,OpenXmlElement parent)
+    {
+        foreach(var child in parent.ChildElements)
         {
-            foreach(var item in r.ChildElements)
+            if(child is W.ParagraphProperties)continue;
+            if(child is W.Run run)
             {
-                if(item is W.Text txt)result.Inlines.Add(FromWordRun(r,txt.Text));
-                else if(item is W.Break)result.Inlines.Add(new LineBreak());
-                else if(item is W.Drawing drawing)
+                foreach(var item in run.ChildElements)
                 {
-                    var image=FromWordDrawing(main,drawing);
-                    if(image!=null)result.Inlines.Add(new InlineUIContainer(image));
+                    switch(item)
+                    {
+                        case W.Text text:
+                            target.Inlines.Add(FromWordRun(run,text.Text));
+                            break;
+                        case W.TabChar:
+                            target.Inlines.Add(FromWordRun(run,"\t"));
+                            break;
+                        case W.Break:
+                        case W.CarriageReturn:
+                            target.Inlines.Add(new LineBreak());
+                            break;
+                        case W.NoBreakHyphen:
+                            target.Inlines.Add(FromWordRun(run,"‑"));
+                            break;
+                        case W.SoftHyphen:
+                            target.Inlines.Add(FromWordRun(run,"\u00AD"));
+                            break;
+                        case W.Drawing drawing:
+                            var image=FromWordDrawing(main,drawing);
+                            if(image!=null)target.Inlines.Add(new InlineUIContainer(image));
+                            break;
+                    }
                 }
             }
+            else if(child is W.Hyperlink or W.SmartTag or W.SdtRun or W.InsertedRun or W.SimpleField)
+                AppendParagraphContent(main,target,child);
         }
-        return result;
     }
 
     static Image? FromWordDrawing(MainDocumentPart main,W.Drawing drawing)
     {
-        var blip=drawing.Descendants<A.Blip>().FirstOrDefault();
-        var relId=blip?.Embed?.Value;
-        if(string.IsNullOrWhiteSpace(relId))return null;
-        if(main.GetPartById(relId) is not ImagePart part)return null;
+        var relationshipId=drawing.Descendants<A.Blip>().FirstOrDefault()?.Embed?.Value;
+        if(string.IsNullOrWhiteSpace(relationshipId))return null;
+        if(main.GetPartById(relationshipId) is not ImagePart part)return null;
 
         BitmapImage bitmap;
         using(var stream=part.GetStream())
@@ -487,72 +787,243 @@ public static class DocxInterop
             bitmap.CacheOption=BitmapCacheOption.OnLoad;
             bitmap.StreamSource=stream;
             bitmap.EndInit();
+            bitmap.Freeze();
         }
 
         var extent=drawing.Descendants<DW.Extent>().FirstOrDefault();
         var image=new Image{Source=bitmap,Stretch=Stretch.Uniform,Margin=new Thickness(4)};
         if(extent?.Cx?.Value is long cx && cx>0)image.Width=cx/9525.0;
         if(extent?.Cy?.Value is long cy && cy>0)image.Height=cy/9525.0;
+        var description=drawing.Descendants<DW.DocProperties>().FirstOrDefault()?.Description?.Value;
+        if(!string.IsNullOrWhiteSpace(description))image.ToolTip=description;
         return image;
     }
 
     static Run FromWordRun(W.Run source,string text)
     {
-        var r=new Run(text);
-        var rp=source.RunProperties;
-        if(rp?.Bold!=null)r.FontWeight=FontWeights.Bold;
-        if(rp?.Italic!=null)r.FontStyle=FontStyles.Italic;
-        var underline=rp?.Underline?.Val?.Value;
-        if(underline!=null && underline!=W.UnderlineValues.None)r.TextDecorations=TextDecorations.Underline;
-        var font=rp?.RunFonts?.Ascii?.Value??rp?.RunFonts?.HighAnsi?.Value;
-        if(!string.IsNullOrWhiteSpace(font))r.FontFamily=new FontFamily(font);
-        if(double.TryParse(rp?.FontSize?.Val?.Value,out var halfPoints))r.FontSize=halfPoints/2*96/72;
-        return r;
+        var result=new Run(text);
+        ApplyTextProperties(result,source.RunProperties);
+        return result;
     }
+
+    static void ApplyTextProperties(TextElement target,OpenXmlElement? properties)
+    {
+        if(properties==null)return;
+        var bold=properties.GetFirstChild<W.Bold>();
+        if(bold!=null && (bold.Val?.Value??true))target.FontWeight=FontWeights.Bold;
+        var italic=properties.GetFirstChild<W.Italic>();
+        if(italic!=null && (italic.Val?.Value??true))target.FontStyle=FontStyles.Italic;
+        var underline=properties.GetFirstChild<W.Underline>()?.Val?.Value;
+        if(underline!=null && underline!=W.UnderlineValues.None)
+            target.TextDecorations=TextDecorations.Underline;
+        var strike=properties.GetFirstChild<W.Strike>();
+        if(strike!=null && (strike.Val?.Value??true))
+            target.TextDecorations=new TextDecorationCollection(TextDecorations.Strikethrough);
+
+        var fonts=properties.GetFirstChild<W.RunFonts>();
+        var font=fonts?.Ascii?.Value??fonts?.HighAnsi?.Value??fonts?.ComplexScript?.Value;
+        if(!string.IsNullOrWhiteSpace(font))target.FontFamily=new FontFamily(font);
+        var size=properties.GetFirstChild<W.FontSize>()?.Val?.Value
+                 ??properties.GetFirstChild<W.FontSizeComplexScript>()?.Val?.Value;
+        if(double.TryParse(size,out var halfPoints) && halfPoints>0)
+            target.FontSize=halfPoints/2*96/72;
+
+        var colour=properties.GetFirstChild<W.Color>()?.Val?.Value;
+        if(TryBrush(colour,out var foreground))target.Foreground=foreground;
+        var fill=properties.GetFirstChild<W.Shading>()?.Fill?.Value;
+        if(TryBrush(fill,out var background))target.Background=background;
+
+        var vertical=properties.GetFirstChild<W.VerticalTextAlignment>()?.Val?.Value;
+        if(target is Inline inline)
+        {
+            if(vertical==W.VerticalPositionValues.Superscript)inline.BaselineAlignment=BaselineAlignment.Superscript;
+            else if(vertical==W.VerticalPositionValues.Subscript)inline.BaselineAlignment=BaselineAlignment.Subscript;
+        }
+        var language=properties.GetFirstChild<W.Languages>()?.Val?.Value;
+        if(!string.IsNullOrWhiteSpace(language))
+        {
+            try{target.Language=System.Windows.Markup.XmlLanguage.GetLanguage(language);}
+            catch{ }
+        }
+    }
+
+    static bool TryBrush(string? value,out SolidColorBrush brush)
+    {
+        brush=Brushes.Transparent;
+        if(string.IsNullOrWhiteSpace(value) ||
+           string.Equals(value,"auto",StringComparison.OrdinalIgnoreCase) ||
+           value.Length!=6)return false;
+        try
+        {
+            var colour=(System.Windows.Media.Color)ColorConverter.ConvertFromString("#"+value)!;
+            brush=new SolidColorBrush(colour);
+            brush.Freeze();
+            return true;
+        }
+        catch{return false;}
+    }
+
+    static void ApplyParagraphProperties(Paragraph paragraph,OpenXmlElement? properties)
+    {
+        if(properties==null)return;
+        var justification=properties.GetFirstChild<W.Justification>()?.Val?.Value;
+        paragraph.TextAlignment=justification switch
+        {
+            W.JustificationValues.Center=>TextAlignment.Center,
+            W.JustificationValues.Right=>TextAlignment.Right,
+            W.JustificationValues.Both=>TextAlignment.Justify,
+            _=>paragraph.TextAlignment
+        };
+        var pageBreak=properties.GetFirstChild<W.PageBreakBefore>();
+        if(pageBreak!=null && (pageBreak.Val?.Value??true))paragraph.BreakPageBefore=true;
+        var keepLines=properties.GetFirstChild<W.KeepLines>();
+        if(keepLines!=null && (keepLines.Val?.Value??true))paragraph.KeepTogether=true;
+        var keepNext=properties.GetFirstChild<W.KeepNext>();
+        if(keepNext!=null && (keepNext.Val?.Value??true))paragraph.KeepWithNext=true;
+
+        var margin=paragraph.Margin;
+        var spacing=properties.GetFirstChild<W.SpacingBetweenLines>();
+        if(spacing!=null)
+        {
+            var top=TryTwips(spacing.Before?.Value,margin.Top);
+            var bottom=TryTwips(spacing.After?.Value,margin.Bottom);
+            margin=new Thickness(margin.Left,top,margin.Right,bottom);
+            if(double.TryParse(spacing.Line?.Value,out var line) && line>0)
+                paragraph.LineHeight=line/15.0;
+        }
+        var indentation=properties.GetFirstChild<W.Indentation>();
+        if(indentation!=null)
+        {
+            var left=TryTwips(indentation.Left?.Value,margin.Left);
+            var right=TryTwips(indentation.Right?.Value,margin.Right);
+            margin=new Thickness(left,margin.Top,right,margin.Bottom);
+            if(double.TryParse(indentation.FirstLine?.Value,out var first))paragraph.TextIndent=first/15.0;
+            else if(double.TryParse(indentation.Hanging?.Value,out var hanging))paragraph.TextIndent=-hanging/15.0;
+        }
+        paragraph.Margin=margin;
+    }
+
+    static double TryTwips(string? value,double fallback)
+        =>double.TryParse(value,out var twips)?twips/15.0:fallback;
 
     static Table FromWordTable(MainDocumentPart main,W.Table source)
     {
-        var t=new Table{CellSpacing=0,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(0,8,0,8)};
+        var table=new Table
+        {
+            CellSpacing=0,
+            BorderBrush=Brushes.Gray,
+            BorderThickness=new Thickness(1),
+            Margin=new Thickness(0,8,0,8)
+        };
         var rows=source.Elements<W.TableRow>().ToList();
-        var maxCols=rows.Select(r=>r.Elements<W.TableCell>().Count()).DefaultIfEmpty(1).Max();
-        for(int i=0;i<maxCols;i++)t.Columns.Add(new TableColumn());
-        var group=new TableRowGroup();t.RowGroups.Add(group);
+        var maxColumns=rows.Select(row=>row.Elements<W.TableCell>()
+                .Sum(cell=>(int)(cell.TableCellProperties?.GridSpan?.Val?.Value??1)))
+            .DefaultIfEmpty(1).Max();
+        for(var i=0;i<maxColumns;i++)table.Columns.Add(new TableColumn());
 
+        var gridWidths=source.GetFirstChild<W.TableGrid>()?.Elements<W.GridColumn>().ToList();
+        if(gridWidths!=null)
+        {
+            for(var i=0;i<Math.Min(gridWidths.Count,table.Columns.Count);i++)
+                if(double.TryParse(gridWidths[i].Width?.Value,out var twips) && twips>0)
+                    table.Columns[i].Width=new GridLength(twips/15.0);
+        }
+
+        var group=new TableRowGroup();
+        table.RowGroups.Add(group);
         foreach(var row in rows)
         {
-            var tr=new TableRow();group.Rows.Add(tr);
+            var tableRow=new TableRow();
+            group.Rows.Add(tableRow);
             foreach(var cell in row.Elements<W.TableCell>())
             {
-                var tc=new TableCell{BorderBrush=Brushes.LightGray,BorderThickness=new Thickness(0.5),Padding=new Thickness(5)};
-                foreach(var p in cell.Elements<W.Paragraph>())tc.Blocks.Add(FromWordParagraph(main,p));
-                if(tc.Blocks.Count==0)tc.Blocks.Add(new Paragraph());
-                tr.Cells.Add(tc);
+                var tableCell=new TableCell
+                {
+                    BorderBrush=Brushes.LightGray,
+                    BorderThickness=new Thickness(0.5),
+                    Padding=new Thickness(5),
+                    ColumnSpan=(int)(cell.TableCellProperties?.GridSpan?.Val?.Value??1)
+                };
+                var fill=cell.TableCellProperties?.Shading?.Fill?.Value;
+                if(TryBrush(fill,out var background))tableCell.Background=background;
+                foreach(var paragraph in cell.Elements<W.Paragraph>())
+                    tableCell.Blocks.Add(FromWordParagraph(main,paragraph));
+                foreach(var nestedTable in cell.Elements<W.Table>())
+                    tableCell.Blocks.Add(FromWordTable(main,nestedTable));
+                if(tableCell.Blocks.Count==0)tableCell.Blocks.Add(new Paragraph());
+                tableRow.Cells.Add(tableCell);
             }
         }
-        return t;
+        return table;
     }
 
-    static string? DetectStyleId(Paragraph p)
+    static string? DetectStyleId(Paragraph paragraph)
     {
-        var range=new TextRange(p.ContentStart,p.ContentEnd);
+        var range=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
         var sizeValue=range.GetPropertyValue(TextElement.FontSizeProperty);
         var weightValue=range.GetPropertyValue(TextElement.FontWeightProperty);
-        var size=sizeValue is double d?d:0;
-        var weight=weightValue is FontWeight fw?fw.ToOpenTypeWeight():0;
+        var styleValue=range.GetPropertyValue(TextElement.FontStyleProperty);
+        var size=sizeValue is double sizeDip?sizeDip:0;
+        var weight=weightValue is FontWeight fontWeight?fontWeight.ToOpenTypeWeight():0;
+        var italic=styleValue is FontStyle fontStyle && fontStyle==FontStyles.Italic;
         if(size>=23 && weight>=600)return "Heading1";
         if(size>=19 && weight>=600)return "Heading2";
         if(size>=17 && weight>=550)return "Heading3";
+        if(italic && paragraph.Margin.Left>=24 && paragraph.Margin.Right>=24)return "Quote";
+        if(italic && size>0 && size<=15 && paragraph.Margin.Bottom>=5)return "Caption";
         return null;
     }
 
-    static void ApplyImportedStyle(Paragraph p,string style)
+    static void ApplyImportedStyle(MainDocumentPart main,Paragraph paragraph,string styleId)
+    {
+        var styles=main.StyleDefinitionsPart?.Styles;
+        var visited=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Apply(string id)
+        {
+            if(styles==null || !visited.Add(id))return;
+            var style=styles.Elements<W.Style>()
+                .FirstOrDefault(x=>string.Equals(x.StyleId?.Value,id,StringComparison.OrdinalIgnoreCase));
+            if(style==null)return;
+            var baseId=style.BasedOn?.Val?.Value;
+            if(!string.IsNullOrWhiteSpace(baseId))Apply(baseId);
+            ApplyParagraphProperties(paragraph,style.StyleParagraphProperties);
+            ApplyTextProperties(paragraph,style.StyleRunProperties);
+        }
+
+        Apply(styleId);
+        if(visited.Count==0)ApplyBuiltInStyle(paragraph,styleId);
+    }
+
+    static void ApplyBuiltInStyle(Paragraph paragraph,string style)
     {
         switch(style.ToLowerInvariant())
         {
-            case "heading1":p.FontSize=24;p.FontWeight=FontWeights.Bold;break;
-            case "heading2":p.FontSize=20;p.FontWeight=FontWeights.Bold;break;
-            case "heading3":p.FontSize=17;p.FontWeight=FontWeights.SemiBold;break;
-            case "quote":p.FontStyle=FontStyles.Italic;p.Margin=new Thickness(36,8,36,8);break;
+            case "heading1":
+                paragraph.FontSize=24;
+                paragraph.FontWeight=FontWeights.Bold;
+                paragraph.KeepWithNext=true;
+                break;
+            case "heading2":
+                paragraph.FontSize=20;
+                paragraph.FontWeight=FontWeights.Bold;
+                paragraph.KeepWithNext=true;
+                break;
+            case "heading3":
+                paragraph.FontSize=17;
+                paragraph.FontWeight=FontWeights.SemiBold;
+                paragraph.KeepWithNext=true;
+                break;
+            case "quote":
+                paragraph.FontStyle=FontStyles.Italic;
+                paragraph.Margin=new Thickness(36,8,36,8);
+                break;
+            case "caption":
+                paragraph.FontStyle=FontStyles.Italic;
+                paragraph.FontSize=12;
+                paragraph.Foreground=Brushes.DimGray;
+                paragraph.Margin=new Thickness(0,3,0,8);
+                break;
         }
     }
 }
