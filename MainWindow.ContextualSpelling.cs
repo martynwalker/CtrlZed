@@ -27,13 +27,16 @@ public partial class MainWindow
         if(sender is MainWindow window)window.InitialiseContextualSpelling();
     }
 
+    int EffectiveContextualSpellingDelay()
+        =>Math.Clamp(Math.Min(languageSettings.SentenceCompletionDelayMs,450),250,450);
+
     void InitialiseContextualSpelling()
     {
         if(contextualSpellingInitialised)return;
         contextualSpellingInitialised=true;
         contextualSpellingTimer=new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval=TimeSpan.FromMilliseconds(languageSettings.SentenceCompletionDelayMs)
+            Interval=TimeSpan.FromMilliseconds(EffectiveContextualSpellingDelay())
         };
         contextualSpellingTimer.Tick+=async (_,__)=>
         {
@@ -45,6 +48,7 @@ public partial class MainWindow
             catch(OperationCanceledException){ }
             catch(Exception ex)
             {
+                EndActivity();
                 if(languageSettings.ShowAutomaticCorrectionNotice)
                     Status.Text="Contextual spelling check was not completed: "+ex.Message;
             }
@@ -55,7 +59,7 @@ public partial class MainWindow
             if(applyingContextualCorrection || contextualSpellingTimer==null ||
                !languageSettings.ContextualSpellingAutoCorrect)return;
             contextualSpellingTimer.Stop();
-            contextualSpellingTimer.Interval=TimeSpan.FromMilliseconds(languageSettings.SentenceCompletionDelayMs);
+            contextualSpellingTimer.Interval=TimeSpan.FromMilliseconds(EffectiveContextualSpellingDelay());
             contextualSpellingTimer.Start();
         };
     }
@@ -108,18 +112,21 @@ public partial class MainWindow
                     var profile=AiDirectService.GetProfile(provider);
                     if(provider!="Copilot" && profile.HasKey)
                     {
-                        if(languageSettings.ShowAutomaticCorrectionNotice)
-                            Status.Text=$"Checking ‘{original}’ against the completed sentence…";
-                        var prompt=ContextualSpellingEngine.BuildAiChoicePrompt(
-                            sentence.Text,original,suggestions,WritingModeProfiles.Get(languageSettings.WritingMode).DisplayName);
-                        var response=await AiDirectService.GenerateAsync(provider,prompt,false,cancellationToken);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        if(!string.Equals(errorRange.Text.Trim(),original,StringComparison.Ordinal))return;
-                        var aiChoice=ContextualSpellingEngine.ParseAiChoice(response,suggestions);
-                        if(aiChoice!=null)
-                            ApplyContextualCorrection(errorRange,original,aiChoice,$"{provider} context check");
-                        else if(languageSettings.ShowAutomaticCorrectionNotice)
-                            Status.Text=$"No unambiguous contextual correction was made for ‘{original}’.";
+                        BeginActivity($"Checking ‘{original}’ in context…");
+                        try
+                        {
+                            var prompt=ContextualSpellingEngine.BuildAiChoicePrompt(
+                                sentence.Text,original,suggestions,WritingModeProfiles.Get(languageSettings.WritingMode).DisplayName);
+                            var response=await AiDirectService.GenerateAsync(provider,prompt,false,cancellationToken);
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if(!string.Equals(errorRange.Text.Trim(),original,StringComparison.Ordinal))return;
+                            var aiChoice=ContextualSpellingEngine.ParseAiChoice(response,suggestions);
+                            if(aiChoice!=null)
+                                ApplyContextualCorrection(errorRange,original,aiChoice,$"{provider} context check");
+                            else if(languageSettings.ShowAutomaticCorrectionNotice)
+                                Status.Text=$"No unambiguous contextual correction was made for ‘{original}’.";
+                        }
+                        finally{EndActivity();}
                         return; // at most one AI request per completed sentence
                     }
                 }
