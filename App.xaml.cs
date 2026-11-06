@@ -10,6 +10,13 @@ public partial class App : Application
 
         if(e.Args.Any(a=>a.Equals("--self-test",StringComparison.OrdinalIgnoreCase)))
         {
+            var beta34=Beta34SelfTest.Run();
+            if(beta34!=0)
+            {
+                Shutdown(beta34);
+                return;
+            }
+
             var beta33=Beta33SelfTest.Run();
             if(beta33!=0)
             {
