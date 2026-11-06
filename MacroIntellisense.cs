@@ -77,7 +77,7 @@ public static class MacroIntellisense
         for(ITypeSymbol? current=type;current!=null;)
         {
             foreach(var member in current.GetMembers())
-                if(member.DeclaredAccessibility==Accessibility.Public || member.DeclaredAccessibility==Accessibility.Internal)
+                if(member.DeclaredAccessibility==Microsoft.CodeAnalysis.Accessibility.Public || member.DeclaredAccessibility==Microsoft.CodeAnalysis.Accessibility.Internal)
                     yield return member;
             current=(current as INamedTypeSymbol)?.BaseType;
         }
