@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace CtrlZed;
 
@@ -45,6 +46,9 @@ internal static class Beta32UiPolishBootstrap
 
     static void OnContentRendered(object? sender,EventArgs e)
     {
-        if(sender is MainWindow window)window.ApplyBeta32MenuPolish();
+        if(sender is not MainWindow window)return;
+        window.Dispatcher.BeginInvoke(
+            new Action(window.ApplyBeta32MenuPolish),
+            DispatcherPriority.ApplicationIdle);
     }
 }
