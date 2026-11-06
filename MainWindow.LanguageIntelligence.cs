@@ -69,7 +69,7 @@ public partial class MainWindow
         var nextError=new MenuItem{Header="_Next Spelling Error",InputGestureText="F7"};
         nextError.Click+=NextSpellingError_Click;
         spellingEnabledMenu=new MenuItem{Header="Show _Spelling Marks",IsCheckable=true};
-        spellingEnabledMenu.Click+=(_,__)=
+        spellingEnabledMenu.Click+=(_,__)=>
         {
             languageSettings.SpellingEnabled=spellingEnabledMenu.IsChecked;
             LanguageIntelligenceSettingsStore.Save(languageSettings);
@@ -85,7 +85,7 @@ public partial class MainWindow
         foreach(var profile in WritingModeProfiles.All)
         {
             var item=new MenuItem{Header=profile.DisplayName,IsCheckable=true,Tag=profile.Mode};
-            item.Click+=(_,__)=
+            item.Click+=(_,__)=>
             {
                 languageSettings.WritingMode=(WritingMode)item.Tag;
                 if(languageSettings.WritingMode!=WritingMode.Poetry)
@@ -183,7 +183,7 @@ public partial class MainWindow
         };
         menu.Items.Add(ignoreAll);
         var add=new MenuItem{Header=$"Add ‘{misspelt}’ to Personal Dictionary"};
-        add.Click+=(_,__)=
+        add.Click+=(_,__)=>
         {
             if(PersonalDictionaryStore.Add(misspelt))
             {
@@ -278,7 +278,7 @@ public partial class MainWindow
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};
         var apply=new Button{Content="Apply",Width=85,Margin=new Thickness(4),IsDefault=true};
         var close=new Button{Content="Close",Width=85,Margin=new Thickness(4),IsCancel=true};
-        apply.Click+=(_,__)=
+        apply.Click+=(_,__)=>
         {
             languageSettings.LanguageTag="en-GB";
             languageSettings.SpellingEnabled=spelling.IsChecked==true;
@@ -318,7 +318,7 @@ public partial class MainWindow
         buttons.Children.Add(remove);buttons.Children.Add(close);bottom.Children.Add(buttons);
         var list=new ListBox();root.Children.Add(list);
         void Refresh()=>list.ItemsSource=PersonalDictionaryStore.LoadWords();
-        add.Click+=(_,__)=
+        add.Click+=(_,__)=>
         {
             if(PersonalDictionaryStore.Add(entry.Text))
             {
@@ -330,7 +330,7 @@ public partial class MainWindow
         {
             if(args.Key==Key.Enter){add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));args.Handled=true;}
         };
-        remove.Click+=(_,__)=
+        remove.Click+=(_,__)=>
         {
             if(list.SelectedItem is string word && PersonalDictionaryStore.Remove(word))
             {
