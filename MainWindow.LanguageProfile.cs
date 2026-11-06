@@ -16,7 +16,11 @@ public partial class MainWindow
             WireReviewShortcutMenu();
             WireSettingsMenu();
             AboutMenu.Click-=About_Click;
-            AboutMenu.Click+=Beta31About_Click;
+            AboutMenu.Click+=Beta32About_Click;
+            if(Status.Text.StartsWith("Ready — CtrlZed beta",StringComparison.OrdinalIgnoreCase))
+                Status.Text="Ready — CtrlZed beta 32";
+            if(string.Equals(Title,"CtrlZed — beta 31",StringComparison.Ordinal))
+                Title="CtrlZed — beta 32";
         }));
         Closed+=(_,__)=>LanguageProfileBridge.ReloadRequested-=ReloadLanguageProfile;
     }
@@ -42,7 +46,7 @@ public partial class MainWindow
 
         var general=new MenuItem{Header="_General…"};
         general.Click+=Settings_Click;
-        var language=new MenuItem{Header="_Language && Writing Mode…"};
+        var language=new MenuItem{Header="_Language & Writing Mode…"};
         language.Click+=LanguageSettings_Click;
         settings.Items.Add(general);
         settings.Items.Add(language);
@@ -71,8 +75,8 @@ public partial class MainWindow
         e.Handled=true;
     }
 
-    void Beta31About_Click(object sender,RoutedEventArgs e)
-        =>Branding.CreateAboutWindow(this,"0.31.0 beta 31").ShowDialog();
+    void Beta32About_Click(object sender,RoutedEventArgs e)
+        =>Branding.CreateAboutWindow(this,"0.32.0 beta 32").ShowDialog();
 
     void ReloadLanguageProfile()
     {
