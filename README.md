@@ -4,9 +4,9 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 31
+## Current release: Beta 32
 
-Beta 31 is the current Windows prerelease. It builds directly on the user-tested Beta 30 baseline and adds or retains:
+Beta 32 is the current Windows prerelease. It builds directly on the user-tested Beta 31 baseline and adds or retains:
 
 - headings navigation pane
 - Find/Replace across formatting runs within paragraphs
@@ -31,6 +31,10 @@ Beta 31 is the current Windows prerelease. It builds directly on the user-tested
 - hierarchical macro menus using `MENU_NAME`, `MENU_POSITION`, `MENU_PATH` and `MENU_PATH_POSITIONS` (with legacy `MENU_OPTION` compatibility)
 - friendly macro names in Macro Manager
 - explicit rename support for central macro files
+- British-English spelling, personal dictionaries and optional contextual spelling correction
+- writing-mode-aware grammar and style suggestions with thin blue marks
+- a non-modal review pane with explanations, Apply, Ignore and Ignore Rule
+- optional paragraph-scoped AI grammar review that never applies changes automatically
 
 ### DOCX interchange
 
@@ -71,7 +75,8 @@ A release must pass:
 7. table preservation check
 8. inline-image round-trip check
 9. Open XML schema validation
-10. packaging and prerelease publication
+10. language-intelligence regression checks
+11. packaging and prerelease publication
 
 ## Macros
 
@@ -139,6 +144,7 @@ Browser/free and signed-in handoff remain available for all four providers, with
 - no commercial document-engine dependency
 - AI-authored implementation, open to inspection
 - stable behaviour preferred over fashionable rearrangement
+- suggestions must remain subordinate to the writer's judgement
 
 ## Licence
 
@@ -177,4 +183,19 @@ Beta 31 establishes CtrlZed's language-intelligence foundation:
 - optionally uses a configured direct AI provider to disambiguate a completed sentence, but only with explicit permission, only when local confidence is insufficient, and only by choosing from the local spelling candidates;
 - exports/imports language settings and personal dictionary words with `.czprofile`.
 
-Grammar/style suggestions, the contextual thesaurus and poetry rhyme assistance remain scheduled for subsequent releases; Beta 31 does not silently rewrite grammar or style.
+## Beta 32 highlights
+
+Beta 32 adds the first grammar and style review system:
+
+- thin blue suggestion marks, independent of red spelling marks;
+- local rules for clear grammar, punctuation, British usage, repetition, sentence length and selected formal-writing preferences;
+- writing-mode-aware tolerance so fiction, dialogue and poetry are not normalised into office prose;
+- right-click explanations and replacement choices;
+- Review Document with a modeless review pane;
+- Apply, Ignore and Ignore Rule controls;
+- optional paragraph-scoped AI review, run only on explicit request;
+- no automatic grammar or style rewriting;
+- Help text explaining why an unintelligible word remains red-underlined rather than being guessed;
+- corrected single ampersands in dynamically generated menu captions.
+
+The contextual thesaurus and poetry rhyme assistance remain scheduled for the next language-intelligence release.
