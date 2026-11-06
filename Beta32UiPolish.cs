@@ -7,6 +7,19 @@ namespace CtrlZed;
 
 public partial class MainWindow
 {
+    bool beta32MenuPolishInstalled;
+
+    internal void InstallBeta32MenuPolish()
+    {
+        if(beta32MenuPolishInstalled || MainMenu==null)return;
+        beta32MenuPolishInstalled=true;
+
+        foreach(var topLevel in MainMenu.Items.OfType<MenuItem>())
+            topLevel.SubmenuOpened+=(_,__)=>ApplyBeta32MenuPolish();
+
+        ApplyBeta32MenuPolish();
+    }
+
     internal void ApplyBeta32MenuPolish()
     {
         if(MainMenu==null)return;
@@ -48,7 +61,7 @@ internal static class Beta32UiPolishBootstrap
     {
         if(sender is not MainWindow window)return;
         window.Dispatcher.BeginInvoke(
-            new Action(window.ApplyBeta32MenuPolish),
+            new Action(window.InstallBeta32MenuPolish),
             DispatcherPriority.ApplicationIdle);
     }
 }
