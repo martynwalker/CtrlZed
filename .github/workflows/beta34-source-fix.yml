@@ -1,0 +1,28 @@
+name: Beta 34 one-shot source correction
+on:
+  push:
+    branches: [ beta34 ]
+    paths:
+      - ".github/workflows/beta34-source-fix.yml"
+permissions:
+  contents: write
+jobs:
+  correct:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta34
+      - name: Remove unsafe image freeze and commit
+        shell: pwsh
+        run: |
+          $path = "DocxInterop.cs"
+          $content = Get-Content $path -Raw
+          $updated = [regex]::Replace($content, '(?m)^\s*bitmap\.Freeze\(\);\r?\n', '')
+          if ($updated -eq $content) { throw "Expected bitmap.Freeze() line was not found." }
+          [System.IO.File]::WriteAllText((Resolve-Path $path), $updated, [System.Text.UTF8Encoding]::new($false))
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add $path
+          git commit -m "Fix DOCX image import on non-freezable BitmapImage"
+          git push origin HEAD:beta34
