@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
@@ -6,8 +7,17 @@ namespace CtrlZed;
 
 public partial class MainWindow
 {
+    static bool IsBeta33Assembly()
+    {
+        var value=typeof(MainWindow).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion??"";
+        return value.StartsWith("0.33.",StringComparison.OrdinalIgnoreCase);
+    }
+
     internal void ApplyBeta33VersionIdentity()
     {
+        if(!IsBeta33Assembly())return;
         AboutMenu.Click-=About_Click;
         AboutMenu.Click-=Beta32About_Click;
         AboutMenu.Click-=Beta33About_Click;
@@ -35,7 +45,7 @@ internal static class Beta33VersionBootstrap
 
     static void OnLoaded(object sender,RoutedEventArgs e)
     {
-        if(sender is not MainWindow window)return;
+        if(sender is not MainWindow window || !MainWindow.IsBeta33Assembly())return;
         window.ContentRendered-=OnContentRendered;
         window.ContentRendered+=OnContentRendered;
     }
