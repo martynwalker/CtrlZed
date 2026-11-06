@@ -11,7 +11,12 @@ public partial class MainWindow
         base.OnInitialized(e);
         LanguageProfileBridge.ReloadRequested+=ReloadLanguageProfile;
         AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(LanguageReviewPreviewKeyDown),true);
-        ContentRendered+=(_,__)=>WireReviewShortcutMenu();
+        ContentRendered+=(_,__)=>
+        {
+            WireReviewShortcutMenu();
+            AboutMenu.Click-=About_Click;
+            AboutMenu.Click+=Beta31About_Click;
+        };
         Closed+=(_,__)=>LanguageProfileBridge.ReloadRequested-=ReloadLanguageProfile;
     }
 
@@ -37,6 +42,9 @@ public partial class MainWindow
         NextSpellingError_Click(this,new RoutedEventArgs());
         e.Handled=true;
     }
+
+    void Beta31About_Click(object sender,RoutedEventArgs e)
+        =>Branding.CreateAboutWindow(this,"0.31.0 beta 31").ShowDialog();
 
     void ReloadLanguageProfile()
     {
