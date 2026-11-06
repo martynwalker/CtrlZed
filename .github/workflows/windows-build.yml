@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 34.2 is a focused correction to the otherwise accepted Beta 34.1 build. Selecting text and deliberately choosing the style already displayed in the toolbar, including Normal, now reapplies that style to the preserved selection. The Macro Manager compiled-macro button now displays Compile & Run with a single ampersand. All Beta 34.1 accessibility, AI progress, keyboard-profile, DOCX fidelity and macro improvements are retained."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 35 is the first safe increment towards paged WYSIWYG editing. It adds Paged Editing and Continuous Editing views, remembers the choice locally and in portable profiles, builds a cached non-destructive page map from an idle RTF snapshot on a separate STA worker, reports Page n of n, and draws bone-grey page separators without splitting or rebuilding the live document. Stale calculations are cancelled as soon as editing resumes. The former synchronous document-statistics pagination has been removed from the typing path. The release gate includes a 500-paragraph long-document test covering deterministic page boundaries, background-worker dispatch, cancellation, layout cache invalidation and source immutability."
 
-# Beta 34.2 release build
+# Beta 35 release build
