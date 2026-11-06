@@ -32,13 +32,13 @@ public partial class MainWindow
         {
             Interval=TimeSpan.FromMilliseconds(languageSettings.SentenceCompletionDelayMs)
         };
-        contextualSpellingTimer.Tick+=(_,__)=
+        contextualSpellingTimer.Tick+=(_,__)=>
         {
             contextualSpellingTimer.Stop();
             if(languageSettings.SpellingEnabled && languageSettings.ContextualSpellingAutoCorrect)
                 ApplyHighConfidenceSentenceCorrection();
         };
-        Editor.TextChanged+=(_,__)=
+        Editor.TextChanged+=(_,__)=>
         {
             if(contextualSpellingTimer==null ||
                (!languageSettings.ContextualSpellingSuggestions && !languageSettings.ContextualSpellingAutoCorrect))return;
