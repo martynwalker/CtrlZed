@@ -1,0 +1,33 @@
+name: Beta 34.2 source correction
+on:
+  push:
+    branches: [ beta342 ]
+    paths:
+      - ".github/workflows/beta342-apply.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta342
+      - name: Correct Macro Manager button caption
+        shell: pwsh
+        run: |
+          $path = "MainWindow.xaml.cs"
+          $text = [System.IO.File]::ReadAllText($path)
+          $old = 'run.Content=selectedExt==".czm"?"Run macro":"Compile && Run";'
+          $new = 'run.Content=selectedExt==".czm"?"Run macro":"Compile & Run";'
+          if (-not $text.Contains($old)) { throw "Expected Compile && Run source text was not found." }
+          $text = $text.Replace($old,$new)
+          [System.IO.File]::WriteAllText($path,$text,[System.Text.UTF8Encoding]::new($false))
+      - name: Commit correction
+        shell: pwsh
+        run: |
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add MainWindow.xaml.cs
+          git commit -m "Beta 34.2: fix Compile & Run caption"
+          git push origin HEAD:beta342
