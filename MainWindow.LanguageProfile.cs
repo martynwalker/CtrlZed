@@ -11,13 +11,41 @@ public partial class MainWindow
         base.OnInitialized(e);
         LanguageProfileBridge.ReloadRequested+=ReloadLanguageProfile;
         AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(LanguageReviewPreviewKeyDown),true);
-        ContentRendered+=(_,__)=>
+        ContentRendered+=(_,__)=>Dispatcher.BeginInvoke(new Action(() =>
         {
             WireReviewShortcutMenu();
+            WireSettingsMenu();
             AboutMenu.Click-=About_Click;
             AboutMenu.Click+=Beta31About_Click;
-        };
+        }));
         Closed+=(_,__)=>LanguageProfileBridge.ReloadRequested-=ReloadLanguageProfile;
+    }
+
+    void WireSettingsMenu()
+    {
+        var fileMenu=MainMenu.Items.OfType<MenuItem>()
+            .FirstOrDefault(x=>string.Equals(NormalisedMenuHeader(x.Header),"File",StringComparison.OrdinalIgnoreCase));
+        if(fileMenu==null)return;
+
+        var separateLanguage=fileMenu.Items.OfType<MenuItem>()
+            .FirstOrDefault(x=>(x.Tag as string)=="CtrlZedLanguageSettings");
+        if(separateLanguage!=null)fileMenu.Items.Remove(separateLanguage);
+
+        var settings=fileMenu.Items.OfType<MenuItem>()
+            .FirstOrDefault(x=>NormalisedMenuHeader(x.Header).StartsWith("Settings",StringComparison.OrdinalIgnoreCase));
+        if(settings==null || (settings.Tag as string)=="CtrlZedSettingsMenu")return;
+
+        settings.Click-=Settings_Click;
+        settings.Header="_Settings";
+        settings.Tag="CtrlZedSettingsMenu";
+        settings.Items.Clear();
+
+        var general=new MenuItem{Header="_General…"};
+        general.Click+=Settings_Click;
+        var language=new MenuItem{Header="_Language && Writing Mode…"};
+        language.Click+=LanguageSettings_Click;
+        settings.Items.Add(general);
+        settings.Items.Add(language);
     }
 
     void WireReviewShortcutMenu()
