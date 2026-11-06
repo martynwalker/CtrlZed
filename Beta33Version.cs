@@ -7,7 +7,7 @@ namespace CtrlZed;
 
 public partial class MainWindow
 {
-    static bool IsBeta33Assembly()
+    internal static bool IsBeta33Assembly()
     {
         var value=typeof(MainWindow).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
