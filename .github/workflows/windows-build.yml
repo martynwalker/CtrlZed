@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 33 builds on the user-tested Beta 32.1 baseline. It refines the Grammar and Style Review pane with AI Suggest, visible action messages, guarded controls and a two-row action box. It adds an explicitly requested contextual thesaurus, Shift+F7 in the Microsoft Word profile, a Poetry Rhyme Assistant that infers rhyme relationships, optional cached green opportunity marks, exact/near/slant rhyme explanations, word-choice and poetry settings, help documentation, and regression tests. Neither thesaurus nor rhyme analysis runs while the user types."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 34 builds on the user-tested Beta 33 baseline. It centralises Microsoft Word, WordPerfect 5.1 and WordStar 4.0 keyboard commands so menu labels and Help are generated from one catalogue, including F7 spelling and Shift+F7 contextual thesaurus commands. DOCX interchange now preserves a safer richer subset: named styles, paragraph spacing and indentation, keep settings, text colour and shading, strikethrough, superscript/subscript, language, more list marker types, basic table spans/shading and picture dimensions/description. The release gate includes Open XML schema validation and formatting round-trip regression tests."
 
-# Beta 33 release build
+# Beta 34 release build
