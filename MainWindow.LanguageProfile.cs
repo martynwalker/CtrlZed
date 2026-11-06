@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,13 +16,20 @@ public partial class MainWindow
         {
             WireReviewShortcutMenu();
             WireSettingsMenu();
-            AboutMenu.Click-=About_Click;
-            AboutMenu.Click+=Beta32About_Click;
-            if(Status.Text.StartsWith("Ready — CtrlZed beta",StringComparison.OrdinalIgnoreCase))
-                Status.Text="Ready — CtrlZed beta 32.1";
-            if(string.Equals(Title,"CtrlZed — beta 31",StringComparison.Ordinal) ||
-               string.Equals(Title,"CtrlZed — beta 32",StringComparison.Ordinal))
-                Title="CtrlZed — beta 32.1";
+
+            var version=typeof(MainWindow).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion??"";
+            if(version.StartsWith("0.32.1",StringComparison.OrdinalIgnoreCase))
+            {
+                AboutMenu.Click-=About_Click;
+                AboutMenu.Click+=Beta32About_Click;
+                if(Status.Text.StartsWith("Ready — CtrlZed beta",StringComparison.OrdinalIgnoreCase))
+                    Status.Text="Ready — CtrlZed beta 32.1";
+                if(string.Equals(Title,"CtrlZed — beta 31",StringComparison.Ordinal) ||
+                   string.Equals(Title,"CtrlZed — beta 32",StringComparison.Ordinal))
+                    Title="CtrlZed — beta 32.1";
+            }
         }));
         Closed+=(_,__)=>LanguageProfileBridge.ReloadRequested-=ReloadLanguageProfile;
     }
