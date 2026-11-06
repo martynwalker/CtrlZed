@@ -12,15 +12,83 @@ public sealed class PageGuideLayer : FrameworkElement
     public string Footer { get; set; } = "";
     public Func<string,int,int,string>? Expand { get; set; }
     public IReadOnlyList<double> ManualBreakY { get; set; } = Array.Empty<double>();
+    public bool UseCachedPaginationMap { get; set; }
+    public int CachedPageCount { get; set; }
+    public IReadOnlyList<double> CachedPageStartsY { get; set; } = Array.Empty<double>();
 
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
         if(PageContentHeight < 100 || ActualWidth < 100 || ActualHeight < 100)return;
 
+        if(UseCachedPaginationMap && CachedPageCount>0)
+            DrawCachedPages(dc);
+        else
+            DrawLegacyGuides(dc);
+
+        DrawManualBreaks(dc);
+    }
+
+    void DrawCachedPages(DrawingContext dc)
+    {
+        const double sideGutter=52;
+        var leftEdge=Math.Max(2,sideGutter-5);
+        var rightEdge=Math.Min(ActualWidth-2,ActualWidth-sideGutter+5);
+        var edgePen=new Pen(new SolidColorBrush(Color.FromArgb(150,160,157,147)),1);
+        var breakPen=new Pen(new SolidColorBrush(Color.FromArgb(170,145,142,132)),1)
+        {
+            DashStyle=DashStyles.Dash
+        };
+        var gutterBrush=new SolidColorBrush(Color.FromRgb(239,236,226));
+        var labelBrush=new SolidColorBrush(Color.FromRgb(88,88,84));
+
+        var starts=CachedPageStartsY
+            .Where(double.IsFinite)
+            .Select(y=>Math.Clamp(y,0,ActualHeight))
+            .OrderBy(y=>y)
+            .DistinctBy(y=>Math.Round(y,1))
+            .ToList();
+        if(starts.Count==0 || starts[0]>1)starts.Insert(0,0);
+
+        var fallback=Math.Max(160,PageContentHeight);
+        while(starts.Count<CachedPageCount)
+        {
+            var next=Math.Min(ActualHeight,starts[^1]+fallback);
+            if(next<=starts[^1]+1)break;
+            starts.Add(next);
+        }
+
+        for(var i=0;i<CachedPageCount;i++)
+        {
+            var top=i<starts.Count?starts[i]:Math.Min(ActualHeight,i*fallback);
+            var bottom=i+1<starts.Count?starts[i+1]:ActualHeight;
+            if(bottom<top)bottom=top;
+
+            dc.DrawLine(edgePen,new Point(leftEdge,top),new Point(leftEdge,bottom));
+            dc.DrawLine(edgePen,new Point(rightEdge,top),new Point(rightEdge,bottom));
+            dc.DrawLine(edgePen,new Point(0,top),new Point(Math.Max(0,leftEdge-7),top));
+            dc.DrawLine(edgePen,new Point(Math.Min(ActualWidth,rightEdge+7),top),new Point(ActualWidth,top));
+
+            var labelY=Math.Min(Math.Max(top+5,0),Math.Max(0,ActualHeight-20));
+            var labelX=Math.Max(0,ActualWidth-sideGutter+7);
+            dc.DrawRectangle(Brushes.White,null,new Rect(labelX,labelY,sideGutter-9,18));
+            DrawText(dc,$"{i+1}/{CachedPageCount}",labelX+2,labelY+1,sideGutter-13,TextAlignment.Right,labelBrush);
+
+            if(i<CachedPageCount-1 && bottom>1 && bottom<ActualHeight-1)
+            {
+                dc.DrawRectangle(gutterBrush,null,new Rect(0,bottom-5,Math.Max(0,leftEdge-7),10));
+                dc.DrawRectangle(gutterBrush,null,new Rect(Math.Min(ActualWidth,rightEdge+7),bottom-5,
+                    Math.Max(0,ActualWidth-rightEdge-7),10));
+                dc.DrawLine(breakPen,new Point(0,bottom),new Point(Math.Max(0,leftEdge-7),bottom));
+                dc.DrawLine(breakPen,new Point(Math.Min(ActualWidth,rightEdge+7),bottom),new Point(ActualWidth,bottom));
+            }
+        }
+    }
+
+    void DrawLegacyGuides(DrawingContext dc)
+    {
         var stride=Math.Max(PageContentHeight+PageGap,PageContentHeight);
         var pages=Math.Max(1,(int)Math.Ceiling((ActualHeight+PageGap)/stride));
-        var edgePen=new Pen(new SolidColorBrush(Color.FromArgb(150,125,125,125)),1);
         var labelBrush=new SolidColorBrush(Color.FromRgb(105,105,105));
 
         for(int i=0;i<pages;i++)
@@ -56,7 +124,10 @@ public sealed class PageGuideLayer : FrameworkElement
                 DrawText(dc,$"Page {i+1}",labelX+2,labelY+1,sideGutter-12,TextAlignment.Right,labelBrush);
             }
         }
+    }
 
+    void DrawManualBreaks(DrawingContext dc)
+    {
         var manualPen=new Pen(new SolidColorBrush(Color.FromRgb(115,135,160)),1){DashStyle=DashStyles.Dot};
         foreach(var y in ManualBreakY.Where(y=>y>16 && y<ActualHeight-16))
         {
