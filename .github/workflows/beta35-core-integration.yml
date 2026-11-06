@@ -1,0 +1,71 @@
+name: Beta 35 core integration
+on:
+  push:
+    branches: [ beta35 ]
+    paths:
+      - ".github/workflows/beta35-core-integration.yml"
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: beta35
+      - name: Integrate cached page count and portable view preference
+        shell: pwsh
+        run: |
+          $main = "MainWindow.xaml.cs"
+          $text = [System.IO.File]::ReadAllText($main)
+
+          $statsPattern = '(?ms)        var pages=1;\s*try\s*\{\s*var paginator=CreatePreviewPaginator\(\);\s*paginator.ComputePageCount\(\);\s*pages=Math.Max\(1,paginator.PageCount\);\s*\}\s*catch \{ \}'
+          if (-not [regex]::IsMatch($text,$statsPattern)) { throw "Synchronous document-statistics pagination block was not found." }
+          $text = [regex]::Replace($text,$statsPattern,'        var pages=GetBeta35PageCountForStats();',1)
+
+          $captureOld = @'
+            ActiveStyleSet=activeStyleSet
+        };
+'@
+          $captureNew = @'
+            ActiveStyleSet=activeStyleSet,
+            EditorViewMode=CurrentEditorViewMode.ToString()
+        };
+'@
+          if (-not $text.Contains($captureOld)) { throw "Portable preference capture block was not found." }
+          $text = $text.Replace($captureOld,$captureNew)
+
+          $applyOld = @'
+        UpdateKeyboardMenuState();
+        RefreshStyleSetBox();
+        ApplyZoom();
+'@
+          $applyNew = @'
+        UpdateKeyboardMenuState();
+        RefreshStyleSetBox();
+        if(Enum.TryParse<EditorViewMode>(p.EditorViewMode,true,out var importedViewMode))
+            ApplyBeta35ViewMode(importedViewMode,true);
+        ApplyZoom();
+'@
+          if (-not $text.Contains($applyOld)) { throw "Portable preference apply block was not found." }
+          $text = $text.Replace($applyOld,$applyNew)
+          [System.IO.File]::WriteAllText($main,$text,[System.Text.UTF8Encoding]::new($false))
+
+          $profile = "UserProfileService.cs"
+          $profileText = [System.IO.File]::ReadAllText($profile)
+          $profileOld = '        public string ActiveStyleSet { get; set; }="Default";'
+          $profileNew = $profileOld + "`r`n" + '        public string EditorViewMode { get; set; }="Paged";'
+          if (-not $profileText.Contains($profileOld)) { throw "Portable preferences style property was not found." }
+          if (-not $profileText.Contains('public string EditorViewMode'))
+          {
+              $profileText = $profileText.Replace($profileOld,$profileNew)
+          }
+          [System.IO.File]::WriteAllText($profile,$profileText,[System.Text.UTF8Encoding]::new($false))
+      - name: Commit integration
+        shell: pwsh
+        run: |
+          git config user.name "CtrlZed Build"
+          git config user.email "actions@users.noreply.github.com"
+          git add MainWindow.xaml.cs UserProfileService.cs
+          git commit -m "Beta 35: use cached page count and carry view mode in profiles"
+          git push origin HEAD:beta35
