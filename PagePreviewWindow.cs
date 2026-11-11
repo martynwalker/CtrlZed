@@ -12,13 +12,15 @@ public sealed class PagePreviewWindow : Window
     readonly Border pageHost;
     readonly TextBlock pageLabel;
     readonly ComboBox zoomBox;
+    readonly Action? printAction;
     int pageIndex;
     double zoom=0.72;
 
-    public PagePreviewWindow(DocumentPaginator paginator)
+    public PagePreviewWindow(DocumentPaginator paginator,Action? printAction=null)
     {
         this.paginator=paginator;
-        Title="CtrlZed Page Preview";
+        this.printAction=printAction;
+        Title=printAction==null?"CtrlZed Page Preview":"CtrlZed Print Preview";
         Width=1000;
         Height=820;
         WindowStartupLocation=WindowStartupLocation.CenterOwner;
@@ -66,6 +68,26 @@ public sealed class PagePreviewWindow : Window
         bar.Children.Add(pageLabel);
         bar.Children.Add(new TextBlock{Text="Zoom",VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,6,0)});
         bar.Children.Add(zoomBox);
+        if(printAction!=null)
+        {
+            var print=new Button{Content="Print",Margin=new Thickness(12,7,4,7),Padding=new Thickness(16,2,16,2),MinWidth=76};
+            var cancel=new Button{Content="Cancel",Margin=new Thickness(4,7,8,7),Padding=new Thickness(12,2,12,2),MinWidth=76};
+            print.Click+=(_,__)=>
+            {
+                try
+                {
+                    printAction();
+                    Close();
+                }
+                catch(Exception ex)
+                {
+                    MessageBox.Show(this,ex.Message,"Printing failed",MessageBoxButton.OK,MessageBoxImage.Error);
+                }
+            };
+            cancel.Click+=(_,__)=>Close();
+            bar.Children.Add(print);
+            bar.Children.Add(cancel);
+        }
         root.Children.Add(bar);
 
         pageHost=new Border
