@@ -20,7 +20,7 @@ Beta 35 is the first safe increment towards paged editing. It adds:
 
 CtrlZed already has a page preview under **View → Page Preview**. It uses the document paginator, including headers, footers and fields. **File → Print** currently opens the standard Windows print dialogue and then sends the document to the printer; that dialogue cannot show CtrlZed's preview and displays “This app doesn't support print preview”.
 
-Beta 36 development now routes **File → Print** through the selected Windows printer settings and then opens CtrlZed's own review window. The preview uses the selected ticket's paper dimensions; **Print** sends that same paginator and ticket, while **Cancel** sends no job. This first code increment is on the `beta36` branch and still needs build and print-output validation.
+Beta 36 development now routes **File → Print** through the selected Windows printer settings and then opens CtrlZed's own review window. The preview uses the selected ticket's paper dimensions; **Print** sends that same paginator and ticket, while **Cancel** sends no job. This first code increment is on the `beta36` branch. The Windows build, self-contained publish, responsive launch, existing functional self-test and package publication passed. Physical print-output comparison remains outstanding.
 
 ## Feature set
 
