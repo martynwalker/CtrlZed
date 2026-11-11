@@ -4,38 +4,27 @@
 
 CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project is human-directed and AI-authored, released under the MIT licence.
 
-## Current release: Beta 32
+## Current baseline and latest prerelease
 
-Beta 32 is the current Windows prerelease. It builds directly on the user-tested Beta 31 baseline and adds or retains:
+The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 35 (0.35.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.35.0-beta.35)**, built from the `beta35` branch.
 
-- headings navigation pane
-- Find/Replace across formatting runs within paragraphs
-- table row/column insertion and deletion
-- first-pass DOCX import/export, including inline pictures
-- DOCX page size and margin exchange
-- DOCX headers and footers with Word PAGE / NUMPAGES / FILENAME / DATE / TIME fields
-- distinct visual markers for manual page breaks in the CtrlZed editing view
-- Save As and a local Recent Files menu
-- document Title / Author / Subject / Keywords metadata
-- persistent 50–150% editing zoom
-- live word, character and page counts
-- genuine Word numbering definitions for bullets and numbered lists
-- backward-motion CtrlZed brand icon in navy, gold and white
-- branded About box and Windows window/taskbar identity
-- automated functional self-test mode used by CI
-- page guides, page gaps, page preview, headers/footers, fields, pictures, tables, lists, page breaks and recovery
-- AI Manager with direct and browser-assisted provider workflows
-- safe and extended `.czm` macros
-- interactive macro prompts and QR-code insertion in extended mode
-- right-click **Macros** submenu on the document canvas
-- hierarchical macro menus using `MENU_NAME`, `MENU_POSITION`, `MENU_PATH` and `MENU_PATH_POSITIONS` (with legacy `MENU_OPTION` compatibility)
-- friendly macro names in Macro Manager
-- explicit rename support for central macro files
-- British-English spelling, personal dictionaries and optional contextual spelling correction
-- writing-mode-aware grammar and style suggestions with thin blue marks
-- a non-modal review pane with explanations, Apply, Ignore and Ignore Rule
-- optional paragraph-scoped AI grammar review that never applies changes automatically
+Beta 35 is the first safe increment towards paged editing. It adds:
 
+- **Paged Editing** and **Continuous Editing** views, with the selected view retained locally and in portable profiles.
+- A cached, non-destructive page map calculated from an idle document snapshot on a separate STA worker.
+- Current page and total page count, with page separators in the editing view.
+- Cancellation of stale pagination when editing resumes, keeping pagination away from the typing path.
+- Long-document checks for page boundaries, worker dispatch, cancellation, cache invalidation and source-document immutability.
+
+## Print preview
+
+CtrlZed already has a page preview under **View → Page Preview**. It uses the document paginator, including headers, footers and fields. **File → Print** currently opens the standard Windows print dialogue and then sends the document to the printer; that dialogue cannot show CtrlZed's preview and displays “This app doesn't support print preview”.
+
+The planned Beta 36 work is to connect the in-app preview to the print workflow, so users can inspect the pages before committing the print job while keeping printer settings and the final printed layout aligned.
+
+## Feature set
+
+The current feature set includes:
 ### DOCX interchange
 
 DOCX support uses the MIT-licensed Open XML SDK 3.5.1. It remains deliberately conservative.
