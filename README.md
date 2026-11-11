@@ -6,21 +6,26 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 35 (0.35.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.35.0-beta.35)**, built from the `beta35` branch.
+The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 37 (0.37.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.37.0-beta.37)**, built from the `beta37` branch.
 
-Beta 35 is the first safe increment towards paged editing. It adds:
+### Beta 35 — safe paged editing foundation
 
 - **Paged Editing** and **Continuous Editing** views, with the selected view retained locally and in portable profiles.
 - A cached, non-destructive page map calculated from an idle document snapshot on a separate STA worker.
-- Current page and total page count, with page separators in the editing view.
-- Cancellation of stale pagination when editing resumes, keeping pagination away from the typing path.
-- Long-document checks for page boundaries, worker dispatch, cancellation, cache invalidation and source-document immutability.
+- Current page and total page count, with stale calculations cancelled when editing resumes.
 
-## Print preview
+### Beta 36 — print preview
 
-CtrlZed already has a page preview under **View → Page Preview**. It uses the document paginator, including headers, footers and fields. **File → Print** currently opens the standard Windows print dialogue and then sends the document to the printer; that dialogue cannot show CtrlZed's preview and displays “This app doesn't support print preview”.
+- **File → Print** opens printer settings, then CtrlZed's own page review before sending the job.
+- **Print** sends the same paginator and printer ticket shown in the preview; **Cancel** sends no job.
+- The user accepted this workflow as a pass on 11 November 2026. The standard Windows print dialogue itself still does not display the preview.
 
-Beta 36 development now routes **File → Print** through the selected Windows printer settings and then opens CtrlZed's own review window. The preview uses the selected ticket's paper dimensions; **Print** sends that same paginator and ticket, while **Cancel** sends no job. This first code increment is on the `beta36` branch. The Windows build, self-contained publish, responsive launch and existing functional self-test passed. The [Beta 36 prerelease package](https://github.com/martynwalker/CtrlZed/releases/tag/v0.36.0-beta.36) is available for physical print-output comparison.
+### Beta 37 — page navigation
+
+- The current-page indicator in Paged Editing is clickable.
+- Enter a page number to move the caret to the first mapped text position and bring it into view.
+- Navigation uses the cached page map and does not edit or rebuild the document.
+- The Windows build, self-contained publish, responsive launch and existing functional self-test passed. The [Beta 37 prerelease](https://github.com/martynwalker/CtrlZed/releases/tag/v0.37.0-beta.37) is available for user review.
 
 ## Feature set
 
