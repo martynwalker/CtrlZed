@@ -145,7 +145,19 @@ public partial class MainWindow
         if(statusBar!=null)
         {
             statusBar.Items.Add(new Separator());
-            beta35PageStatus=new TextBlock{Text="Page 1 of 1"};
+            beta35PageStatus=new TextBlock
+            {
+                Text="Page 1 of 1",
+                Cursor=System.Windows.Input.Cursors.Hand,
+                ToolTip="Click to go to a page",
+                Background=Brushes.Transparent,
+                TextDecorations=TextDecorations.Underline
+            };
+            beta35PageStatus.MouseLeftButtonUp+=(_,e)=>
+            {
+                e.Handled=true;
+                ShowBeta35GoToPageDialog();
+            };
             statusBar.Items.Add(new StatusBarItem{Content=beta35PageStatus});
         }
 
@@ -270,15 +282,107 @@ public partial class MainWindow
             return;
         }
 
-        var caretOffset=Editor.Document.ContentStart.GetOffsetToPosition(
-            Editor.CaretPosition);
+        beta35PageStatus.Text=$"Page {CurrentBeta35PageNumber(map)} of {map.PageCount}";
+    }
+
+    int CurrentBeta35PageNumber(PaginationMapResult map)
+    {
+        var caretOffset=Editor.Document.ContentStart.GetOffsetToPosition(Editor.CaretPosition);
         var page=1;
         for(var i=1;i<map.PageStartOffsets.Count;i++)
         {
             if(caretOffset<map.PageStartOffsets[i])break;
             page=i+1;
         }
-        beta35PageStatus.Text=$"Page {Math.Clamp(page,1,map.PageCount)} of {map.PageCount}";
+        return Math.Clamp(page,1,map.PageCount);
+    }
+
+    void ShowBeta35GoToPageDialog()
+    {
+        if(CurrentEditorViewMode!=EditorViewMode.Paged)
+        {
+            MessageBox.Show(this,"Switch to Paged Editing before navigating by page.",
+                "Go to Page",MessageBoxButton.OK,MessageBoxImage.Information);
+            return;
+        }
+
+        var map=beta35PaginationMap;
+        if(map==null)
+        {
+            MessageBox.Show(this,"The page map is still updating. Try again in a moment.",
+                "Go to Page",MessageBoxButton.OK,MessageBoxImage.Information);
+            return;
+        }
+
+        var w=new Window
+        {
+            Title="Go to Page",
+            Owner=this,
+            Width=360,
+            Height=160,
+            ResizeMode=ResizeMode.NoResize,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Icon=Branding.CreateIconImageSource()
+        };
+        var root=new StackPanel{Margin=new Thickness(14)};
+        root.Children.Add(new TextBlock
+        {
+            Text=$"Enter a page number from 1 to {map.PageCount}:",
+            Margin=new Thickness(0,0,0,8)
+        });
+        var input=new TextBox
+        {
+            Text=CurrentBeta35PageNumber(map).ToString(),
+            Width=90,
+            HorizontalAlignment=HorizontalAlignment.Left,
+            Margin=new Thickness(0,0,0,12)
+        };
+        root.Children.Add(input);
+        var buttons=new StackPanel
+        {
+            Orientation=Orientation.Horizontal,
+            HorizontalAlignment=HorizontalAlignment.Right
+        };
+        var go=new Button{Content="Go",Width=76,IsDefault=true,Margin=new Thickness(4)};
+        var cancel=new Button{Content="Cancel",Width=76,IsCancel=true,Margin=new Thickness(4)};
+        go.Click+=(_,__)=>
+        {
+            if(!int.TryParse(input.Text,out var requested) ||
+               requested<1 || requested>map.PageCount)
+            {
+                MessageBox.Show(w,$"Enter a whole number from 1 to {map.PageCount}.",
+                    "Go to Page",MessageBoxButton.OK,MessageBoxImage.Warning);
+                input.Focus();
+                input.SelectAll();
+                return;
+            }
+
+            var documentLength=Editor.Document.ContentStart.GetOffsetToPosition(
+                Editor.Document.ContentEnd);
+            var offset=Math.Clamp(map.PageStartOffsets[requested-1],0,documentLength);
+            var target=Editor.Document.ContentStart.GetPositionAtOffset(
+                offset,LogicalDirection.Forward);
+            if(target==null)
+            {
+                MessageBox.Show(w,"CtrlZed could not locate the start of that page.",
+                    "Go to Page",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+
+            Editor.Selection.Select(target,target);
+            Editor.CaretPosition=target;
+            target.BringIntoView();
+            Editor.Focus();
+            UpdateBeta35PageStatus();
+            w.DialogResult=true;
+        };
+        cancel.Click+=(_,__)=>w.DialogResult=false;
+        buttons.Children.Add(go);
+        buttons.Children.Add(cancel);
+        root.Children.Add(buttons);
+        w.Content=root;
+        w.Loaded+=(_,__)=>{input.Focus();input.SelectAll();};
+        w.ShowDialog();
     }
 
     static T? FindBeta35Descendant<T>(DependencyObject root) where T:DependencyObject
