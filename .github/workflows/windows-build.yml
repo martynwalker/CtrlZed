@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 36 integrates CtrlZed's existing page preview with File > Print. After printer settings are selected, the app displays a CtrlZed-owned review using the selected paper dimensions and the same paginator sent to the printer. Print sends the job; Cancel sends none. The live document remains unchanged. The release gate includes the existing Windows build, responsive launch and functional self-test, plus print-output checks for multi-page documents, page breaks, pictures, fields, headers, footers, portrait/landscape orientation and paper-size changes."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 37 adds page navigation to Paged Editing. The current-page indicator is clickable; users can enter a page number and move the caret to the first mapped text position for that page. Navigation uses the cached non-destructive page map and does not edit or rebuild the document. Continuous Editing and an updating map are handled explicitly. The release gate includes the existing Windows build, responsive launch and functional self-test."
 
 # Beta 35 release build
