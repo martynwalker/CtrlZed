@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Printing;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -555,8 +556,36 @@ public partial class MainWindow : Window
     {
         var pd=new PrintDialog();
         if(pd.ShowDialog()!=true)return;
-        var paginator=CreatePreviewPaginator();
-        pd.PrintDocument(paginator,"CtrlZed document");
+
+        try
+        {
+            var paginator=CreatePreviewPaginator(GetSelectedPrinterPageSize(pd));
+            var preview=new PagePreviewWindow(
+                paginator,
+                ()=>pd.PrintDocument(paginator,"CtrlZed document"))
+            {
+                Owner=this
+            };
+            preview.ShowDialog();
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Print preview failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+    }
+
+    static Size? GetSelectedPrinterPageSize(PrintDialog dialog)
+    {
+        var media=dialog.PrintTicket?.PageMediaSize;
+        if(media?.Width is not double width || media.Height is not double height || width<=0 || height<=0)
+            return null;
+
+        if(dialog.PrintTicket?.PageOrientation==PageOrientation.Landscape && height>width)
+            (width,height)=(height,width);
+        else if(dialog.PrintTicket?.PageOrientation==PageOrientation.Portrait && width>height)
+            (width,height)=(height,width);
+
+        return new Size(width,height);
     }
 
     void NavigationPane_Click(object s,RoutedEventArgs e)
@@ -669,16 +698,17 @@ public partial class MainWindow : Window
         }
     }
 
-    HeaderFooterPaginator CreatePreviewPaginator()
+    HeaderFooterPaginator CreatePreviewPaginator(Size? effectivePageSize=null)
     {
+        var size=effectivePageSize??new Size(pageWidth,pageHeight);
         var clone=CloneDocument();
         ExpandPreviewFields(clone);
-        clone.PageWidth=pageWidth;
-        clone.PageHeight=pageHeight;
+        clone.PageWidth=size.Width;
+        clone.PageHeight=size.Height;
         clone.PagePadding=pageMargins;
         clone.ColumnWidth=double.PositiveInfinity;
         var inner=((IDocumentPaginatorSource)clone).DocumentPaginator;
-        inner.PageSize=new Size(pageWidth,pageHeight);
+        inner.PageSize=size;
         inner.ComputePageCount();
         return new HeaderFooterPaginator(inner,headerText,footerText,ExpandFields);
     }
