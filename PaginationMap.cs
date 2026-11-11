@@ -371,7 +371,9 @@ public partial class MainWindow
 
             Editor.Selection.Select(target,target);
             Editor.CaretPosition=target;
-            target.BringIntoView();
+            var rect=target.GetCharacterRect(LogicalDirection.Forward);
+            if(!rect.IsEmpty && double.IsFinite(rect.Top))
+                Editor.ScrollToVerticalOffset(Math.Max(0,rect.Top));
             Editor.Focus();
             UpdateBeta35PageStatus();
             w.DialogResult=true;
