@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,6 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 38 adds picture placement choices: Inline, Behind Text and In Front of Text. Floating pictures can be moved and resized with the mouse, including macro signatures inserted through a zero-size canvas. Native CtrlZed documents preserve placement; page preview and print retain the selected layer. Inline remains the default for ordinary pictures. The release gate includes the Windows build, self-contained publish, launch smoke test and functional self-test."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 39 adds a named image library in Tools > Profile Images. Upload supported image files, assign a name such as signature, and use the image from safe or trusted compiled macros. The safe macro command INSERT_PROFILE_IMAGE {signature} 40 IN_FRONT inserts the stored image at the caret with aspect ratio retained and the selected placement. Portable CtrlZed profiles include stored images. Beta 38 image placement, movement and resizing are retained. The release gate includes the Windows build, self-contained publish, launch smoke test and functional self-test."
 
 # Beta 35 release build
