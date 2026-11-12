@@ -7,6 +7,7 @@ public static class SafeMacroLanguage
 In addition to every safe command below, you may use:
 PROMPT variable prompt text
 INSERT_QR text-or-{variable}
+INSERT_PROFILE_IMAGE {profile-image-name} width-mm INLINE|BEHIND|IN_FRONT
 
 Use PROMPT to collect user input into a named variable, then reference it as {variable} in later commands.
 Example:
@@ -29,6 +30,7 @@ NUMBERING
 SELECT_ALL
 FIND_REPLACE find text || replacement text
 INSERT_TABLE rows columns
+INSERT_PROFILE_IMAGE {profile-image-name} width-mm INLINE|BEHIND|IN_FRONT
 SET_HEADER text
 SET_FOOTER text
 SET_PROPERTY TITLE|AUTHOR|SUBJECT|KEYWORDS value
@@ -52,6 +54,7 @@ Notes:
 - MENU_OPTION remains supported as a legacy alias for MENU_POSITION.
 - FIND_REPLACE uses || to separate search and replacement text.
 - INSERT_TABLE accepts integer row/column counts from 1 to 50 / 20.
+- INSERT_PROFILE_IMAGE inserts a named image from the CtrlZed user profile at the caret; width is in millimetres and placement is INLINE, BEHIND or IN_FRONT.
 - Safe macros cannot access files, arbitrary network endpoints, processes, credentials or arbitrary .NET code.
 - AI_REWRITE and AI_INSERT may call the user's configured AI provider through CtrlZed's restricted AI service; the macro never receives the provider credential.
 - Maximum 200 executable commands per run.";
