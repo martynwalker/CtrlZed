@@ -2415,11 +2415,14 @@ public partial class MainWindow : Window
     {
         foreach(var img in EnumeratePictures())
         {
-            if(!img.IsVisible || img.ActualWidth<=0 || img.ActualHeight<=0)continue;
+            if(!img.IsVisible)continue;
+            var width=img.ActualWidth>0?img.ActualWidth:img.Width;
+            var height=img.ActualHeight>0?img.ActualHeight:img.Height;
+            if(!double.IsFinite(width)||!double.IsFinite(height)||width<=0||height<=0)continue;
             try
             {
                 var origin=img.TranslatePoint(new Point(0,0),Editor);
-                var rect=new Rect(origin,new Size(img.ActualWidth,img.ActualHeight));
+                var rect=new Rect(origin,new Size(width,height));
                 if(rect.Contains(point))return img;
             }
             catch(InvalidOperationException)
