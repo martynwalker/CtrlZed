@@ -7,6 +7,7 @@ using System.Printing;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -2127,7 +2128,7 @@ public partial class MainWindow : Window
         if(floating!=null)
         {
             e.Handled=true;
-            ShowPicturePropertiesSafely(floating.Original);
+            ShowPictureContextMenu(floating.Original);
             return;
         }
         var point=e.GetPosition(Editor);
@@ -2136,13 +2137,7 @@ public partial class MainWindow : Window
 
         if(img!=null)
         {
-            var imageMenu=new ContextMenu();
-            var properties=new MenuItem{Header="Picture Properties…"};
-            properties.Click+=(_,__)=>ShowPicturePropertiesSafely(img);
-            imageMenu.Items.Add(properties);
-            AddMacroSubmenu(imageMenu);
-            imageMenu.PlacementTarget=Editor;
-            imageMenu.IsOpen=true;
+            ShowPictureContextMenu(img);
             return;
         }
 
@@ -2476,8 +2471,11 @@ public partial class MainWindow : Window
 
     IEnumerable<Image> EnumeratePicturesInInline(Inline inline)
     {
-        if(inline is InlineUIContainer ui && ui.Child is Image img)
-            yield return img;
+        if(inline is InlineUIContainer ui)
+        {
+            foreach(var image in EnumerateImagesInElement(ui.Child))
+                yield return image;
+        }
         else if(inline is Span span)
             foreach(var child in span.Inlines)
                 foreach(var image in EnumeratePicturesInInline(child))
@@ -2500,15 +2498,38 @@ public partial class MainWindow : Window
     void WirePicture(Image img)
     {
         img.Cursor=Cursors.Hand;
-        img.ToolTip="Double-click or right-click for picture properties";
+        img.ToolTip="Right-click for placement and resize options";
         img.PreviewMouseLeftButtonDown-=Picture_MouseLeftButtonDown;
         img.PreviewMouseLeftButtonDown+=Picture_MouseLeftButtonDown;
+        img.ContextMenu=CreatePictureContextMenu(img);
+    }
 
+    ContextMenu CreatePictureContextMenu(Image img)
+    {
         var menu=new ContextMenu();
-        var properties=new MenuItem{Header="Picture Properties…"};
-        properties.Click+=(_,__)=>ShowPictureProperties(img);
-        menu.Items.Add(properties);
-        img.ContextMenu=menu;
+        var current=GetPicturePlacement(img);
+        foreach(var option in new[]{
+            (PicturePlacementMode.Inline,"Inline"),
+            (PicturePlacementMode.BehindText,"Behind Text"),
+            (PicturePlacementMode.InFrontOfText,"In Front of Text")})
+        {
+            var item=new MenuItem{Header=option.Item2,IsCheckable=true,IsChecked=current==option.Item1};
+            item.Click+=(_,__)=>SetPicturePlacement(img,option.Item1);
+            menu.Items.Add(item);
+        }
+        menu.Items.Add(new Separator());
+        var resize=new MenuItem{Header="Resize…"};
+        resize.Click+=(_,__)=>ShowPicturePropertiesSafely(img);
+        menu.Items.Add(resize);
+        return menu;
+    }
+
+    void ShowPictureContextMenu(Image img)
+    {
+        var menu=CreatePictureContextMenu(img);
+        menu.PlacementTarget=Editor;
+        menu.Placement=PlacementMode.MousePoint;
+        menu.IsOpen=true;
     }
 
     void WirePictureContainer(InlineUIContainer ui,Image img)
@@ -2516,17 +2537,14 @@ public partial class MainWindow : Window
         WirePicture(img);
         ui.PreviewMouseLeftButtonDown-=PictureContainer_PreviewMouseLeftButtonDown;
         ui.PreviewMouseLeftButtonDown+=PictureContainer_PreviewMouseLeftButtonDown;
-
-        var menu=new ContextMenu();
-        var properties=new MenuItem{Header="Picture Properties…"};
-        properties.Click+=(_,__)=>ShowPictureProperties(img);
-        menu.Items.Add(properties);
-        ui.ContextMenu=menu;
+        ui.ContextMenu=CreatePictureContextMenu(img);
     }
 
     void PictureContainer_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
     {
-        if(e.ClickCount!=2 || sender is not InlineUIContainer ui || ui.Child is not Image img)return;
+        if(e.ClickCount!=2 || sender is not InlineUIContainer ui)return;
+        var img=EnumerateImagesInElement(ui.Child).FirstOrDefault();
+        if(img==null)return;
         try
         {
             e.Handled=true;
@@ -2585,7 +2603,10 @@ public partial class MainWindow : Window
 
     void WirePicturesInInline(Inline inline)
     {
-        if(inline is InlineUIContainer ui && ui.Child is Image img)WirePictureContainer(ui,img);
+        if(inline is InlineUIContainer ui)
+        {
+            foreach(var img in EnumerateImagesInElement(ui.Child))WirePictureContainer(ui,img);
+        }
         else if(inline is Span span)
             foreach(var child in span.Inlines)WirePicturesInInline(child);
     }
@@ -2643,7 +2664,7 @@ public partial class MainWindow : Window
 
     InlineUIContainer? FindContainerInInline(Inline inline,Image target)
     {
-        if(inline is InlineUIContainer ui && ReferenceEquals(ui.Child,target))return ui;
+        if(inline is InlineUIContainer ui && EnumerateImagesInElement(ui.Child).Any(x=>ReferenceEquals(x,target)))return ui;
         if(inline is Span span)
             foreach(var child in span.Inlines)
             {
@@ -2670,15 +2691,25 @@ public partial class MainWindow : Window
         var width=new TextBox{Text=Math.Max(1,shownWidth).ToString("0")};
         var align=new ComboBox{ItemsSource=new[]{"Left","Centre","Right"},SelectedIndex=currentAlignment==TextAlignment.Left?0:currentAlignment==TextAlignment.Right?2:1,Margin=new Thickness(0,5,0,5)};
         var keep=new CheckBox{Content="Keep aspect ratio",IsChecked=true,Margin=new Thickness(0,8,0,8)};
-        var behindText=new CheckBox{Content="Place behind text (drag to position)",IsChecked=IsPictureBehindText(img),Margin=new Thickness(0,8,0,8)};
+        var placement=new ComboBox
+        {
+            ItemsSource=new[]{"Inline","Behind Text","In Front of Text"},
+            SelectedIndex=GetPicturePlacement(img) switch
+            {
+                PicturePlacementMode.BehindText=>1,
+                PicturePlacementMode.InFrontOfText=>2,
+                _=>0
+            },
+            Margin=new Thickness(0,5,0,5)
+        };
         var caption=new TextBox{Margin=new Thickness(0,4,0,8)};
-        var note=new TextBlock{Text="Inline pictures remain in the text flow. Behind-text pictures are anchored to this insertion point.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var note=new TextBlock{Text="Floating pictures stay anchored at the insertion point. Drag to move; drag the lower-right handle to resize.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
         var ok=new Button{Content="Apply",Width=85,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
 
         AddRow(g,0,"Width (pixels)",width);
         AddRow(g,1,"Alignment",align);
         Grid.SetRow(keep,2);Grid.SetColumnSpan(keep,2);g.Children.Add(keep);
-        Grid.SetRow(behindText,3);Grid.SetColumnSpan(behindText,2);g.Children.Add(behindText);
+        AddRow(g,3,"Placement",placement);
         AddRow(g,4,"Caption",caption);
         Grid.SetRow(note,5);Grid.SetColumnSpan(note,2);g.Children.Add(note);
         Grid.SetRow(ok,6);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
@@ -2691,7 +2722,12 @@ public partial class MainWindow : Window
                 img.Width=px;
             }
             if(paragraph!=null)paragraph.TextAlignment=align.SelectedIndex==0?TextAlignment.Left:align.SelectedIndex==2?TextAlignment.Right:TextAlignment.Center;
-            SetPictureBehindText(img,behindText.IsChecked==true);
+            SetPicturePlacement(img,placement.SelectedIndex switch
+            {
+                1=>PicturePlacementMode.BehindText,
+                2=>PicturePlacementMode.InFrontOfText,
+                _=>PicturePlacementMode.Inline
+            });
 
             if(!string.IsNullOrWhiteSpace(caption.Text) && paragraph!=null)
             {
