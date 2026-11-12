@@ -72,6 +72,7 @@ public partial class MainWindow : Window
         public string Keywords { get; set; } = "";
         public string Version { get; set; } = "1.0";
         public List<DocumentCommentData> Comments { get; set; } = new();
+        public List<FloatingImagePlacementData> FloatingImages { get; set; } = new();
     }
 
     sealed class DocumentCommentData
@@ -210,6 +211,7 @@ public partial class MainWindow : Window
     {
         if(!CanDiscardChanges())return;
         if(fieldValuesVisible)SetFieldValuesVisible(false);
+        ClearFloatingImagePlacements();
         suppressDirty = true;
         Editor.Document = new FlowDocument();
         currentFile = null;
@@ -345,7 +347,8 @@ public partial class MainWindow : Window
             CustomFields=new Dictionary<string,string>(customFields,StringComparer.OrdinalIgnoreCase),
             EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
             Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion,
-            Comments=CaptureComments()
+            Comments=CaptureComments(),
+            FloatingImages=CaptureFloatingImagePlacements()
         };
 
     void ApplyRecoveredSettings(CzdSettings v)
@@ -378,6 +381,7 @@ public partial class MainWindow : Window
         RefreshHeaderFooter();
         RefreshMacroMenus();
         RestoreComments(v.Comments);
+        RestoreFloatingImagePlacements(v.FloatingImages);
 
     }
 
@@ -1684,6 +1688,7 @@ public partial class MainWindow : Window
             if(fieldValuesVisible)SetFieldValuesVisible(false);
                 suppressDirty=true;
             var ext=Path.GetExtension(path).ToLowerInvariant();
+            ClearFloatingImagePlacements();
             headerText=footerText="";
             documentTitle=documentAuthor=documentSubject=documentKeywords="";
             documentVersion="1.0";
@@ -1707,7 +1712,7 @@ public partial class MainWindow : Window
                 using var fs=File.OpenRead(path);
                 new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
             }
-            WirePictureHandlers();RefreshNavigation();
+            WirePictureHandlers();RefreshFloatingImagePlacements();RefreshNavigation();
             currentFile=path;dirty=false;suppressDirty=false;
             EnsureDocumentPropertyDefaults();
             RefreshHeaderFooter();UpdateTitle();UpdateDocumentStats();
