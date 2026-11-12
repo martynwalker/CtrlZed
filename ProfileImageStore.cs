@@ -12,7 +12,7 @@ public static class ProfileImageStore
     static readonly object Gate = new();
     static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    sealed class ImageIndex
+    public sealed class ImageIndex
     {
         public Dictionary<string, string> Images { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
