@@ -6,7 +6,7 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 37 (0.37.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.37.0-beta.37)**, built from the `beta37` branch.
+The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 38 (0.38.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.38.0-beta.38)**, built from the `beta38` branch.
 
 ### Beta 35 — safe paged editing foundation
 
@@ -26,6 +26,13 @@ The protected `main` branch remains at **Beta 34.2**. The latest published prere
 - Enter a page number to move the caret to the first mapped text position and bring it into view.
 - Navigation uses the cached page map and does not edit or rebuild the document.
 - The Windows build, self-contained publish, responsive launch and existing functional self-test passed. The [Beta 37 prerelease](https://github.com/martynwalker/CtrlZed/releases/tag/v0.37.0-beta.37) is available for user review.
+
+### Beta 38 — floating image placement
+
+- Pictures can be switched from inline flow to **Behind Text** in Picture Properties.
+- Behind-text pictures can be dragged on the page and remain anchored to their insertion point.
+- Native `.czd` files retain the placement; page preview and printing render it behind document text.
+- Inline picture insertion remains the default.
 
 ## Feature set
 
