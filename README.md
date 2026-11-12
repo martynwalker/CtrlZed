@@ -6,7 +6,7 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 38 (0.38.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.38.0-beta.38)**, built from the `beta38` branch. Beta 39 is in development on `beta39`.
+The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 39 (0.39.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.39.0-beta.39)**, built from the `beta39` branch.
 
 ### Beta 35 — safe paged editing foundation
 
