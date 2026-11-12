@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
 using System.IO.Compression;
 using System.Printing;
 using System.Text.Json;
@@ -4350,6 +4351,24 @@ INSERT_FIELD date
                     var value=ShowMacroInput(promptText);
                     if(value==null)return;
                     variables[name]=value;
+                    break;
+                }
+                case "INSERT_PROFILE_IMAGE":
+                {
+                    var pieces=argument.Split(' ',StringSplitOptions.RemoveEmptyEntries);
+                    if(pieces.Length!=3 ||
+                       !double.TryParse(pieces[1],NumberStyles.Float,CultureInfo.InvariantCulture,out var widthMm) ||
+                       widthMm<=0)
+                        throw new InvalidOperationException("INSERT_PROFILE_IMAGE expects: {image-name} width-mm INLINE|BEHIND|IN_FRONT.");
+                    var imageName=pieces[0].Trim().Trim('{','}');
+                    var placement=pieces[2].Trim().ToUpperInvariant() switch
+                    {
+                        "INLINE"=>PicturePlacementMode.Inline,
+                        "BEHIND" or "BEHIND_TEXT"=>PicturePlacementMode.BehindText,
+                        "IN_FRONT" or "FRONT" or "IN_FRONT_OF_TEXT"=>PicturePlacementMode.InFrontOfText,
+                        _=>throw new InvalidOperationException("INSERT_PROFILE_IMAGE placement must be INLINE, BEHIND or IN_FRONT.")
+                    };
+                    InsertProfileImage(imageName,widthMm,placement);
                     break;
                 }
                 case "INSERT_QR":
