@@ -29,10 +29,11 @@ The protected `main` branch remains at **Beta 34.2**. The latest published prere
 
 ### Beta 38 — floating image placement
 
-- Pictures can be switched from inline flow to **Behind Text** in Picture Properties.
-- Behind-text pictures can be dragged on the page and remain anchored to their insertion point.
-- Native `.czd` files retain the placement; page preview and printing render it behind document text.
-- Inline picture insertion remains the default.
+- Right-click a picture to choose **Inline**, **Behind Text** or **In Front of Text**.
+- Floating pictures can be dragged; drag the lower-right handle to resize while keeping the aspect ratio.
+- Macro signatures inserted through a zero-size Canvas are recognised and can be moved, resized or converted to Inline.
+- Native `.czd` files retain the placement; page preview and printing respect the selected layer.
+- Ordinary picture insertion remains Inline by default.
 
 ## Feature set
 
