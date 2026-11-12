@@ -33,6 +33,7 @@ public static class UserProfileService
         public int FieldsImported { get; set; }
         public int MacrosImported { get; set; }
         public int StyleSetsImported { get; set; }
+        public int ProfileImagesImported { get; set; }
         public int DictionaryWordsImported { get; set; }
         public bool LanguageSettingsImported { get; set; }
         public PortablePreferences? Preferences { get; set; }
@@ -59,6 +60,12 @@ public static class UserProfileService
             WriteJson(zip,"style-sets.json",styleSets);
             WriteJson(zip,"language-settings.json",LanguageIntelligenceSettingsStore.Load());
             WriteJson(zip,"personal-dictionary.json",PersonalDictionaryStore.LoadWords());
+            foreach (var image in ProfileImageStore.ExportImages())
+            {
+                var entry = zip.CreateEntry("profile-images/" + Uri.EscapeDataString(image.Name) + ".img", CompressionLevel.Optimal);
+                using var output = entry.Open();
+                output.Write(image.Bytes);
+            }
 
             if(Directory.Exists(macroDirectory))
             {
@@ -112,6 +119,22 @@ public static class UserProfileService
                 File.Delete(path);
         }
 
+        var profileImagesImported=0;
+        foreach (var entry in zip.Entries.Where(e =>
+                     e.FullName.StartsWith("profile-images/",StringComparison.OrdinalIgnoreCase) &&
+                     e.Name.EndsWith(".img",StringComparison.OrdinalIgnoreCase)))
+        {
+            if (entry.Length <= 0 || entry.Length > 10 * 1024 * 1024)
+                throw new InvalidDataException("A profile image exceeds the 10 MB import limit.");
+            var encodedName = Path.GetFileNameWithoutExtension(entry.Name);
+            var imageName = Uri.UnescapeDataString(encodedName);
+            using var input = entry.Open();
+            using var memory = new MemoryStream();
+            input.CopyTo(memory);
+            if (ProfileImageStore.ImportImage(imageName,memory.ToArray(),replace))
+                profileImagesImported++;
+        }
+
         var macroCount=0;
         foreach(var entry in zip.Entries.Where(e=>e.FullName.StartsWith("macros/",StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(e.Name)))
         {
@@ -155,6 +178,7 @@ public static class UserProfileService
             FieldsImported=importedFields.Count,
             MacrosImported=macroCount,
             StyleSetsImported=importedStyles.Count,
+            ProfileImagesImported=profileImagesImported,
             DictionaryWordsImported=dictionaryWordsImported,
             LanguageSettingsImported=languageSettingsImported,
             Preferences=ReadJson<PortablePreferences>(zip,"preferences.json")
