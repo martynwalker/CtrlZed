@@ -6,9 +6,17 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace CtrlZed;
+
+public enum PicturePlacementMode
+{
+    Inline,
+    BehindText,
+    InFrontOfText
+}
 
 public partial class MainWindow
 {
@@ -20,6 +28,7 @@ public partial class MainWindow
         public double OffsetY { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
+        public PicturePlacementMode Mode { get; set; }=PicturePlacementMode.BehindText;
         [JsonIgnore]
         public Image? RuntimeImage { get; set; }
     }
@@ -31,9 +40,13 @@ public partial class MainWindow
 
     readonly List<FloatingImagePlacementData> floatingImagePlacements=new();
     readonly Dictionary<FloatingImagePlacementData,Image> floatingImageOverlays=new();
+    readonly List<FrameworkElement> floatingImageChrome=new();
     FloatingImagePlacementData? draggingFloatingImage;
+    FloatingImagePlacementData? selectedFloatingImage;
     Point floatingDragStart;
     double floatingDragStartX,floatingDragStartY;
+    double floatingDragStartWidth,floatingDragStartHeight;
+    bool resizingFloatingImage;
     bool floatingImagePlacementInstalled;
 
     internal void InstallFloatingImagePlacement()
@@ -72,7 +85,8 @@ public partial class MainWindow
                 OffsetX=placement.OffsetX,
                 OffsetY=placement.OffsetY,
                 Width=placement.Width,
-                Height=placement.Height
+                Height=placement.Height,
+                Mode=placement.Mode
             });
         }
         return result;
@@ -83,9 +97,13 @@ public partial class MainWindow
         floatingImagePlacements.Clear();
         floatingImageOverlays.Clear();
         BehindTextCanvas.Children.Clear();
+        InFrontTextCanvas.Children.Clear();
+        floatingImageChrome.Clear();
+        selectedFloatingImage=null;
         if(placements!=null)
         {
             foreach(var item in placements.Where(x=>x.ImageIndex>=0&&
+                x.Mode!=PicturePlacementMode.Inline&&
                 double.IsFinite(x.OffsetX)&&double.IsFinite(x.OffsetY)&&
                 double.IsFinite(x.Width)&&double.IsFinite(x.Height)&&x.Width>0&&x.Height>0))
                 floatingImagePlacements.Add(new FloatingImagePlacementData
@@ -95,7 +113,8 @@ public partial class MainWindow
                     OffsetX=item.OffsetX,
                     OffsetY=item.OffsetY,
                     Width=item.Width,
-                    Height=item.Height
+                    Height=item.Height,
+                    Mode=item.Mode
                 });
         }
         Dispatcher.BeginInvoke(new Action(RefreshFloatingImagePlacements),DispatcherPriority.Loaded);
@@ -109,56 +128,88 @@ public partial class MainWindow
         floatingImagePlacements.Clear();
         floatingImageOverlays.Clear();
         BehindTextCanvas.Children.Clear();
+        InFrontTextCanvas.Children.Clear();
+        floatingImageChrome.Clear();
         draggingFloatingImage=null;
+        selectedFloatingImage=null;
     }
 
-    bool IsPictureBehindText(Image image)
-        =>floatingImagePlacements.Any(x=>ReferenceEquals(x.RuntimeImage,image));
+    PicturePlacementMode GetPicturePlacement(Image image)
+        =>floatingImagePlacements.FirstOrDefault(x=>ReferenceEquals(x.RuntimeImage,image))?.Mode
+          ??PicturePlacementMode.Inline;
 
-    void SetPictureBehindText(Image image,bool behind)
+    void SetPicturePlacement(Image image,PicturePlacementMode mode)
     {
         var existing=floatingImagePlacements.FirstOrDefault(x=>ReferenceEquals(x.RuntimeImage,image));
-        if(behind)
+        var container=FindContainer(image);
+
+        if(mode==PicturePlacementMode.Inline)
         {
-            if(existing==null)
+            if(existing!=null)
             {
-                var container=FindContainer(image);
-                if(container==null)return;
-                var width=double.IsFinite(image.Width)&&image.Width>0?image.Width:image.ActualWidth;
-                var height=double.IsFinite(image.Height)&&image.Height>0?image.Height:image.ActualHeight;
-                if(width<=0&&image.Source is BitmapSource bitmap)width=bitmap.PixelWidth;
-                if(height<=0&&image.Source is BitmapSource source)height=width*source.PixelHeight/Math.Max(1,source.PixelWidth);
-                if(width<=0||height<=0)return;
-
-                var images=EnumerateImageContainers(Editor.Document).ToList();
-                var index=images.FindIndex(x=>ReferenceEquals(x.Image,image));
-                if(index<0)return;
-                existing=new FloatingImagePlacementData
-                {
-                    ImageIndex=index,
-                    AnchorOffset=Editor.Document.ContentStart.GetOffsetToPosition(container.ContentStart),
-                    OffsetX=0,
-                    OffsetY=0,
-                    Width=width,
-                    Height=height,
-                    RuntimeImage=image
-                };
-                floatingImagePlacements.Add(existing);
+                floatingImagePlacements.Remove(existing);
+                RemoveFloatingOverlay(existing);
+                image.Visibility=Visibility.Visible;
+                selectedFloatingImage=null;
             }
-            existing.Width=double.IsFinite(image.Width)&&image.Width>0?image.Width:existing.Width;
-            existing.Height=double.IsFinite(image.Height)&&image.Height>0?image.Height:existing.Height;
-            image.Visibility=Visibility.Collapsed;
-        }
-        else if(existing!=null)
-        {
-            floatingImagePlacements.Remove(existing);
-            if(floatingImageOverlays.Remove(existing,out var overlay))
-                BehindTextCanvas.Children.Remove(overlay);
+
+            if(container?.Child is Canvas wrapper&&wrapper.Children.Contains(image))
+            {
+                wrapper.Children.Remove(image);
+                container.Child=image;
+            }
             image.Visibility=Visibility.Visible;
+            image.IsHitTestVisible=false;
+            image.Focusable=false;
+            RefreshFloatingImagePlacements();
+            return;
         }
 
+        if(container==null)return;
+        var width=existing?.Width??(double.IsFinite(image.Width)&&image.Width>0?image.Width:image.ActualWidth);
+        var height=existing?.Height??(double.IsFinite(image.Height)&&image.Height>0?image.Height:image.ActualHeight);
+        if(width<=0&&image.Source is BitmapSource bitmap)width=bitmap.PixelWidth;
+        if(height<=0&&image.Source is BitmapSource source)
+            height=width*source.PixelHeight/Math.Max(1,source.PixelWidth);
+        if(width<=0||height<=0)return;
+
+        if(existing==null)
+        {
+            var images=EnumerateImageContainers(Editor.Document).ToList();
+            var index=images.FindIndex(x=>ReferenceEquals(x.Image,image));
+            if(index<0)return;
+            var pointerRect=container.ContentStart.GetCharacterRect(LogicalDirection.Forward);
+            var anchor=Editor.TranslatePoint(new Point(pointerRect.Left,pointerRect.Top),BehindTextCanvas);
+            var imageOrigin=image.TranslatePoint(new Point(0,0),BehindTextCanvas);
+            existing=new FloatingImagePlacementData
+            {
+                ImageIndex=index,
+                AnchorOffset=Editor.Document.ContentStart.GetOffsetToPosition(container.ContentStart),
+                OffsetX=imageOrigin.X-anchor.X,
+                OffsetY=imageOrigin.Y-anchor.Y,
+                Width=width,
+                Height=height,
+                RuntimeImage=image
+            };
+            floatingImagePlacements.Add(existing);
+        }
+        existing.Mode=mode;
+        existing.Width=width;
+        existing.Height=height;
+        image.Visibility=Visibility.Collapsed;
+        selectedFloatingImage=existing;
         RefreshFloatingImagePlacements();
     }
+
+    void RemoveFloatingOverlay(FloatingImagePlacementData placement)
+    {
+        if(!floatingImageOverlays.Remove(placement,out var overlay))return;
+        BehindTextCanvas.Children.Remove(overlay);
+        InFrontTextCanvas.Children.Remove(overlay);
+    }
+
+    Canvas GetPictureCanvas(FloatingImagePlacementData placement)
+        =>placement.Mode==PicturePlacementMode.InFrontOfText?InFrontTextCanvas:BehindTextCanvas;
 
     void RefreshFloatingImagePlacements()
     {
@@ -177,8 +228,7 @@ public partial class MainWindow
             if(container==null)
             {
                 floatingImagePlacements.Remove(placement);
-                if(floatingImageOverlays.Remove(placement,out var staleOverlay))
-                    BehindTextCanvas.Children.Remove(staleOverlay);
+                RemoveFloatingOverlay(placement);
                 continue;
             }
             placement.AnchorOffset=Editor.Document.ContentStart.GetOffsetToPosition(container.ContentStart);
@@ -195,17 +245,27 @@ public partial class MainWindow
                     IsHitTestVisible=false,
                     Cursor=Cursors.SizeAll,
                     SnapsToDevicePixels=true,
-                    ToolTip="Drag to move; right-click for picture properties"
+                    ToolTip="Drag to move; drag the lower-right handle to resize; right-click for placement"
                 };
                 floatingImageOverlays[placement]=overlay;
-                BehindTextCanvas.Children.Add(overlay);
             }
 
+            var targetCanvas=GetPictureCanvas(placement);
+            if(!ReferenceEquals(overlay.Parent,targetCanvas))
+            {
+                BehindTextCanvas.Children.Remove(overlay);
+                InFrontTextCanvas.Children.Remove(overlay);
+                targetCanvas.Children.Add(overlay);
+            }
             overlay.Width=placement.Width;
             overlay.Height=placement.Height;
             overlay.Source=placement.RuntimeImage.Source;
             PositionFloatingImage(placement,container,overlay);
         }
+
+        foreach(var stale in floatingImageOverlays.Keys.Where(x=>!floatingImagePlacements.Contains(x)).ToList())
+            RemoveFloatingOverlay(stale);
+        UpdateFloatingImageChrome();
     }
 
     void PositionFloatingImage(
@@ -237,9 +297,59 @@ public partial class MainWindow
         return null;
     }
 
+    Rect GetFloatingImageBounds(FloatingImagePlacementData placement)
+    {
+        if(!floatingImageOverlays.TryGetValue(placement,out var overlay))return Rect.Empty;
+        return new Rect(Canvas.GetLeft(overlay),Canvas.GetTop(overlay),placement.Width,placement.Height);
+    }
+
+    void ClearFloatingImageChrome()
+    {
+        foreach(var element in floatingImageChrome)
+            InFrontTextCanvas.Children.Remove(element);
+        floatingImageChrome.Clear();
+    }
+
+    void UpdateFloatingImageChrome()
+    {
+        ClearFloatingImageChrome();
+        if(selectedFloatingImage==null||!floatingImagePlacements.Contains(selectedFloatingImage))return;
+        var bounds=GetFloatingImageBounds(selectedFloatingImage);
+        if(bounds.IsEmpty)return;
+
+        var outline=new Rectangle
+        {
+            Width=bounds.Width,
+            Height=bounds.Height,
+            Fill=Brushes.Transparent,
+            Stroke=Brushes.DodgerBlue,
+            StrokeThickness=1,
+            IsHitTestVisible=false
+        };
+        Canvas.SetLeft(outline,bounds.Left);
+        Canvas.SetTop(outline,bounds.Top);
+        var handle=new Rectangle
+        {
+            Width=10,
+            Height=10,
+            Fill=Brushes.White,
+            Stroke=Brushes.DodgerBlue,
+            StrokeThickness=1.2,
+            IsHitTestVisible=false,
+            Cursor=Cursors.SizeNWSE
+        };
+        Canvas.SetLeft(handle,bounds.Right-5);
+        Canvas.SetTop(handle,bounds.Bottom-5);
+        InFrontTextCanvas.Children.Add(outline);
+        InFrontTextCanvas.Children.Add(handle);
+        floatingImageChrome.Add(outline);
+        floatingImageChrome.Add(handle);
+    }
+
     bool BeginFloatingImageDrag(MouseButtonEventArgs e)
     {
-        var hit=FindFloatingImageAt(e.GetPosition(BehindTextCanvas));
+        var point=e.GetPosition(BehindTextCanvas);
+        var hit=FindFloatingImageAt(point);
         if(hit==null)return false;
 
         if(e.ClickCount>=2)
@@ -249,11 +359,22 @@ public partial class MainWindow
             return true;
         }
 
+        resizingFloatingImage=false;
+        if(ReferenceEquals(selectedFloatingImage,hit.Placement))
+        {
+            var bounds=GetFloatingImageBounds(hit.Placement);
+            var handle=new Rect(bounds.Right-9,bounds.Bottom-9,18,18);
+            resizingFloatingImage=handle.Contains(point);
+        }
+        selectedFloatingImage=hit.Placement;
+        UpdateFloatingImageChrome();
         draggingFloatingImage=hit.Placement;
-        floatingDragStart=e.GetPosition(BehindTextCanvas);
+        floatingDragStart=point;
         floatingDragStartX=hit.Placement.OffsetX;
         floatingDragStartY=hit.Placement.OffsetY;
-        Editor.Cursor=Cursors.SizeAll;
+        floatingDragStartWidth=hit.Placement.Width;
+        floatingDragStartHeight=hit.Placement.Height;
+        Editor.Cursor=resizingFloatingImage?Cursors.SizeNWSE:Cursors.SizeAll;
         Editor.CaptureMouse();
         e.Handled=true;
         return true;
@@ -263,31 +384,65 @@ public partial class MainWindow
     {
         if(draggingFloatingImage==null)
         {
-            Editor.Cursor=FindFloatingImageAt(e.GetPosition(BehindTextCanvas))!=null?Cursors.SizeAll:null;
+            var point=e.GetPosition(BehindTextCanvas);
+            var hit=FindFloatingImageAt(point);
+            var bounds=selectedFloatingImage==null?Rect.Empty:GetFloatingImageBounds(selectedFloatingImage);
+            Editor.Cursor=hit!=null&&ReferenceEquals(hit.Placement,selectedFloatingImage)&&
+                !bounds.IsEmpty&&new Rect(bounds.Right-9,bounds.Bottom-9,18,18).Contains(point)
+                ?Cursors.SizeNWSE:hit!=null?Cursors.SizeAll:null;
             return;
         }
         if(e.LeftButton!=MouseButtonState.Pressed)return;
-        var point=e.GetPosition(BehindTextCanvas);
-        draggingFloatingImage.OffsetX=floatingDragStartX+point.X-floatingDragStart.X;
-        draggingFloatingImage.OffsetY=floatingDragStartY+point.Y-floatingDragStart.Y;
+        var position=e.GetPosition(BehindTextCanvas);
+        var dx=position.X-floatingDragStart.X;
+        var dy=position.Y-floatingDragStart.Y;
+
+        if(resizingFloatingImage)
+        {
+            var ratio=floatingDragStartWidth/Math.Max(1,floatingDragStartHeight);
+            var candidateByX=floatingDragStartWidth+dx;
+            var candidateByY=(floatingDragStartHeight+dy)*ratio;
+            var width=Math.Max(12,Math.Abs(candidateByX-floatingDragStartWidth)>=Math.Abs(candidateByY-floatingDragStartWidth)
+                ?candidateByX:candidateByY);
+            draggingFloatingImage.Width=width;
+            draggingFloatingImage.Height=width/ratio;
+            if(draggingFloatingImage.RuntimeImage!=null)
+            {
+                draggingFloatingImage.RuntimeImage.Width=draggingFloatingImage.Width;
+                draggingFloatingImage.RuntimeImage.Height=draggingFloatingImage.Height;
+            }
+        }
+        else
+        {
+            draggingFloatingImage.OffsetX=floatingDragStartX+dx;
+            draggingFloatingImage.OffsetY=floatingDragStartY+dy;
+        }
+
         if(floatingImageOverlays.TryGetValue(draggingFloatingImage,out var overlay)&&
            draggingFloatingImage.RuntimeImage!=null)
         {
+            overlay.Width=draggingFloatingImage.Width;
+            overlay.Height=draggingFloatingImage.Height;
             var container=FindContainer(draggingFloatingImage.RuntimeImage);
             if(container!=null)PositionFloatingImage(draggingFloatingImage,container,overlay);
         }
+        UpdateFloatingImageChrome();
         e.Handled=true;
     }
 
     void FloatingImage_PreviewMouseLeftButtonUp(object sender,MouseButtonEventArgs e)
     {
         if(draggingFloatingImage==null)return;
-        var moved=Math.Abs(draggingFloatingImage.OffsetX-floatingDragStartX)>0.5||
-                  Math.Abs(draggingFloatingImage.OffsetY-floatingDragStartY)>0.5;
+        var changed=Math.Abs(draggingFloatingImage.OffsetX-floatingDragStartX)>0.5||
+                    Math.Abs(draggingFloatingImage.OffsetY-floatingDragStartY)>0.5||
+                    Math.Abs(draggingFloatingImage.Width-floatingDragStartWidth)>0.5||
+                    Math.Abs(draggingFloatingImage.Height-floatingDragStartHeight)>0.5;
         draggingFloatingImage=null;
+        resizingFloatingImage=false;
         Editor.Cursor=null;
         if(Editor.IsMouseCaptured)Editor.ReleaseMouseCapture();
-        if(moved)MarkDirty("Picture moved.");
+        if(changed)MarkDirty("Picture position or size updated.");
+        UpdateFloatingImageChrome();
         e.Handled=true;
     }
 
@@ -331,7 +486,7 @@ public partial class MainWindow
                 (pageMargins.Top+rect.Top-pageTop+placement.OffsetY)*sy,
                 placement.Width*sx,
                 placement.Height*sy);
-            result.Add(new FloatingPageImage(pageIndex,source,bounds));
+            result.Add(new FloatingPageImage(pageIndex,source,bounds,placement.Mode));
         }
         return result;
     }
@@ -377,12 +532,28 @@ public partial class MainWindow
 
     static IEnumerable<(InlineUIContainer Container,Image Image)> EnumerateImageContainers(Inline inline)
     {
-        if(inline is InlineUIContainer ui&&ui.Child is Image image)
-            yield return (ui,image);
+        if(inline is InlineUIContainer ui)
+        {
+            foreach(var image in EnumerateImagesInElement(ui.Child))
+                yield return (ui,image);
+        }
         else if(inline is Span span)
             foreach(var child in span.Inlines)
                 foreach(var item in EnumerateImageContainers(child))
                     yield return item;
+    }
+
+    static IEnumerable<Image> EnumerateImagesInElement(UIElement? element)
+    {
+        if(element is Image image)
+            yield return image;
+        else if(element is Panel panel)
+            foreach(UIElement child in panel.Children)
+                foreach(var nested in EnumerateImagesInElement(child))
+                    yield return nested;
+        else if(element is Border border)
+            foreach(var nested in EnumerateImagesInElement(border.Child))
+                yield return nested;
     }
 }
 
