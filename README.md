@@ -6,7 +6,7 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 38 (0.38.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.38.0-beta.38)**, built from the `beta38` branch.
+The protected `main` branch remains at **Beta 34.2**. The latest published prerelease is **[Beta 38 (0.38.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.38.0-beta.38)**, built from the `beta38` branch. Beta 39 is in development on `beta39`.
 
 ### Beta 35 — safe paged editing foundation
 
@@ -26,6 +26,14 @@ The protected `main` branch remains at **Beta 34.2**. The latest published prere
 - Enter a page number to move the caret to the first mapped text position and bring it into view.
 - Navigation uses the cached page map and does not edit or rebuild the document.
 - The Windows build, self-contained publish, responsive launch and existing functional self-test passed. The [Beta 37 prerelease](https://github.com/martynwalker/CtrlZed/releases/tag/v0.37.0-beta.37) is available for user review.
+
+### Beta 39 — named profile images for macros
+
+- **Tools → Profile Images** stores named PNG, JPEG, BMP or GIF images in the current Windows user's CtrlZed profile.
+- Upload an image, name it (for example `signature`), replace it later, or remove it.
+- Safe macros can use `INSERT_PROFILE_IMAGE {signature} 40 IN_FRONT`; widths are in millimetres and placement can be `INLINE`, `BEHIND` or `IN_FRONT`.
+- Trusted compiled VB.NET/C# macros can call `ProfileImageMacro.Insert(Editor, "signature", 40, PicturePlacementMode.InFrontOfText)`.
+- Portable `.czprofile` export/import includes the named image collection.
 
 ### Beta 38 — floating image placement
 
@@ -81,6 +89,14 @@ A release must pass:
 11. packaging and prerelease publication
 
 ## Macros
+
+Profile images are managed under **Tools → Profile Images**. For the reusable signature example, save the image under the name `signature`, then use this safe macro command:
+
+```text
+INSERT_PROFILE_IMAGE {signature} 40 IN_FRONT
+```
+
+This inserts the stored picture at the caret, at 40 mm wide with its aspect ratio retained, in front of text. Use `BEHIND` or `INLINE` for the other placement modes. Profile images travel with `.czprofile` exports.
 
 Executable `.czm` macros use CtrlZed's approved command language. Extended mode can additionally allow interactive prompts and locally generated document images such as QR codes.
 
