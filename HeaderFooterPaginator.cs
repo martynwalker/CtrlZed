@@ -5,7 +5,7 @@ using System.Windows.Media;
 
 namespace CtrlZed;
 
-public sealed record FloatingPageImage(int PageNumber,ImageSource Source,Rect Bounds);
+public sealed record FloatingPageImage(int PageNumber,ImageSource Source,Rect Bounds,PicturePlacementMode Mode);
 
 public sealed class HeaderFooterPaginator : DocumentPaginator
 {
@@ -42,7 +42,7 @@ public sealed class HeaderFooterPaginator : DocumentPaginator
         var visual=new DrawingVisual();
         using var dc=visual.RenderOpen();
 
-        foreach(var image in floatingImages.Where(x=>x.PageNumber==pageNumber))
+        foreach(var image in floatingImages.Where(x=>x.PageNumber==pageNumber&&x.Mode==PicturePlacementMode.BehindText))
             dc.DrawImage(image.Source,image.Bounds);
 
         if(page.Visual!=null)
@@ -50,6 +50,9 @@ public sealed class HeaderFooterPaginator : DocumentPaginator
             var brush=new VisualBrush(page.Visual){Stretch=Stretch.Fill};
             dc.DrawRectangle(brush,null,new Rect(new Point(0,0),page.Size));
         }
+
+        foreach(var image in floatingImages.Where(x=>x.PageNumber==pageNumber&&x.Mode==PicturePlacementMode.InFrontOfText))
+            dc.DrawImage(image.Source,image.Bounds);
 
         var total=Math.Max(1,PageCount);
         DrawTriplet(dc,expand(header,pageNumber+1,total),42,18,page.Size.Width-84);
