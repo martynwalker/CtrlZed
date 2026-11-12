@@ -635,9 +635,14 @@ public partial class MainWindow : Window
         if(NavigationList.SelectedItem is not HeadingItem item || item.Paragraph.Parent==null)return;
         try
         {
-            item.Paragraph.BringIntoView();
-            Editor.CaretPosition=item.Paragraph.ContentStart;
+            var target=item.Paragraph.ContentStart;
             Editor.Focus();
+            Editor.CaretPosition=target;
+            Editor.Selection.Select(target,target);
+            Editor.UpdateLayout();
+            var rect=target.GetCharacterRect(LogicalDirection.Forward);
+            if(!rect.IsEmpty && double.IsFinite(rect.Top))
+                Editor.ScrollToVerticalOffset(Math.Max(0,rect.Top));
         }
         catch { }
     }
