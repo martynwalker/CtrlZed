@@ -637,12 +637,9 @@ public partial class MainWindow : Window
         {
             var target=item.Paragraph.ContentStart;
             Editor.Focus();
-            Editor.CaretPosition=target;
             Editor.Selection.Select(target,target);
-            Editor.UpdateLayout();
-            var rect=target.GetCharacterRect(LogicalDirection.Forward);
-            if(!rect.IsEmpty && double.IsFinite(rect.Top))
-                Editor.ScrollToVerticalOffset(Math.Max(0,rect.Top));
+            Editor.CaretPosition=target;
+            ScrollBeta35TextPointerIntoView(target);
         }
         catch { }
     }
