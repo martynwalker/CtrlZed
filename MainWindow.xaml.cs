@@ -4355,13 +4355,16 @@ INSERT_FIELD date
                 }
                 case "INSERT_PROFILE_IMAGE":
                 {
-                    var pieces=argument.Split(' ',StringSplitOptions.RemoveEmptyEntries);
-                    if(pieces.Length!=3 ||
-                       !double.TryParse(pieces[1],NumberStyles.Float,CultureInfo.InvariantCulture,out var widthMm) ||
-                       widthMm<=0)
-                        throw new InvalidOperationException("INSERT_PROFILE_IMAGE expects: {image-name} width-mm INLINE|BEHIND|IN_FRONT.");
-                    var imageName=pieces[0].Trim().Trim('{','}');
-                    var placement=pieces[2].Trim().ToUpperInvariant() switch
+                    var modeStart=argument.LastIndexOf(' ');
+                    var sizeStart=modeStart>0?argument.LastIndexOf(' ',modeStart-1):-1;
+                    var imageName=sizeStart>0?argument[..sizeStart].Trim().Trim('{','}'):"";
+                    var widthText=sizeStart>0&&modeStart>sizeStart?argument[(sizeStart+1)..modeStart].Trim():"";
+                    var modeText=modeStart>0?argument[(modeStart+1)..].Trim().ToUpperInvariant():"";
+                    if(string.IsNullOrWhiteSpace(imageName) ||
+                       !double.TryParse(widthText,NumberStyles.Float,CultureInfo.InvariantCulture,out var widthMm) ||
+                       widthMm<=0 || string.IsNullOrWhiteSpace(modeText))
+                        throw new InvalidOperationException("INSERT_PROFILE_IMAGE expects: {image name} width-mm INLINE|BEHIND|IN_FRONT.");
+                    var placement=modeText switch
                     {
                         "INLINE"=>PicturePlacementMode.Inline,
                         "BEHIND" or "BEHIND_TEXT"=>PicturePlacementMode.BehindText,
