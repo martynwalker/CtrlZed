@@ -708,6 +708,7 @@ public partial class MainWindow : Window
     {
         var size=effectivePageSize??new Size(pageWidth,pageHeight);
         var clone=CloneDocument();
+        HideFloatingImagesInDocument(clone);
         ExpandPreviewFields(clone);
         clone.PageWidth=size.Width;
         clone.PageHeight=size.Height;
@@ -716,7 +717,8 @@ public partial class MainWindow : Window
         var inner=((IDocumentPaginatorSource)clone).DocumentPaginator;
         inner.PageSize=size;
         inner.ComputePageCount();
-        return new HeaderFooterPaginator(inner,headerText,footerText,ExpandFields);
+        return new HeaderFooterPaginator(
+            inner,headerText,footerText,ExpandFields,CreateFloatingPageImages(size));
     }
 
     FlowDocument CloneDocument()
@@ -2109,6 +2111,7 @@ public partial class MainWindow : Window
 
     void Editor_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
     {
+        if(BeginFloatingImageDrag(e))return;
         var img=FindPictureAtPoint(e.GetPosition(Editor));
         if(img==null)return;
         if(e.ClickCount==2)
@@ -2120,6 +2123,13 @@ public partial class MainWindow : Window
 
     void Editor_PreviewMouseRightButtonDown(object sender,MouseButtonEventArgs e)
     {
+        var floating=FindFloatingImageAt(e.GetPosition(BehindTextCanvas));
+        if(floating!=null)
+        {
+            e.Handled=true;
+            ShowPicturePropertiesSafely(floating.Original);
+            return;
+        }
         var point=e.GetPosition(Editor);
         var img=FindPictureAtPoint(point);
         e.Handled=true;
@@ -2649,9 +2659,9 @@ public partial class MainWindow : Window
         var paragraph=container?.Parent as Paragraph;
         var currentAlignment=paragraph?.TextAlignment??TextAlignment.Center;
 
-        var w=new Window{Title="Picture Properties",Owner=this,Width=390,Height=310,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var w=new Window{Title="Picture Properties",Owner=this,Width=410,Height=360,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
         var g=new Grid{Margin=new Thickness(14)};
-        for(int i=0;i<6;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        for(int i=0;i<7;i++)g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         g.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(130)});
         g.ColumnDefinitions.Add(new ColumnDefinition());
 
@@ -2660,16 +2670,18 @@ public partial class MainWindow : Window
         var width=new TextBox{Text=Math.Max(1,shownWidth).ToString("0")};
         var align=new ComboBox{ItemsSource=new[]{"Left","Centre","Right"},SelectedIndex=currentAlignment==TextAlignment.Left?0:currentAlignment==TextAlignment.Right?2:1,Margin=new Thickness(0,5,0,5)};
         var keep=new CheckBox{Content="Keep aspect ratio",IsChecked=true,Margin=new Thickness(0,8,0,8)};
+        var behindText=new CheckBox{Content="Place behind text (drag to position)",IsChecked=IsPictureBehindText(img),Margin=new Thickness(0,8,0,8)};
         var caption=new TextBox{Margin=new Thickness(0,4,0,8)};
-        var note=new TextBlock{Text="Pictures remain inline. Alignment applies to the containing paragraph; full floating text wrap is deliberately deferred.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
+        var note=new TextBlock{Text="Inline pictures remain in the text flow. Behind-text pictures are anchored to this insertion point.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray};
         var ok=new Button{Content="Apply",Width=85,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
 
         AddRow(g,0,"Width (pixels)",width);
         AddRow(g,1,"Alignment",align);
         Grid.SetRow(keep,2);Grid.SetColumnSpan(keep,2);g.Children.Add(keep);
-        AddRow(g,3,"Caption",caption);
-        Grid.SetRow(note,4);Grid.SetColumnSpan(note,2);g.Children.Add(note);
-        Grid.SetRow(ok,5);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
+        Grid.SetRow(behindText,3);Grid.SetColumnSpan(behindText,2);g.Children.Add(behindText);
+        AddRow(g,4,"Caption",caption);
+        Grid.SetRow(note,5);Grid.SetColumnSpan(note,2);g.Children.Add(note);
+        Grid.SetRow(ok,6);Grid.SetColumnSpan(ok,2);g.Children.Add(ok);
 
         ok.Click+=(_,__)=>
         {
@@ -2679,6 +2691,7 @@ public partial class MainWindow : Window
                 img.Width=px;
             }
             if(paragraph!=null)paragraph.TextAlignment=align.SelectedIndex==0?TextAlignment.Left:align.SelectedIndex==2?TextAlignment.Right:TextAlignment.Center;
+            SetPictureBehindText(img,behindText.IsChecked==true);
 
             if(!string.IsNullOrWhiteSpace(caption.Text) && paragraph!=null)
             {
