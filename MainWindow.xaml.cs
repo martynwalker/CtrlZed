@@ -1518,7 +1518,7 @@ public partial class MainWindow : Window
             RefreshMacroMenus();
             Status.Text="CtrlZed profile imported.";
             MessageBox.Show(
-                $"Profile imported.\n\nUser fields: {result.FieldsImported}\nMacros imported: {result.MacrosImported}\nStyle sets: {result.StyleSetsImported}\nMode: {(replace?"Replace":"Merge")}\n\nSecrets were not imported.",
+                $"Profile imported.\n\nUser fields: {result.FieldsImported}\nMacros imported: {result.MacrosImported}\nStyle sets: {result.StyleSetsImported}\nProfile images: {result.ProfileImagesImported}\nMode: {(replace?"Replace":"Merge")}\n\nSecrets were not imported.",
                 "Profile imported",MessageBoxButton.OK,MessageBoxImage.Information);
         }
         catch(Exception ex)
