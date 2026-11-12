@@ -7,7 +7,7 @@ public static class SafeMacroLanguage
 In addition to every safe command below, you may use:
 PROMPT variable prompt text
 INSERT_QR text-or-{variable}
-INSERT_PROFILE_IMAGE {profile-image-name} width-mm INLINE|BEHIND|IN_FRONT
+INSERT_PROFILE_IMAGE {profile image name} width-mm INLINE|BEHIND|IN_FRONT
 
 Use PROMPT to collect user input into a named variable, then reference it as {variable} in later commands.
 Example:
