@@ -156,7 +156,11 @@ public static class ProfileImageStore
         try
         {
             if (!File.Exists(IndexPath)) return new ImageIndex();
-            return JsonSerializer.Deserialize<ImageIndex>(File.ReadAllText(IndexPath)) ?? new ImageIndex();
+            var loaded = JsonSerializer.Deserialize<ImageIndex>(File.ReadAllText(IndexPath)) ?? new ImageIndex();
+            return new ImageIndex
+            {
+                Images = new Dictionary<string, string>(loaded.Images, StringComparer.OrdinalIgnoreCase)
+            };
         }
         catch (JsonException) { return new ImageIndex(); }
     }
