@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
