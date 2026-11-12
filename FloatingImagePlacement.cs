@@ -135,13 +135,20 @@ public partial class MainWindow
     }
 
     PicturePlacementMode GetPicturePlacement(Image image)
-        =>floatingImagePlacements.FirstOrDefault(x=>ReferenceEquals(x.RuntimeImage,image))?.Mode
-          ??PicturePlacementMode.Inline;
+    {
+        var floating=floatingImagePlacements.FirstOrDefault(x=>ReferenceEquals(x.RuntimeImage,image));
+        if(floating!=null)return floating.Mode;
+        return FindContainer(image)?.Child is Canvas
+            ?PicturePlacementMode.InFrontOfText
+            :PicturePlacementMode.Inline;
+    }
 
     void SetPicturePlacement(Image image,PicturePlacementMode mode)
     {
         var existing=floatingImagePlacements.FirstOrDefault(x=>ReferenceEquals(x.RuntimeImage,image));
         var container=FindContainer(image);
+        var previousMode=GetPicturePlacement(image);
+        var changed=previousMode!=mode||existing==null&&mode!=PicturePlacementMode.Inline;
 
         if(mode==PicturePlacementMode.Inline)
         {
@@ -162,6 +169,7 @@ public partial class MainWindow
             image.IsHitTestVisible=false;
             image.Focusable=false;
             RefreshFloatingImagePlacements();
+            if(changed)MarkDirty("Picture placement updated.");
             return;
         }
 
@@ -199,6 +207,7 @@ public partial class MainWindow
         image.Visibility=Visibility.Collapsed;
         selectedFloatingImage=existing;
         RefreshFloatingImagePlacements();
+        if(changed)MarkDirty("Picture placement updated.");
     }
 
     void RemoveFloatingOverlay(FloatingImagePlacementData placement)
