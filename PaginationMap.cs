@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
+using System.Windows.Documents;\nusing System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -135,6 +135,15 @@ public partial class MainWindow
         {
             beta35PaginationTimer.Stop();
             await RebuildBeta35PaginationMapAsync();
+        };
+
+        PreviewKeyDown+=(_,e)=>
+        {
+            if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.G)
+            {
+                e.Handled=true;
+                ShowBeta35GoToPageDialog();
+            }
         };
 
         Editor.TextChanged+=(_,__)=>ScheduleBeta35PaginationMap();
@@ -371,10 +380,8 @@ public partial class MainWindow
 
             Editor.Selection.Select(target,target);
             Editor.CaretPosition=target;
-            var rect=target.GetCharacterRect(LogicalDirection.Forward);
-            if(!rect.IsEmpty && double.IsFinite(rect.Top))
-                Editor.ScrollToVerticalOffset(Math.Max(0,rect.Top));
             Editor.Focus();
+            ScrollBeta35TextPointerIntoView(target);
             UpdateBeta35PageStatus();
             w.DialogResult=true;
         };
@@ -385,6 +392,31 @@ public partial class MainWindow
         w.Content=root;
         w.Loaded+=(_,__)=>{input.Focus();input.SelectAll();};
         w.ShowDialog();
+    }
+
+    void GoToPage_Click(object sender,RoutedEventArgs e)
+        =>ShowBeta35GoToPageDialog();
+
+    void ScrollBeta35TextPointerIntoView(TextPointer target)
+    {
+        try
+        {
+            target.BringIntoView();
+            Editor.UpdateLayout();
+            var rect=target.GetCharacterRect(LogicalDirection.Forward);
+            if(rect.IsEmpty || !double.IsFinite(rect.Top))return;
+
+            var scroll=FindVisualAncestor<ScrollViewer>(PageBorder);
+            if(scroll==null)
+            {
+                Editor.ScrollToVerticalOffset(Math.Max(0,rect.Top));
+                return;
+            }
+
+            var point=Editor.TranslatePoint(new Point(0,rect.Top),scroll);
+            scroll.ScrollToVerticalOffset(Math.Max(0,scroll.VerticalOffset+point.Y));
+        }
+        catch { }
     }
 
     static T? FindBeta35Descendant<T>(DependencyObject root) where T:DependencyObject
