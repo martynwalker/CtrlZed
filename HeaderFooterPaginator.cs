@@ -5,19 +5,26 @@ using System.Windows.Media;
 
 namespace CtrlZed;
 
+public sealed record FloatingPageImage(int PageNumber,ImageSource Source,Rect Bounds);
+
 public sealed class HeaderFooterPaginator : DocumentPaginator
 {
     readonly DocumentPaginator inner;
     readonly string header;
     readonly string footer;
     readonly Func<string,int,int,string> expand;
+    readonly IReadOnlyList<FloatingPageImage> floatingImages;
 
-    public HeaderFooterPaginator(DocumentPaginator inner,string header,string footer,Func<string,int,int,string> expand)
+    public HeaderFooterPaginator(
+        DocumentPaginator inner,string header,string footer,
+        Func<string,int,int,string> expand,
+        IEnumerable<FloatingPageImage>? floatingImages=null)
     {
         this.inner=inner;
         this.header=header??"";
-        this.footer=footer??"";
+        this.footer=footer;
         this.expand=expand;
+        this.floatingImages=(floatingImages??Array.Empty<FloatingPageImage>()).ToList();
     }
 
     public override bool IsPageCountValid => inner.IsPageCountValid;
@@ -34,6 +41,9 @@ public sealed class HeaderFooterPaginator : DocumentPaginator
 
         var visual=new DrawingVisual();
         using var dc=visual.RenderOpen();
+
+        foreach(var image in floatingImages.Where(x=>x.PageNumber==pageNumber))
+            dc.DrawImage(image.Source,image.Bounds);
 
         if(page.Visual!=null)
         {
