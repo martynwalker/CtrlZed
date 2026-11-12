@@ -402,7 +402,6 @@ public partial class MainWindow
     {
         try
         {
-            target.BringIntoView();
             Editor.UpdateLayout();
             var rect=target.GetCharacterRect(LogicalDirection.Forward);
             if(rect.IsEmpty || !double.IsFinite(rect.Top))return;
