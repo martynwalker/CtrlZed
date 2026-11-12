@@ -151,7 +151,8 @@ public partial class MainWindow
         else if(existing!=null)
         {
             floatingImagePlacements.Remove(existing);
-            floatingImageOverlays.Remove(existing);
+            if(floatingImageOverlays.Remove(existing,out var overlay))
+                BehindTextCanvas.Children.Remove(overlay);
             image.Visibility=Visibility.Visible;
         }
 
@@ -175,7 +176,8 @@ public partial class MainWindow
             if(container==null)
             {
                 floatingImagePlacements.Remove(placement);
-                floatingImageOverlays.Remove(placement);
+                if(floatingImageOverlays.Remove(placement,out var staleOverlay))
+                    BehindTextCanvas.Children.Remove(staleOverlay);
                 continue;
             }
             placement.AnchorOffset=Editor.Document.ContentStart.GetOffsetToPosition(container.ContentStart);
@@ -258,19 +260,20 @@ public partial class MainWindow
 
     void FloatingImage_PreviewMouseMove(object sender,MouseEventArgs e)
     {
-        if(draggingFloatingImage==null||e.LeftButton!=MouseButtonState.Pressed)return;
+        if(draggingFloatingImage==null)
+        {
+            Editor.Cursor=FindFloatingImageAt(e.GetPosition(BehindTextCanvas))!=null?Cursors.SizeAll:null;
+            return;
+        }
+        if(e.LeftButton!=MouseButtonState.Pressed)return;
         var point=e.GetPosition(BehindTextCanvas);
         draggingFloatingImage.OffsetX=floatingDragStartX+point.X-floatingDragStart.X;
         draggingFloatingImage.OffsetY=floatingDragStartY+point.Y-floatingDragStart.Y;
-        if(floatingImageOverlays.TryGetValue(draggingFloatingImage,out var overlay))
+        if(floatingImageOverlays.TryGetValue(draggingFloatingImage,out var overlay)&&
+           draggingFloatingImage.RuntimeImage!=null)
         {
-            var images=EnumerateImageContainers(Editor.Document).ToList();
-            var index=draggingFloatingImage.ImageIndex;
-            if(draggingFloatingImage.RuntimeImage!=null)
-            {
-                var c=FindContainer(draggingFloatingImage.RuntimeImage);
-                if(c!=null)PositionFloatingImage(draggingFloatingImage,c,overlay);
-            }
+            var container=FindContainer(draggingFloatingImage.RuntimeImage);
+            if(container!=null)PositionFloatingImage(draggingFloatingImage,container,overlay);
         }
         e.Handled=true;
     }
