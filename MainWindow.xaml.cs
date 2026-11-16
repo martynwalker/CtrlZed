@@ -2214,7 +2214,7 @@ public partial class MainWindow : Window
 
         if(extension==".czm")
         {
-            foreach(var raw in source.Replace("\r\n","\n").Split('\n'))
+            foreach(var raw in SafeMacroLanguage.WithoutLegacyStarterReference(source).Split('\n'))
             {
                 var line=raw.Trim();
                 if(line.StartsWith("#"))line=line[1..].Trim();
@@ -3846,13 +3846,12 @@ public static class CtrlZedMacro
     }
 }
 ",
-            _=>$@"# CtrlZed Safe Macro
+            _=>@"# CtrlZed Safe Macro
 # NAME: New Macro
 # DESCRIPTION: Describe what this macro does.
 # SHORTCUT:
 #
-# Supported commands:
-{SafeMacroLanguage.Reference}
+# Lines beginning with # are comments.
 
 INSERT_TEXT Hello from a CtrlZed safe macro
 NEW_PARAGRAPH
@@ -4236,7 +4235,7 @@ INSERT_FIELD date
 
     async Task RunSafeMacroAsync(string source)
     {
-        var lines=source.Replace("\r\n","\n").Split('\n');
+        var lines=SafeMacroLanguage.WithoutLegacyStarterReference(source).Split('\n');
         var executed=0;
         var variables=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
         string ExpandMacroVariables(string value)
@@ -4482,6 +4481,7 @@ INSERT_FIELD date
             if(File.Exists(central))
             {
                 File.WriteAllText(central,sourceBox.Text);
+                RefreshMacroMenus();
                 Status.Text=$"Fixed macro saved: {macroName}";
                 return;
             }
@@ -4489,6 +4489,7 @@ INSERT_FIELD date
             {
                 embeddedMacros[macroName]=sourceBox.Text;
                 MarkDirty("Fixed embedded macro saved.");
+                RefreshMacroMenus();
                 return;
             }
             throw new FileNotFoundException("CtrlZed could not locate the macro source to save.",macroName);

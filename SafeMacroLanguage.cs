@@ -2,6 +2,13 @@ namespace CtrlZed;
 
 public static class SafeMacroLanguage
 {
+    internal static string WithoutLegacyStarterReference(string source)
+    {
+        var normalised = source.Replace("\r\n", "\n");
+        var legacyReference = "# Supported commands:\n" + Reference.Replace("\r\n", "\n") + "\n";
+        return normalised.Replace(legacyReference, "", System.StringComparison.Ordinal);
+    }
+
     public const string ExtendedReference =
 @"EXTENDED MACROS ARE ENABLED.
 In addition to every safe command below, you may use:
