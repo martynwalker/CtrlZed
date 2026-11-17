@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,6 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 40 updates the Styles dialogue and adds Format > Styles > Reformat Document. The command uses a selected style set. F9 opens it in the Microsoft Word keyboard profile."
-
-# Beta 35 release build
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 40.1 adds explicit Save, New and Rename style-set actions and prevents Reformat Document from resetting unrecognised paragraphs to Normal."

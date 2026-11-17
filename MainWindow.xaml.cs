@@ -2940,11 +2940,24 @@ public partial class MainWindow : Window
         return StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec)?spec:null;
     }
 
+    const string ParagraphStyleTagPrefix="CtrlZed:ParagraphStyle:";
+
+    void RememberParagraphStyle(TextRange range,string style)
+    {
+        foreach(var paragraph in EnumerateDocumentParagraphs())
+        {
+            if(paragraph==range.Start.Paragraph ||
+               (paragraph.ContentEnd.CompareTo(range.Start)>0 && paragraph.ContentStart.CompareTo(range.End)<0))
+                paragraph.Tag=ParagraphStyleTagPrefix+style;
+        }
+    }
+
     void ApplyParagraphStyle(string style)
     {
         if(Editor==null)return;
         var spec=ResolveStyle(style);
         if(spec==null)return;
+        RememberParagraphStyle(Editor.Selection,style);
         ApplyStyleToRange(Editor.Selection,spec);
         MarkDirty($"Style: {style} ({activeStyleSet})");
         Editor.Focus();
@@ -3044,7 +3057,7 @@ public partial class MainWindow : Window
         form.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(120)});
         form.ColumnDefinitions.Add(new ColumnDefinition());
 
-        var setName=new TextBox{Text=activeStyleSet,Margin=new Thickness(0,3,0,8)};
+        var setName=new TextBox{Text=activeStyleSet,IsReadOnly=true,Margin=new Thickness(0,3,0,8)};
         var font=new ComboBox{ItemsSource=Fonts.SystemFontFamilies.OrderBy(x=>x.Source).ToList(),DisplayMemberPath="Source",Margin=new Thickness(0,3,0,8)};
         var size=new TextBox{Margin=new Thickness(0,3,0,8)};
         var colourPanel=new DockPanel{Margin=new Thickness(0,3,0,8)};
@@ -3073,7 +3086,7 @@ public partial class MainWindow : Window
 
         var info=new TextBlock
         {
-            Text="Select one of the six paragraph styles, edit its appearance, then save the set under a name. The active set is selectable from the toolbar.",
+            Text="Save writes changes to this set. New Set copies all six styles, including your current edits.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,8,0,8)
         };
         Grid.SetRow(info,9);Grid.SetColumnSpan(info,2);form.Children.Add(info);
@@ -3158,25 +3171,59 @@ public partial class MainWindow : Window
         var saveSet=new Button{Content="Save Set",Width=90,Margin=new Thickness(4)};
         var deleteSet=new Button{Content="Delete Set",Width=90,Margin=new Thickness(4)};
         var close=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
+        var newSet=new Button{Content="New Set…",Width=90,Margin=new Thickness(4)};
+        var renameSet=new Button{Content="Rename Set…",Width=100,Margin=new Thickness(4)};
+        renameSet.IsEnabled=!string.Equals(setName.Text,"Default",StringComparison.OrdinalIgnoreCase);
+        buttons.Children.Add(newSet);buttons.Children.Add(renameSet);
         buttons.Children.Add(deleteSet);buttons.Children.Add(saveSet);buttons.Children.Add(close);
         Grid.SetColumn(buttons,0);Grid.SetColumnSpan(buttons,2);Grid.SetRow(buttons,1);root.Children.Add(buttons);
 
+        void PersistSet(string name,string? previousName=null)
+        {
+            SaveCurrentStyle();
+            var updated=new Dictionary<string,StyleSetStore.StyleSet>(styleSets,StringComparer.OrdinalIgnoreCase);
+            if(previousName!=null)updated.Remove(previousName);
+            updated[name]=new StyleSetStore.StyleSet
+            {
+                Name=name,
+                Styles=new Dictionary<string,StyleSetStore.TextStyle>(working.Styles,StringComparer.OrdinalIgnoreCase)
+            };
+            StyleSetStore.Save(updated);
+            styleSets.Clear();
+            foreach(var entry in updated)styleSets.Add(entry.Key,entry.Value);
+            activeStyleSet=name;
+            setName.Text=name;
+            renameSet.IsEnabled=!string.Equals(name,"Default",StringComparison.OrdinalIgnoreCase);
+            RefreshStyleSetBox();
+            SaveAppSettings();
+        }
+
+        void ChangeSetName(bool rename)
+        {
+            var currentName=setName.Text;
+            var title=rename?"Rename Set":"New Set";
+            var name=ShowMacroInput("Style set name",rename?currentName:"",w,title)?.Trim();
+            if(name==null)return;
+            if(name.Length==0 || (styleSets.ContainsKey(name) &&
+               !(rename && string.Equals(name,currentName,StringComparison.OrdinalIgnoreCase))))
+            {
+                MessageBox.Show(w,"Enter a unique style-set name.",title,MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            try{PersistSet(name,rename?currentName:null);}
+            catch(Exception ex){MessageBox.Show(w,ex.Message,title,MessageBoxButton.OK,MessageBoxImage.Warning);}
+        }
+
+        newSet.Click+=(_,__)=>ChangeSetName(false);
+        renameSet.Click+=(_,__)=>ChangeSetName(true);
         saveSet.Click+=(_,__)=>
         {
             try
             {
-                SaveCurrentStyle();
-                var name=setName.Text.Trim();
-                if(string.IsNullOrWhiteSpace(name))throw new InvalidOperationException("Enter a style-set name.");
-                working.Name=name;
-                styleSets[name]=working;
-                activeStyleSet=name;
-                StyleSetStore.Save(styleSets);
-                RefreshStyleSetBox();
-                SaveAppSettings();
-                Status.Text="Style set saved: "+name;
+                PersistSet(setName.Text);
+                MessageBox.Show(w,$"Style set “{setName.Text}” has been saved.","Styles",MessageBoxButton.OK,MessageBoxImage.Information);
             }
-            catch(Exception ex){MessageBox.Show(ex.Message,"Save style set",MessageBoxButton.OK,MessageBoxImage.Warning);}
+            catch(Exception ex){MessageBox.Show(w,ex.Message,"Save style set",MessageBoxButton.OK,MessageBoxImage.Warning);}
         };
 
         deleteSet.Click+=(_,__)=>
@@ -3202,8 +3249,11 @@ public partial class MainWindow : Window
         w.Content=root;w.ShowDialog();
     }
 
-    string InferParagraphStyle(Paragraph paragraph,StyleSetStore.StyleSet sourceSet)
+    string? InferParagraphStyle(Paragraph paragraph,IEnumerable<StyleSetStore.StyleSet> sourceSets)
     {
+        if(paragraph.Tag is string tag && tag.StartsWith(ParagraphStyleTagPrefix,StringComparison.Ordinal))
+            return tag[ParagraphStyleTagPrefix.Length..];
+
         var probe=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
         var family=probe.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
         var sizeValue=probe.GetPropertyValue(TextElement.FontSizeProperty);
@@ -3217,9 +3267,9 @@ public partial class MainWindow : Window
         var bold=weightValue is FontWeight fw && fw>=FontWeights.SemiBold;
         var italic=styleValue is FontStyle fs && fs==FontStyles.Italic;
 
-        foreach(var name in new[]{"Heading 1","Heading 2","Heading 3","Quote","Caption","Normal"})
+        var matches=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach(var (name,spec) in sourceSets.SelectMany(set=>set.Styles))
         {
-            if(!sourceSet.Styles.TryGetValue(name,out var spec))continue;
             if(!string.Equals(fontName,spec.FontFamily,StringComparison.OrdinalIgnoreCase))continue;
             if(Math.Abs(size-spec.SizePt)>0.15)continue;
             if(bold!=spec.Bold || italic!=spec.Italic)continue;
@@ -3236,9 +3286,9 @@ public partial class MainWindow : Window
                Math.Abs(margin.Top-spec.MarginTop)>0.5 ||
                Math.Abs(margin.Right-spec.MarginRight)>0.5 ||
                Math.Abs(margin.Bottom-spec.MarginBottom)>0.5)continue;
-            return name;
+            matches.Add(name);
         }
-        return "Normal";
+        return matches.Count==1?matches.Single():null;
     }
 
     void ReformatDocument_Click(object s,RoutedEventArgs e)
@@ -3278,21 +3328,24 @@ public partial class MainWindow : Window
         apply.Click+=(_,__)=>
         {
             if(picker.SelectedItem is not string targetName || !styleSets.TryGetValue(targetName,out var targetSet))return;
-            if(!styleSets.TryGetValue(activeStyleSet,out var sourceSet))
-                sourceSet=StyleSetStore.Defaults()["Default"];
-
-            var paragraphs=EnumerateDocumentParagraphs().ToList();
-            var mappings=paragraphs.Select(p=>(Paragraph:p,Style:InferParagraphStyle(p,sourceSet))).ToList();
-
-            var defaultStyles=StyleSetStore.Defaults()["Default"].Styles;
+            var defaults=StyleSetStore.Defaults()["Default"];
+            var sourceSets=styleSets.Values.Append(defaults).ToArray();
+            var mappings=EnumerateDocumentParagraphs()
+                .Select(p=>(Paragraph:p,Style:InferParagraphStyle(p,sourceSets))).ToList();
+            var defaultStyles=defaults.Styles;
+            var applied=0;
             Editor.BeginChange();
             try
             {
                 foreach(var item in mappings)
                 {
+                    if(item.Style==null)continue;
                     if(targetSet.Styles.TryGetValue(item.Style,out var spec) ||
                        defaultStyles.TryGetValue(item.Style,out spec))
+                    {
                         ApplyStyleToRange(new TextRange(item.Paragraph.ContentStart,item.Paragraph.ContentEnd),spec);
+                        applied++;
+                    }
                 }
             }
             finally
@@ -3303,7 +3356,8 @@ public partial class MainWindow : Window
             activeStyleSet=targetName;
             RefreshStyleSetBox();
             SaveAppSettings();
-            MarkDirty($"Document reformatted with style set: {targetName}");
+            var summary=$"Reformatted {applied} of {mappings.Count} paragraphs using {targetName}.";
+            if(applied>0)MarkDirty(summary);else Status.Text=summary;
             w.DialogResult=true;
             Editor.Focus();
         };
@@ -4549,9 +4603,9 @@ INSERT_FIELD date
         w.Content=root;w.ShowDialog();
     }
 
-    string? ShowMacroInput(string prompt,string initialValue="")
+    string? ShowMacroInput(string prompt,string initialValue="",Window? owner=null,string title="CtrlZed Macro")
     {
-        var w=new Window{Title="CtrlZed Macro",Owner=this,Width=500,Height=180,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
+        var w=new Window{Title=title,Owner=owner??this,Width=500,Height=180,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
         var g=new Grid{Margin=new Thickness(14)};
         g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         g.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});

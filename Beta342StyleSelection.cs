@@ -56,7 +56,9 @@ public partial class MainWindow
         {
             var spec=ResolveStyle(style);
             if(spec==null)return;
-            ApplyStyleToRange(new TextRange(start,end),spec);
+            var range=new TextRange(start,end);
+            RememberParagraphStyle(range,style);
+            ApplyStyleToRange(range,spec);
             MarkDirty($"Style: {style} ({activeStyleSet})");
             Editor.Selection.Select(start,end);
             Editor.Focus();
