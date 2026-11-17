@@ -3036,7 +3036,7 @@ public partial class MainWindow : Window
         selectorPanel.Children.Add(new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
         var stylePicker=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,0,0,8)};
         selectorPanel.Children.Add(stylePicker);
-        selectorPanel.Children.Add(new TextBlock{Text="Choose the paragraph style here, then edit its settings on the right.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray});
+
         Grid.SetColumn(selectorPanel,0);Grid.SetRow(selectorPanel,0);root.Children.Add(selectorPanel);
 
         var form=new Grid();
@@ -3048,10 +3048,13 @@ public partial class MainWindow : Window
         var font=new ComboBox{ItemsSource=Fonts.SystemFontFamilies.OrderBy(x=>x.Source).ToList(),DisplayMemberPath="Source",Margin=new Thickness(0,3,0,8)};
         var size=new TextBox{Margin=new Thickness(0,3,0,8)};
         var colourPanel=new DockPanel{Margin=new Thickness(0,3,0,8)};
-        var pickColour=new Button{Content="Pick…",Width=70,Margin=new Thickness(6,0,0,0)};
+        var pickColour=new Button{Content="Pick Colour…",MinWidth=100,Margin=new Thickness(6,0,0,0)};
         DockPanel.SetDock(pickColour,Dock.Right);colourPanel.Children.Add(pickColour);
+        var swatch=new Border{Width=26,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(6,0,0,0)};
+        DockPanel.SetDock(swatch,Dock.Right);colourPanel.Children.Add(swatch);
         var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true};
         colourPanel.Children.Add(colour);
+        colour.AddHandler(TextBox.TextChangedEvent,new TextChangedEventHandler((_,__)=>swatch.Background=BrushFromHex(colour.Text)));
         var bold=new CheckBox{Content="Bold",Margin=new Thickness(0,3,0,5)};
         var italic=new CheckBox{Content="Italic",Margin=new Thickness(0,3,0,5)};
         var underline=new CheckBox{Content="Underline",Margin=new Thickness(0,3,0,5)};
@@ -3097,6 +3100,7 @@ public partial class MainWindow : Window
         else working=StyleSetStore.Defaults()["Default"];
 
         string? selectedStyle=null;
+        var restoringStyleSelection=false;
 
         void LoadStyle(string style)
         {
@@ -3130,8 +3134,19 @@ public partial class MainWindow : Window
 
         stylePicker.SelectionChanged+=(_,__)=>
         {
-            try{SaveCurrentStyle();}catch{}
-            if(stylePicker.SelectedItem is string style)LoadStyle(style);
+            if(restoringStyleSelection)return;
+            try
+            {
+                SaveCurrentStyle();
+                if(stylePicker.SelectedItem is string style)LoadStyle(style);
+            }
+            catch(InvalidOperationException ex)
+            {
+                restoringStyleSelection=true;
+                stylePicker.SelectedItem=selectedStyle;
+                restoringStyleSelection=false;
+                MessageBox.Show(w,ex.Message,"Styles",MessageBoxButton.OK,MessageBoxImage.Warning);
+            }
         };
         pickColour.Click+=(_,__)=>
         {
@@ -3183,7 +3198,7 @@ public partial class MainWindow : Window
         };
         close.Click+=(_,__)=>w.Close();
 
-        stylePicker.SelectedIndex=0;
+        stylePicker.SelectedItem=(StyleBox.SelectedItem as ComboBoxItem)?.Content as string ?? styles[0];
         w.Content=root;w.ShowDialog();
     }
 
@@ -3233,14 +3248,14 @@ public partial class MainWindow : Window
 
         var w=new Window
         {
-            Title="Reformat Document",Owner=this,Width=460,Height=235,
+            Title="Reformat Document",Owner=this,Width=460,SizeToContent=SizeToContent.Height,
             WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
             Icon=Branding.CreateIconImageSource()
         };
         var root=new StackPanel{Margin=new Thickness(16)};
         root.Children.Add(new TextBlock
         {
-            Text="Choose the style set to apply to this document.",
+            Text="Style set",
             TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)
         });
         var picker=new ComboBox
@@ -3252,7 +3267,7 @@ public partial class MainWindow : Window
         root.Children.Add(picker);
         root.Children.Add(new TextBlock
         {
-            Text="Headings remain headings, quotes remain quotes, captions remain captions, and normal paragraphs remain normal; each is reformatted using the corresponding definition in the selected style set.",
+            Text="Apply the selected set’s Normal, Heading, Quote and Caption definitions across the document.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,10)
         });
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
@@ -3269,12 +3284,20 @@ public partial class MainWindow : Window
             var paragraphs=EnumerateDocumentParagraphs().ToList();
             var mappings=paragraphs.Select(p=>(Paragraph:p,Style:InferParagraphStyle(p,sourceSet))).ToList();
 
-            foreach(var item in mappings)
+            var defaultStyles=StyleSetStore.Defaults()["Default"].Styles;
+            Editor.BeginChange();
+            try
             {
-                if(!targetSet.Styles.TryGetValue(item.Style,out var spec) &&
-                   !StyleSetStore.Defaults()["Default"].Styles.TryGetValue(item.Style,out spec))
-                    continue;
-                ApplyStyleToRange(new TextRange(item.Paragraph.ContentStart,item.Paragraph.ContentEnd),spec);
+                foreach(var item in mappings)
+                {
+                    if(targetSet.Styles.TryGetValue(item.Style,out var spec) ||
+                       defaultStyles.TryGetValue(item.Style,out spec))
+                        ApplyStyleToRange(new TextRange(item.Paragraph.ContentStart,item.Paragraph.ContentEnd),spec);
+                }
+            }
+            finally
+            {
+                Editor.EndChange();
             }
 
             activeStyleSet=targetName;

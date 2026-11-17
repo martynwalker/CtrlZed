@@ -63,7 +63,7 @@ public static class CtrlZedKeyboardCatalogue
         new("Page setup","Open page and margin settings.","","Shift+F8","","File/Page Setup"),
         new("Styles","Open the style-set editor.","","Alt+F8","","Format/Styles"),
         new("Choose font","Move focus to the font selector.","","Ctrl+F8","",""),
-        new("Reformat document","Reapply the active style set to the document.","F9","","","Format/Reformat Document"),
+        new("Reformat document","Choose a style set to apply to the document.","F9","","","Format/Styles/Reformat Document"),
 
         new("Next spelling error","Move to the next red spelling mark.","F7","Ctrl+F2","","Review/Next Spelling Error"),
         new("Contextual thesaurus","Open contextual alternatives for the selection or current word.","Shift+F7","","","Review/Contextual Thesaurus"),
