@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,4 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 44 adds a Pages tab with clickable thumbnails and password protection for native CtrlZed documents."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 44.1 preserves inline picture alignment in formatted paragraphs and reduces protected-document recovery work on the UI thread."

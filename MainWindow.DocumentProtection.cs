@@ -263,21 +263,36 @@ public partial class MainWindow
         var temporaryPath = ProtectedRecoveryFile + "." + Guid.NewGuid().ToString("N") + ".tmp";
         var restoreFields = fieldValuesVisible;
         using var password = documentPassword.Copy();
-        using var archive = new MemoryStream();
+        using var rtf = new MemoryStream();
         try
         {
+            CzdSettings settings;
             if (restoreFields) SetFieldValuesVisible(false);
-            try { WriteCzdArchive(archive); }
+            try
+            {
+                WriteEditorRtf(rtf);
+                settings = CaptureDocumentSettings();
+            }
             finally { if (restoreFields) SetFieldValuesVisible(true); }
 
-            await Task.Run(() => WriteProtectedCzdFile(temporaryPath, archive, password));
+            rtf.Position = 0;
+            await Task.Run(() =>
+            {
+                using var archive = new MemoryStream();
+                try
+                {
+                    WriteCzdArchive(archive, rtf.CopyTo, settings);
+                    WriteProtectedCzdFile(temporaryPath, archive, password);
+                }
+                finally { CryptographicOperations.ZeroMemory(archive.GetBuffer()); }
+            });
             if (generation == protectedRecoveryGeneration)
                 File.Move(temporaryPath, ProtectedRecoveryFile, overwrite: true);
         }
         catch { }
         finally
         {
-            CryptographicOperations.ZeroMemory(archive.GetBuffer());
+            CryptographicOperations.ZeroMemory(rtf.GetBuffer());
             try { File.Delete(temporaryPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             protectedRecoveryInProgress = false;
         }

@@ -97,6 +97,11 @@ End Module
             bitmap.WritePixels(new System.Windows.Int32Rect(0,0,2,2),pixels,8,0);
             doc.Blocks.Add(new Paragraph(new InlineUIContainer(new Image{Source=bitmap,Width=32,Height=32})));
 
+            var nestedPicture=new InlineUIContainer(new Image{Source=bitmap,Width=32,Height=32});
+            var pictureParagraph=new Paragraph(new Span(new Span(nestedPicture))){TextAlignment=TextAlignment.Center};
+            if(!ReferenceEquals(MainWindow.GetPictureParagraph(nestedPicture),pictureParagraph))
+                throw new InvalidOperationException("The picture properties cannot resolve the alignment of an inline picture inside a formatted span.");
+
             var table=new Table();
             table.Columns.Add(new TableColumn());table.Columns.Add(new TableColumn());
             var group=new TableRowGroup();table.RowGroups.Add(group);

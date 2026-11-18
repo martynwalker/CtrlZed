@@ -578,12 +578,17 @@ public partial class MainWindow : Window
 
     void WriteCzdArchive(Stream output)
     {
-        using var archive=new ZipArchive(output,ZipArchiveMode.Create,leaveOpen:true);
-        var document=archive.CreateEntry("document.rtf");
         var clone=CloneDocument();
-        using(var stream=document.Open())new TextRange(clone.ContentStart,clone.ContentEnd).Save(stream,DataFormats.Rtf);
-        var settings=archive.CreateEntry("settings.json");
-        using(var stream=settings.Open())JsonSerializer.Serialize(stream,CaptureDocumentSettings());
+        WriteCzdArchive(output,stream=>new TextRange(clone.ContentStart,clone.ContentEnd).Save(stream,DataFormats.Rtf),
+            CaptureDocumentSettings());
+    }
+
+    static void WriteCzdArchive(Stream output,Action<Stream> writeRtf,CzdSettings settings)
+    {
+        using var archive=new ZipArchive(output,ZipArchiveMode.Create,leaveOpen:true);
+        using(var rtf=archive.CreateEntry("document.rtf").Open())writeRtf(rtf);
+        using var metadata=archive.CreateEntry("settings.json").Open();
+        JsonSerializer.Serialize(metadata,settings);
     }
 
     sealed record CzdPackage(FlowDocument Document,CzdSettings? Settings);
@@ -771,16 +776,20 @@ public partial class MainWindow : Window
 
     FlowDocument CloneDocument()
     {
+        using var stream=new MemoryStream();
+        WriteEditorRtf(stream);
+        stream.Position=0;
+        var clone=new FlowDocument();
+        new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
+        return clone;
+    }
+
+    void WriteEditorRtf(Stream stream)
+    {
         SetCommentsVisibility(Visibility.Collapsed);
         try
         {
-            using var stream=new MemoryStream();
-            var source=new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd);
-            source.Save(stream,DataFormats.Rtf);
-            stream.Position=0;
-            var clone=new FlowDocument();
-            new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
-            return clone;
+            new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(stream,DataFormats.Rtf);
         }
         finally
         {
@@ -2120,8 +2129,10 @@ public partial class MainWindow : Window
     }
 
     void InsertBlockAfterCaret(Block block)
+        =>InsertBlockAfterParagraph(block,Editor.CaretPosition.Paragraph);
+
+    void InsertBlockAfterParagraph(Block block,Paragraph? paragraph)
     {
-        var paragraph=Editor.CaretPosition.Paragraph;
         if(paragraph==null)
         {
             Editor.Document.Blocks.Add(block);
@@ -2738,10 +2749,17 @@ public partial class MainWindow : Window
         return null;
     }
 
+    internal static Paragraph? GetPictureParagraph(InlineUIContainer? container)
+    {
+        for(var parent=container?.Parent;parent is TextElement text;parent=text.Parent)
+            if(text is Paragraph paragraph)return paragraph;
+        return null;
+    }
+
     void ShowPictureProperties(Image img)
     {
         var container=FindContainer(img);
-        var paragraph=container?.Parent as Paragraph;
+        var paragraph=GetPictureParagraph(container);
         var currentAlignment=paragraph?.TextAlignment??TextAlignment.Center;
 
         var w=new Window{Title="Picture Properties",Owner=this,Width=410,Height=360,WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize};
@@ -2795,7 +2813,6 @@ public partial class MainWindow : Window
 
             if(!string.IsNullOrWhiteSpace(caption.Text) && paragraph!=null)
             {
-                var next=paragraph.NextBlock;
                 var cap=new Paragraph(new Run(caption.Text))
                 {
                     TextAlignment=paragraph.TextAlignment,
@@ -2804,8 +2821,7 @@ public partial class MainWindow : Window
                     Foreground=Brushes.DimGray,
                     Margin=new Thickness(0,3,0,8)
                 };
-                if(next!=null)Editor.Document.Blocks.InsertBefore(next,cap);
-                else Editor.Document.Blocks.Add(cap);
+                InsertBlockAfterParagraph(cap,paragraph);
             }
             MarkDirty("Picture properties updated.");
             w.DialogResult=true;
