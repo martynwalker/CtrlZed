@@ -211,9 +211,9 @@ Current macro editor content, if any:
 
 Requirements:
 - Return ONLY complete VB.NET source. No Markdown fences or commentary.
-- The macro must expose a public shared entry point compatible with:
-  Public Sub Run(Editor As System.Windows.Controls.RichTextBox)
-  or an Async Function Run(Editor As System.Windows.Controls.RichTextBox) As Task.
+- Put the entry point in a Public Module as Public Sub Run(Editor As System.Windows.Controls.RichTextBox).
+  If using a Class instead, declare Public Shared Sub Run(Editor As System.Windows.Controls.RichTextBox).
+  An async Task-returning Function with the same public/shared semantics also works.
 - CtrlZed compiles this source in memory with Roslyn and runs it with the same Windows permissions as CtrlZed.
 - Standard .NET and WPF APIs are available, including Clipboard, files, networking, processes, dialogs and document APIs.
 - Never embed API keys, passwords, tokens or other secrets in source.
@@ -227,8 +227,8 @@ Requirements:
   Public Const MENU_PATH_POSITIONS As String = ""7/2""
   Public Const MENU_POSITION As Integer = 1
 - Do not claim that VB.NET, .NET, Clipboard or system APIs are unavailable.
-- Generate VB.NET, NOT VBA. Do not use Option Explicit, Set assignment syntax, On Error GoTo/Resume Next, CommandBars, Word Selection, wd* constants, Alt+F11 instructions, or Microsoft Word's VBA object model.
-- Work through the supplied WPF RichTextBox Editor and ordinary .NET/WPF APIs.
+- Use VB.NET assignments such as variable = value. Avoid VBA's Set variable = value, Office Interop, ActiveDocument, CommandBars, Word's unqualified Selection object and wd* constants.
+- Work through the supplied WPF RichTextBox Editor. Editor.Selection.Text is a valid WPF API for reading or replacing selected text. Use Try...Catch for exception handling.
 - Do not include installation instructions; return source only.
 - Use British English in user-facing strings unless the request says otherwise.";
         }

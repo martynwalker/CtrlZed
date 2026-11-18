@@ -17,6 +17,14 @@ public sealed class CompiledMacroException : Exception
 
 public static class CompiledMacroHost
 {
+    const string VisualBasicCompileHint=
+        "CtrlZed expects VB.NET with a public shared Run(Editor As RichTextBox) entry point. "+
+        "Word VBA code needs to be rewritten for the WPF editor.";
+
+    static VisualBasicCompilationOptions VisualBasicOptions(OptimizationLevel optimization=OptimizationLevel.Debug)
+        =>new VisualBasicCompilationOptions(OutputKind.DynamicallyLinkedLibrary,optimizationLevel:optimization)
+            .WithGlobalImports(new[]{GlobalImport.Parse("Microsoft.VisualBasic"),GlobalImport.Parse("CtrlZed")});
+
     public static async Task RunAsync(string source,string extension,RichTextBox editor,Window owner)
     {
         if(string.IsNullOrWhiteSpace(source))throw new InvalidOperationException("Macro source is empty.");
@@ -45,13 +53,12 @@ public static class CompiledMacroHost
         }
         else
         {
-            source="Imports Microsoft.VisualBasic\nImports CtrlZed\n"+source;
             var tree=VisualBasicSyntaxTree.ParseText(source,new VisualBasicParseOptions(Microsoft.CodeAnalysis.VisualBasic.LanguageVersion.Latest));
             compilation=VisualBasicCompilation.Create(
                 assemblyName,
                 new[]{tree},
                 references,
-                new VisualBasicCompilationOptions(OutputKind.DynamicallyLinkedLibrary,optimizationLevel:OptimizationLevel.Release));
+                VisualBasicOptions(OptimizationLevel.Release));
         }
 
         using var pe=new MemoryStream();
@@ -62,7 +69,9 @@ public static class CompiledMacroHost
                 .Where(d=>d.Severity==DiagnosticSeverity.Error)
                 .Take(25)
                 .Select(d=>d.ToString());
-            throw new CompiledMacroException("Compilation",string.Join("\n",errors));
+            var message=string.Join("\n",errors);
+            if(extension==".vb")message+="\n\n"+VisualBasicCompileHint;
+            throw new CompiledMacroException("Compilation",message);
         }
 
         pe.Position=0;
@@ -89,7 +98,7 @@ public static class CompiledMacroHost
                 throw new CompiledMacroException(
                     "Entry point",
                     "No public static/shared Run(RichTextBox) entry point was found.\n\n"+
-                    "VB.NET: Public Sub Run(Editor As RichTextBox)\n"+
+                    "VB.NET: Public Sub Run(Editor As RichTextBox) in a Module, or Public Shared Sub in a Class\n"+
                     "C#: public static void Run(RichTextBox Editor)");
 
             object? result;
@@ -128,8 +137,8 @@ public static class CompiledMacroHost
         if(extension is not ".cs" and not ".vb")return new[]{"Compile check applies to C# and VB.NET macros."};
 
         var references=BuildReferences();
-        var injected=extension==".cs"?"using CtrlZed;\n":"Imports Microsoft.VisualBasic\nImports CtrlZed\n";
-        var injectedLines=extension==".cs"?1:2;
+        var injected=extension==".cs"?"using CtrlZed;\n":"";
+        var injectedLines=extension==".cs"?1:0;
         var full=injected+source;
         SyntaxTree tree;
         Compilation compilation;
@@ -145,7 +154,7 @@ public static class CompiledMacroHost
             tree=VisualBasicSyntaxTree.ParseText(full,new VisualBasicParseOptions(Microsoft.CodeAnalysis.VisualBasic.LanguageVersion.Latest));
             compilation=VisualBasicCompilation.Create(
                 "CtrlZedMacroCheck",new[]{tree},references,
-                new VisualBasicCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+                VisualBasicOptions());
         }
 
         var diagnostics=compilation.GetDiagnostics()
@@ -169,22 +178,7 @@ public static class CompiledMacroHost
 
     static void PreflightLanguage(string source,string extension)
     {
-        if(extension==".vb")
-        {
-            var vbaMarkers=new[]
-            {
-                "Option Explicit","On Error GoTo","On Error Resume Next","CommandBar","Application.CommandBars",
-                "wdSelectionIP","Selection.Text","Set ","MsgBox ","CreateObject("
-            };
-            var hits=vbaMarkers.Where(x=>source.Contains(x,StringComparison.OrdinalIgnoreCase)).Take(5).ToList();
-            if(hits.Count>=2)
-                throw new CompiledMacroException(
-                    "Language preflight",
-                    "This source appears to be VBA/Word macro code, not VB.NET. CtrlZed compiles .vb macros as VB.NET with Roslyn. "+
-                    "Ask the AI for VB.NET using Public Sub Run(Editor As RichTextBox), not VBA. Detected VBA markers: "+
-                    string.Join(", ",hits));
-        }
-        else if(extension==".cs")
+        if(extension==".cs")
         {
             if(source.Contains("Microsoft.Office.Interop.Word",StringComparison.OrdinalIgnoreCase) ||
                source.Contains("Word.Application",StringComparison.OrdinalIgnoreCase))

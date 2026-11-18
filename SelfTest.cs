@@ -55,16 +55,25 @@ public static class TestMacro {
             var vbEditor=new RichTextBox();
             var vbSecretName="VBMacroSecret_"+Guid.NewGuid().ToString("N");
             CtrlZedSecrets.Set(vbSecretName,"ok");
-            CompiledMacroHost.RunAsync(
-$@"Imports System.Windows.Controls
+            var vbSource=$@"Option Explicit On
+Imports System.Windows.Controls
 Public Module TestMacro
     Public Sub Run(Editor As RichTextBox)
         Dim s As String = CtrlZedSecrets.Get(""{vbSecretName}"")
+        ' Set the WPF selection text.
+        Editor.Selection.Text = ""Set text with VB.NET""
         Editor.Tag = ""VBMacroOK"" & vbCrLf & s
     End Sub
 End Module
-",".vb",vbEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
-            if(!string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK"+Environment.NewLine+"ok",StringComparison.Ordinal))return 31;
+";
+            var vbDiagnostics=CompiledMacroHost.Check(vbSource,".vb");
+            if(vbDiagnostics.Any(d=>d.StartsWith("Error ",StringComparison.Ordinal) ||
+                                    d.StartsWith("Language preflight:",StringComparison.Ordinal)))
+                throw new InvalidOperationException(string.Join(Environment.NewLine,vbDiagnostics));
+            CompiledMacroHost.RunAsync(vbSource,".vb",vbEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
+            var vbText=new TextRange(vbEditor.Document.ContentStart,vbEditor.Document.ContentEnd).Text.Trim();
+            if(vbText!="Set text with VB.NET" ||
+               !string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK"+Environment.NewLine+"ok",StringComparison.Ordinal))return 31;
             CtrlZedSecrets.Remove(vbSecretName);
 
             var secretName="SelfTest_"+Guid.NewGuid().ToString("N");
