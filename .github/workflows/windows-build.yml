@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -51,6 +51,19 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             throw "CtrlZed self-test failed with code $($t.ExitCode)"
           }
+      - name: Following-style keyboard regression
+        shell: pwsh
+        run: |
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--following-style-test" -PassThru
+          if (-not $t.WaitForExit(45000)) {
+            Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
+            throw "Following-style keyboard test timed out."
+          }
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "Following-style keyboard test failed with code $($t.ExitCode)"
+          }
       - name: Read version
         id: version
         shell: pwsh
@@ -88,4 +101,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 44.2 adds a Following style option. Press Return at the end of a styled paragraph to start the next paragraph in the chosen style."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 44.3 fixes heading formatting continuing after Return. The following style now resets the font, size, colour, weight and emphasis used for typed text; keyboard regression tests cover headings, captions, quotes and imported DOCX headings."

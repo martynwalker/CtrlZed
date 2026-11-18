@@ -2990,6 +2990,18 @@ public partial class MainWindow : Window
 
     static void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec,Paragraph? paragraphDefaults=null)
     {
+        // WPF clears pending character formatting when a paragraph property is
+        // applied to an empty selection. Set layout first, then typing format.
+        range.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
+        {
+            "center" or "centre"=>TextAlignment.Center,
+            "right"=>TextAlignment.Right,
+            "justify"=>TextAlignment.Justify,
+            _=>TextAlignment.Left
+        });
+        range.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
+            spec.MarginLeft,spec.MarginTop,spec.MarginRight,spec.MarginBottom));
+
         void ApplyCharacterProperty(DependencyProperty property,object value)
         {
             paragraphDefaults?.SetValue(property,value);
@@ -3002,15 +3014,6 @@ public partial class MainWindow : Window
         ApplyCharacterProperty(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
         ApplyCharacterProperty(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
         range.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
-        range.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
-        {
-            "center" or "centre"=>TextAlignment.Center,
-            "right"=>TextAlignment.Right,
-            "justify"=>TextAlignment.Justify,
-            _=>TextAlignment.Left
-        });
-        range.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
-            spec.MarginLeft,spec.MarginTop,spec.MarginRight,spec.MarginBottom));
     }
 
     StyleSetStore.TextStyle? ResolveStyle(string style)
@@ -3355,6 +3358,7 @@ public partial class MainWindow : Window
     {
         if(paragraph.Tag is string tag && tag.StartsWith(ParagraphStyleTagPrefix,StringComparison.Ordinal))
             return tag[ParagraphStyleTagPrefix.Length..];
+        if(DocxInterop.GetImportedParagraphRole(paragraph) is string importedRole)return importedRole;
 
         var probe=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
         var family=probe.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;

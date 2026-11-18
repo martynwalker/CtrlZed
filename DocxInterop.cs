@@ -33,7 +33,31 @@ public static class DocxInterop
 {
     static readonly ConditionalWeakTable<FlowDocument,W.Styles> ImportedStyleDefinitions=new();
     static readonly ConditionalWeakTable<Paragraph,ImportedParagraphStyle> ImportedParagraphStyles=new();
-    sealed record ImportedParagraphStyle(string? Id);
+    sealed record ImportedParagraphStyle(string? Id,string? Role);
+
+    internal static string? GetImportedParagraphRole(Paragraph paragraph)
+        =>ImportedParagraphStyles.TryGetValue(paragraph,out var style)?style.Role:null;
+
+    static string? ImportedStyleRole(MainDocumentPart main,string? styleId)
+    {
+        static string? KnownRole(string? value)
+            =>string.Concat((value??"").Where(c=>!char.IsWhiteSpace(c))).ToLowerInvariant() switch
+            {
+                "normal"=>"Normal",
+                "heading1"=>"Heading 1",
+                "heading2"=>"Heading 2",
+                "heading3"=>"Heading 3",
+                "quote"=>"Quote",
+                "caption"=>"Caption",
+                _=>null
+            };
+
+        var name=main.StyleDefinitionsPart?.Styles?.Elements<W.Style>()
+            .FirstOrDefault(style=>style.Type?.Value==W.StyleValues.Paragraph &&
+                string.Equals(style.StyleId?.Value,styleId,StringComparison.OrdinalIgnoreCase))
+            ?.GetFirstChild<W.StyleName>()?.Val?.Value;
+        return KnownRole(styleId)??KnownRole(name);
+    }
 
     sealed record NumberingInfo(int NumberId,int Level,TextMarkerStyle MarkerStyle);
 
@@ -804,9 +828,9 @@ public static class DocxInterop
     {
         var result=new Paragraph();
         var style=source.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
-        ImportedParagraphStyles.Add(result,new ImportedParagraphStyle(style));
         var effectiveStyle=style??main.StyleDefinitionsPart?.Styles?.Elements<W.Style>()
             .FirstOrDefault(item=>item.Type?.Value==W.StyleValues.Paragraph && item.Default?.Value==true)?.StyleId?.Value;
+        ImportedParagraphStyles.Add(result,new ImportedParagraphStyle(style,ImportedStyleRole(main,effectiveStyle)));
         if(!string.IsNullOrWhiteSpace(effectiveStyle))ApplyImportedStyle(main,result,effectiveStyle);
         ApplyParagraphProperties(result,source.ParagraphProperties);
         AppendParagraphContent(main,result,source);
