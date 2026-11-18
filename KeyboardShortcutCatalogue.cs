@@ -131,8 +131,6 @@ public partial class MainWindow
         }
         beta34KeyboardCatalogueInstalled=true;
 
-        MainMenu.AddHandler(MenuItem.SubmenuOpenedEvent,new RoutedEventHandler((_,__)=>RefreshBeta34KeyboardLabels()));
-
         var help=FindBeta34MenuItem("Help","Keyboard Shortcuts");
         if(help!=null)
         {
@@ -174,7 +172,8 @@ public partial class MainWindow
         foreach(var entry in CtrlZedKeyboardCatalogue.All.Where(x=>!string.IsNullOrWhiteSpace(x.MenuPath)))
         {
             var item=FindBeta34MenuItem(entry.MenuPath!.Split('>',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries));
-            if(item!=null)item.InputGestureText=entry.For(Beta34KeyboardProfile);
+            var gesture=entry.For(Beta34KeyboardProfile);
+            if(item!=null && item.InputGestureText!=gesture)item.InputGestureText=gesture;
         }
     }
 

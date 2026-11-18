@@ -14,9 +14,6 @@ public partial class MainWindow
         if(beta32MenuPolishInstalled || MainMenu==null)return;
         beta32MenuPolishInstalled=true;
 
-        foreach(var topLevel in MainMenu.Items.OfType<MenuItem>())
-            topLevel.SubmenuOpened+=(_,__)=>ApplyBeta32MenuPolish();
-
         ApplyBeta32MenuPolish();
     }
 
@@ -30,13 +27,16 @@ public partial class MainWindow
             {
                 if(entry is not MenuItem item)continue;
                 if(item.Header is string caption && caption.Contains("&&",StringComparison.Ordinal))
-                    item.Header=caption.Replace("&&","&",StringComparison.Ordinal);
+                    item.Header=CleanMenuCaption(caption);
                 Polish(item.Items);
             }
         }
 
         Polish(MainMenu.Items);
     }
+
+    static string CleanMenuCaption(string caption)
+        =>caption.Replace("&&","&",StringComparison.Ordinal);
 }
 
 internal static class Beta32UiPolishBootstrap

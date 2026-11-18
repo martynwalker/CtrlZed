@@ -52,7 +52,7 @@ public partial class MainWindow
         settings.Tag="CtrlZedSettingsMenu";
         settings.Items.Clear();
 
-        var general=new MenuItem{Header="_General…"};
+        var general=new MenuItem{Header="_General…",InputGestureText=KeyboardMenuGesture("File>Settings>General")};
         general.Click+=Settings_Click;
         var language=new MenuItem{Header="_Language & Writing Mode…"};
         language.Click+=LanguageSettings_Click;

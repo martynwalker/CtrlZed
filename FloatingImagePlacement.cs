@@ -222,7 +222,7 @@ public partial class MainWindow
 
     void RefreshFloatingImagePlacements()
     {
-        if(!IsLoaded||BehindTextCanvas==null)return;
+        if(!IsLoaded||BehindTextCanvas==null||floatingImagePlacements.Count==0)return;
         Editor.UpdateLayout();
 
         var images=EnumerateImageContainers(Editor.Document).ToList();
@@ -357,6 +357,7 @@ public partial class MainWindow
 
     bool BeginFloatingImageDrag(MouseButtonEventArgs e)
     {
+        if(floatingImagePlacements.Count==0)return false;
         var point=e.GetPosition(BehindTextCanvas);
         var hit=FindFloatingImageAt(point);
         if(hit==null)return false;

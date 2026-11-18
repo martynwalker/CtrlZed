@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 
 namespace CtrlZed;
@@ -120,16 +119,6 @@ public partial class MainWindow
             :new SolidColorBrush(Color.FromRgb(225,225,225));
         PageBorder.BorderThickness=paged?new Thickness(1):new Thickness(0);
         PageBorder.CornerRadius=paged?new CornerRadius(1):new CornerRadius(0);
-        PageBorder.Effect=paged
-            ?new DropShadowEffect
-            {
-                BlurRadius=10,
-                Direction=270,
-                ShadowDepth=2,
-                Opacity=0.18,
-                Color=Colors.Black
-            }
-            :null;
 
         var scroll=FindVisualAncestor<ScrollViewer>(PageBorder);
         if(scroll!=null)

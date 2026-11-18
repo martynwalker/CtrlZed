@@ -122,6 +122,8 @@ public partial class MainWindow
     string beta35PaginationCacheKey="";
     int beta35PaginationGeneration;
     TextBlock? beta35PageStatus;
+    bool beta35PageStatusQueued;
+    DispatcherOperation? beta35PendingNavigationScroll;
 
     internal void InstallBeta35PaginationMap()
     {
@@ -148,7 +150,7 @@ public partial class MainWindow
         };
 
         Editor.TextChanged+=(_,__)=>ScheduleBeta35PaginationMap();
-        Editor.SelectionChanged+=(_,__)=>UpdateBeta35PageStatus();
+        Editor.SelectionChanged+=(_,__)=>QueueBeta35PageStatusUpdate();
         PageBorder.SizeChanged+=(_,__)=>ScheduleBeta35PaginationMap();
 
         var statusBar=FindBeta35Descendant<StatusBar>(this);
@@ -277,22 +279,25 @@ public partial class MainWindow
         UpdateBeta35PageStatus();
     }
 
+    void QueueBeta35PageStatusUpdate()
+    {
+        if(beta35PageStatusQueued)return;
+        beta35PageStatusQueued=true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background,new Action(()=>
+        {
+            beta35PageStatusQueued=false;
+            UpdateBeta35PageStatus();
+        }));
+    }
+
     void UpdateBeta35PageStatus()
     {
         if(beta35PageStatus==null)return;
-        if(CurrentEditorViewMode!=EditorViewMode.Paged)
-        {
-            beta35PageStatus.Text="Continuous view";
-            return;
-        }
         var map=beta35PaginationMap;
-        if(map==null)
-        {
-            beta35PageStatus.Text="Page map updating…";
-            return;
-        }
-
-        beta35PageStatus.Text=$"Page {CurrentBeta35PageNumber(map)} of {map.PageCount}";
+        var text=CurrentEditorViewMode!=EditorViewMode.Paged
+            ?"Continuous view"
+            :map==null?"Page map updating…":$"Page {CurrentBeta35PageNumber(map)} of {map.PageCount}";
+        if(beta35PageStatus.Text!=text)beta35PageStatus.Text=text;
     }
 
     int CurrentBeta35PageNumber(PaginationMapResult map)
@@ -355,6 +360,7 @@ public partial class MainWindow
         };
         var go=new Button{Content="Go",Width=76,IsDefault=true,Margin=new Thickness(4)};
         var cancel=new Button{Content="Cancel",Width=76,IsCancel=true,Margin=new Thickness(4)};
+        TextPointer? destination=null;
         go.Click+=(_,__)=>
         {
             if(!int.TryParse(input.Text,out var requested) ||
@@ -379,11 +385,7 @@ public partial class MainWindow
                 return;
             }
 
-            Editor.Selection.Select(target,target);
-            Editor.CaretPosition=target;
-            Editor.Focus();
-            ScrollBeta35TextPointerIntoView(target);
-            UpdateBeta35PageStatus();
+            destination=target;
             w.DialogResult=true;
         };
         cancel.Click+=(_,__)=>w.DialogResult=false;
@@ -392,17 +394,31 @@ public partial class MainWindow
         root.Children.Add(buttons);
         w.Content=root;
         w.Loaded+=(_,__)=>{input.Focus();input.SelectAll();};
-        w.ShowDialog();
+        if(w.ShowDialog()==true && destination!=null)NavigateToBeta35TextPointer(destination);
     }
 
     void GoToPage_Click(object sender,RoutedEventArgs e)
         =>ShowBeta35GoToPageDialog();
 
+    void NavigateToBeta35TextPointer(TextPointer target)
+    {
+        Editor.Focus();
+        Editor.Selection.Select(target,target);
+        var document=Editor.Document;
+        var caret=Editor.CaretPosition;
+        beta35PendingNavigationScroll?.Abort();
+        beta35PendingNavigationScroll=Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(()=>
+        {
+            beta35PendingNavigationScroll=null;
+            if(ReferenceEquals(document,Editor.Document) && caret.CompareTo(Editor.CaretPosition)==0)
+                ScrollBeta35TextPointerIntoView(caret);
+        }));
+    }
+
     void ScrollBeta35TextPointerIntoView(TextPointer target)
     {
         try
         {
-            Editor.UpdateLayout();
             var rect=target.GetCharacterRect(LogicalDirection.Forward);
             if(rect.IsEmpty || !double.IsFinite(rect.Top))return;
 

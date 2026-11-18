@@ -651,10 +651,7 @@ public partial class MainWindow : Window
         try
         {
             var target=item.Paragraph.ContentStart;
-            Editor.Focus();
-            Editor.Selection.Select(target,target);
-            Editor.CaretPosition=target;
-            ScrollBeta35TextPointerIntoView(target);
+            NavigateToBeta35TextPointer(target);
         }
         catch { }
     }
@@ -1671,7 +1668,7 @@ public partial class MainWindow : Window
         }
         foreach(var path in recentFiles.ToList())
         {
-            var item=new MenuItem{Header=System.IO.Path.GetFileName(path),ToolTip=path,Tag=path};
+            var item=new MenuItem{Header=CleanMenuCaption(System.IO.Path.GetFileName(path)),ToolTip=path,Tag=path};
             item.Click+=RecentFile_Click;
             RecentFilesMenu.Items.Add(item);
         }
@@ -2122,14 +2119,11 @@ public partial class MainWindow : Window
 
     void Editor_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
     {
-        if(BeginFloatingImageDrag(e))return;
+        if(BeginFloatingImageDrag(e) || e.ClickCount!=2)return;
         var img=FindPictureAtPoint(e.GetPosition(Editor));
         if(img==null)return;
-        if(e.ClickCount==2)
-        {
-            e.Handled=true;
-            ShowPicturePropertiesSafely(img);
-        }
+        e.Handled=true;
+        ShowPicturePropertiesSafely(img);
     }
 
     void Editor_PreviewMouseRightButtonDown(object sender,MouseButtonEventArgs e)
@@ -2319,7 +2313,7 @@ public partial class MainWindow : Window
     MenuItem CreateMacroCommand((string Name,string Source) macro,MacroMenuMetadata meta)
     {
         var shortcut=MacroShortcutFromSource(macro.Source);
-        var item=new MenuItem{Header=meta.Name,Tag=new MacroMenuTag("Command",meta.Position),
+        var item=new MenuItem{Header=CleanMenuCaption(meta.Name),Tag=new MacroMenuTag("Command",meta.Position),
             InputGestureText=shortcut!=null && ReservedShortcutCommand(shortcut)==null?shortcut:""};
         item.Click+=async (_,__)=>
         {
@@ -2390,7 +2384,7 @@ public partial class MainWindow : Window
             .ThenBy(x=>x.Meta!.Name,StringComparer.CurrentCultureIgnoreCase))
         {
             var meta=entry.Meta!;
-            var segments=meta.Path.Split('/',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+            var segments=CleanMenuCaption(meta.Path).Split('/',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
             if(segments.Length==0)continue;
 
             MenuItem? current=MainMenu.Items.OfType<MenuItem>()
