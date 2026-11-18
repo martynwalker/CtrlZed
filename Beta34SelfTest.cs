@@ -4,6 +4,8 @@ using W=DocumentFormat.OpenXml.Wordprocessing;
 using System.IO;
 using System.Windows;
 using System.Windows.Documents;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using System.Windows.Media;
 
 namespace CtrlZed;
@@ -113,6 +115,48 @@ public static class Beta34SelfTest
             var importedCell=importedTable?.RowGroups.FirstOrDefault()?.Rows.FirstOrDefault()?.Cells.FirstOrDefault();
             if(importedCell==null || importedCell.ColumnSpan!=2)return 75;
             if(importedCell.Background is not SolidColorBrush cellBackground || cellBackground.Color.B!=250)return 76;
+
+            var pixels=new byte[]{0,0,255,255};
+            var bitmap=BitmapSource.Create(1,1,96,96,PixelFormats.Bgra32,null,pixels,4);
+            var picture=new Image{Source=bitmap,Width=120,Height=90,ToolTip="Round-trip picture"};
+            var sourceDocument=new FlowDocument(new Paragraph(new Run("Custom heading")));
+            sourceDocument.Blocks.Add(new Paragraph(new InlineUIContainer(picture)));
+            var sourcePath=Path.Combine(root,"styled-source.docx");
+            var targetPath=Path.Combine(root,"styled-target.docx");
+            DocxInterop.Save(sourcePath,sourceDocument);
+            using(var sourceWord=WordprocessingDocument.Open(sourcePath,true))
+            {
+                var main=sourceWord.MainDocumentPart!;
+                var styles=main.StyleDefinitionsPart!.Styles!;
+                styles.Append(new W.Style(new W.StyleName{Val="Article heading"},
+                    new W.BasedOn{Val="Heading2"})
+                    {StyleId="ArticleHeading",Type=W.StyleValues.Paragraph});
+                styles.Save();
+                var heading=main.Document.Body!.Elements<W.Paragraph>().First();
+                heading.ParagraphProperties!.PrependChild(new W.ParagraphStyleId{Val="ArticleHeading"});
+                main.Document.Save();
+            }
+            var editable=DocxInterop.Load(sourcePath);
+            ((Run)((Paragraph)editable.Blocks.FirstBlock!).Inlines.FirstInline!).Text+=" edited";
+            DocxInterop.Save(targetPath,editable);
+            using(var targetWord=WordprocessingDocument.Open(targetPath,false))
+            {
+                var main=targetWord.MainDocumentPart!;
+                var custom=main.StyleDefinitionsPart!.Styles!.Elements<W.Style>()
+                    .SingleOrDefault(style=>style.StyleId?.Value=="ArticleHeading");
+                if(custom?.StyleName?.Val?.Value!="Article heading" || custom.BasedOn?.Val?.Value!="Heading2")
+                    throw new InvalidOperationException("The custom heading style definition was lost.");
+                var heading=main.Document.Body!.Elements<W.Paragraph>().First();
+                if(heading.ParagraphProperties?.ParagraphStyleId?.Val?.Value!="ArticleHeading" ||
+                   heading.InnerText!="Custom heading edited")
+                    throw new InvalidOperationException("The edited paragraph lost its custom heading style.");
+            }
+            var reopened=DocxInterop.Load(targetPath);
+            var reopenedPicture=((Paragraph)reopened.Blocks.LastBlock!).Inlines.OfType<InlineUIContainer>()
+                .Select(item=>item.Child).OfType<Image>().Single();
+            if(reopenedPicture.Width!=120 || reopenedPicture.Height!=90 ||
+               reopenedPicture.ToolTip?.ToString()!="Round-trip picture")
+                throw new InvalidOperationException("The picture size or description changed on round trip.");
 
             return 0;
         }

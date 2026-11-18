@@ -284,8 +284,16 @@ public partial class MainWindow : Window
             if(ext==".czd")SaveCzd(currentFile);
             else if(ext==".docx")
             {
-                var exportClone=CloneDocument();
-                DocxInterop.Save(currentFile,exportClone,headerText,footerText,pageWidth,pageHeight,pageMargins,documentTitle,documentAuthor,documentSubject,documentKeywords);
+                var temporaryPath=currentFile+"."+Guid.NewGuid().ToString("N")+".tmp";
+                try
+                {
+                    DocxInterop.Save(temporaryPath,Editor.Document,headerText,footerText,pageWidth,pageHeight,pageMargins,documentTitle,documentAuthor,documentSubject,documentKeywords);
+                    File.Move(temporaryPath,currentFile,true);
+                }
+                finally
+                {
+                    if(File.Exists(temporaryPath))File.Delete(temporaryPath);
+                }
             }
             else if(ext==".txt")File.WriteAllText(currentFile,new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text);
             else SaveRtf(currentFile);
@@ -2943,7 +2951,7 @@ public partial class MainWindow : Window
         return StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec)?spec:null;
     }
 
-    const string ParagraphStyleTagPrefix="CtrlZed:ParagraphStyle:";
+    internal const string ParagraphStyleTagPrefix="CtrlZed:ParagraphStyle:";
 
     void RememberParagraphStyle(TextRange range,string style)
     {

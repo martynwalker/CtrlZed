@@ -5,6 +5,7 @@ using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -30,6 +31,10 @@ public sealed class DocxLoadResult
 
 public static class DocxInterop
 {
+    static readonly ConditionalWeakTable<FlowDocument,W.Styles> ImportedStyleDefinitions=new();
+    static readonly ConditionalWeakTable<Paragraph,ImportedParagraphStyle> ImportedParagraphStyles=new();
+    sealed record ImportedParagraphStyle(string? Id);
+
     sealed record NumberingInfo(int NumberId,int Level,TextMarkerStyle MarkerStyle);
 
     public static void Save(string path,FlowDocument document)
@@ -50,7 +55,8 @@ public static class DocxInterop
         word.PackageProperties.Subject=subject??"";
         word.PackageProperties.Keywords=keywords??"";
 
-        EnsureStyles(main);
+        ImportedStyleDefinitions.TryGetValue(document,out var originalStyles);
+        EnsureStyles(main,originalStyles);
         EnsureNumbering(main);
         EnsureDocumentSettings(main);
 
@@ -114,6 +120,9 @@ public static class DocxInterop
         var main=word.MainDocumentPart;
         var body=main?.Document?.Body;
         if(main==null || body==null)return new DocxLoadResult{Document=result};
+
+        if(main.StyleDefinitionsPart?.Styles is W.Styles styles)
+            ImportedStyleDefinitions.Add(result,(W.Styles)styles.CloneNode(true));
 
         var children=body.ChildElements.ToList();
         for(var i=0;i<children.Count;i++)
@@ -204,7 +213,7 @@ public static class DocxInterop
         part.Settings.Save();
     }
 
-    static void EnsureStyles(MainDocumentPart main)
+    static void EnsureStyles(MainDocumentPart main,W.Styles? originalStyles)
     {
         var part=main.StyleDefinitionsPart??main.AddNewPart<StyleDefinitionsPart>();
         if(part.Styles!=null && part.Styles.Elements<W.Style>().Any())return;
@@ -216,6 +225,14 @@ public static class DocxInterop
         styles.Append(CreateParagraphStyle("Heading3","heading 3","Normal","Normal",true,24,true,false,160,80,0,0));
         styles.Append(CreateParagraphStyle("Quote","Quote","Normal","Normal",false,22,false,true,120,120,540,540));
         styles.Append(CreateParagraphStyle("Caption","Caption","Normal","Normal",false,18,false,true,40,120,0,0));
+        if(originalStyles!=null)
+        {
+            var merged=(W.Styles)originalStyles.CloneNode(true);
+            var ids=merged.Elements<W.Style>().Select(style=>style.StyleId?.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach(var style in styles.Elements<W.Style>())
+                if(ids.Add(style.StyleId?.Value))merged.Append(style.CloneNode(true));
+            styles=merged;
+        }
         part.Styles=styles;
         part.Styles.Save();
     }
@@ -573,11 +590,11 @@ public static class DocxInterop
 
         var weightValue=effective.GetPropertyValue(TextElement.FontWeightProperty);
         var weight=weightValue is FontWeight fontWeight?fontWeight:run.FontWeight;
-        if(weight.ToOpenTypeWeight()>=600)properties.Append(new W.Bold());
+        properties.Append(new W.Bold{Val=weight.ToOpenTypeWeight()>=600});
 
         var styleValue=effective.GetPropertyValue(TextElement.FontStyleProperty);
         var style=styleValue is FontStyle fontStyle?fontStyle:run.FontStyle;
-        if(style==FontStyles.Italic)properties.Append(new W.Italic());
+        properties.Append(new W.Italic{Val=style==FontStyles.Italic});
 
         var decorationValue=effective.GetPropertyValue(Inline.TextDecorationsProperty);
         var decorations=decorationValue as TextDecorationCollection??run.TextDecorations;
@@ -787,7 +804,10 @@ public static class DocxInterop
     {
         var result=new Paragraph();
         var style=source.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
-        if(!string.IsNullOrWhiteSpace(style))ApplyImportedStyle(main,result,style);
+        ImportedParagraphStyles.Add(result,new ImportedParagraphStyle(style));
+        var effectiveStyle=style??main.StyleDefinitionsPart?.Styles?.Elements<W.Style>()
+            .FirstOrDefault(item=>item.Type?.Value==W.StyleValues.Paragraph && item.Default?.Value==true)?.StyleId?.Value;
+        if(!string.IsNullOrWhiteSpace(effectiveStyle))ApplyImportedStyle(main,result,effectiveStyle);
         ApplyParagraphProperties(result,source.ParagraphProperties);
         AppendParagraphContent(main,result,source);
         return result;
@@ -823,7 +843,7 @@ public static class DocxInterop
     {
         var relationshipId=drawing.Descendants<A.Blip>().FirstOrDefault()?.Embed?.Value;
         if(string.IsNullOrWhiteSpace(relationshipId))return null;
-        if(main.GetPartById(relationshipId) is not ImagePart part)return null;
+        if(!main.TryGetPartById(relationshipId,out var relatedPart) || relatedPart is not ImagePart part)return null;
 
         BitmapImage bitmap;
         using(var stream=part.GetStream())
@@ -854,9 +874,9 @@ public static class DocxInterop
     {
         if(properties==null)return;
         var bold=properties.GetFirstChild<W.Bold>();
-        if(bold!=null && (bold.Val?.Value??true))target.FontWeight=FontWeights.Bold;
+        if(bold!=null)target.FontWeight=(bold.Val?.Value??true)?FontWeights.Bold:FontWeights.Normal;
         var italic=properties.GetFirstChild<W.Italic>();
-        if(italic!=null && (italic.Val?.Value??true))target.FontStyle=FontStyles.Italic;
+        if(italic!=null)target.FontStyle=(italic.Val?.Value??true)?FontStyles.Italic:FontStyles.Normal;
 
         if(target is Inline inline)
         {
@@ -924,7 +944,8 @@ public static class DocxInterop
     {
         if(properties==null)return;
         var justification=properties.GetFirstChild<W.Justification>()?.Val?.Value;
-        if(justification==W.JustificationValues.Center)paragraph.TextAlignment=TextAlignment.Center;
+        if(justification==W.JustificationValues.Left)paragraph.TextAlignment=TextAlignment.Left;
+        else if(justification==W.JustificationValues.Center)paragraph.TextAlignment=TextAlignment.Center;
         else if(justification==W.JustificationValues.Right)paragraph.TextAlignment=TextAlignment.Right;
         else if(justification==W.JustificationValues.Both)paragraph.TextAlignment=TextAlignment.Justify;
         var pageBreak=properties.GetFirstChild<W.PageBreakBefore>();
@@ -1020,6 +1041,10 @@ public static class DocxInterop
 
     static string? DetectStyleId(Paragraph paragraph)
     {
+        if(paragraph.Tag is string role && role.StartsWith(MainWindow.ParagraphStyleTagPrefix,StringComparison.Ordinal))
+            return role[MainWindow.ParagraphStyleTagPrefix.Length..].Replace(" ","");
+        if(ImportedParagraphStyles.TryGetValue(paragraph,out var originalStyle))return originalStyle.Id;
+
         var range=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
         var sizeValue=range.GetPropertyValue(TextElement.FontSizeProperty);
         var weightValue=range.GetPropertyValue(TextElement.FontWeightProperty);
@@ -1051,7 +1076,8 @@ public static class DocxInterop
             ApplyTextProperties(paragraph,style.StyleRunProperties);
         }
         Apply(styleId);
-        if(visited.Count==0)ApplyBuiltInStyle(paragraph,styleId);
+        if(styles?.Elements<W.Style>().Any(x=>string.Equals(x.StyleId?.Value,styleId,StringComparison.OrdinalIgnoreCase))!=true)
+            ApplyBuiltInStyle(paragraph,styleId);
     }
 
     static void ApplyBuiltInStyle(Paragraph paragraph,string style)
