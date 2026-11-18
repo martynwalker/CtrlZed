@@ -103,7 +103,7 @@ public partial class MainWindow : Window
         FontBox.SelectedItem = Fonts.SystemFontFamilies.FirstOrDefault(f => f.Source == "Calibri") ?? Fonts.SystemFontFamilies.First();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
-        Editor.SelectionChanged += (_,__) => RefreshFontBox();
+        Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
         Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;
         Editor.PreviewMouseRightButtonDown += Editor_PreviewMouseRightButtonDown;
 
@@ -4939,10 +4939,25 @@ INSERT_FIELD date
     }
 
     bool refreshingFontBox;
+    bool fontBoxRefreshQueued;
+
+    void QueueFontBoxRefresh()
+    {
+        if(fontBoxRefreshQueued)return;
+        fontBoxRefreshQueued=true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background,new Action(()=>
+        {
+            fontBoxRefreshQueued=false;
+            RefreshFontBox();
+        }));
+    }
 
     void RefreshFontBox()
     {
         var current=Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
+        var shown=FontBox.SelectedItem as FontFamily;
+        if(string.Equals(current?.Source,shown?.Source,StringComparison.OrdinalIgnoreCase))return;
+
         refreshingFontBox=true;
         try
         {
