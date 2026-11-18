@@ -2310,8 +2310,9 @@ public partial class MainWindow : Window
 
     MenuItem CreateMacroCommand((string Name,string Source) macro,MacroMenuMetadata meta)
     {
+        var shortcut=MacroShortcutFromSource(macro.Source);
         var item=new MenuItem{Header=meta.Name,Tag=new MacroMenuTag("Command",meta.Position),
-            InputGestureText=MacroShortcutFromSource(macro.Source)??""};
+            InputGestureText=shortcut!=null && ReservedShortcutCommand(shortcut)==null?shortcut:""};
         item.Click+=async (_,__)=>
         {
             try
@@ -4725,15 +4726,32 @@ INSERT_FIELD date
         return string.Join(Environment.NewLine,lines);
     }
 
-    bool IsReservedShortcut(string shortcut)
+    string? ReservedShortcutCommand(string shortcut)
     {
-        var reserved=profile switch
+        foreach(var entry in CtrlZedKeyboardCatalogue.All)
         {
-            KeyboardProfile.WordPerfect51=>new[]{"F3","F7","Shift+F7","Shift+F6"},
-            KeyboardProfile.WordStar40=>new[]{"Ctrl+K","Ctrl+E","Ctrl+X","Ctrl+S","Ctrl+D"},
-            _=>new[]{"Ctrl+N","Ctrl+O","Ctrl+S","Ctrl+Shift+S","Ctrl+P","Ctrl+H","Ctrl+Enter","Ctrl+B","Ctrl+I","Ctrl+U","Ctrl+Z","Ctrl+Y","Ctrl+X","Ctrl+C","Ctrl+V","F9"}
+            var gesture=entry.For(Beta34KeyboardProfile);
+            var separator=gesture.IndexOf(',');
+            var firstKey=separator<0?gesture.AsSpan():gesture.AsSpan(0,separator);
+            if(firstKey.Equals(shortcut.AsSpan(),StringComparison.OrdinalIgnoreCase))
+                return entry.Command;
+        }
+
+        return shortcut.ToUpperInvariant() switch
+        {
+            "CTRL+S"=>"Save",
+            "CTRL+X"=>"Cut",
+            "CTRL+C"=>"Copy",
+            "CTRL+V"=>"Paste",
+            "CTRL+Z"=>"Undo",
+            "CTRL+Y"=>"Redo",
+            "CTRL+A"=>"Select All",
+            "CTRL+B"=>"Bold",
+            "CTRL+I"=>"Italic",
+            "CTRL+U"=>"Underline",
+            "ALT+F4"=>"Close Window",
+            _=>null
         };
-        return reserved.Contains(shortcut,StringComparer.OrdinalIgnoreCase);
     }
 
     string? CaptureMacroShortcut(Window owner,string current,string? selectedMacro)
@@ -4761,31 +4779,44 @@ INSERT_FIELD date
         var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
         buttons.Children.Add(clear);buttons.Children.Add(assign);buttons.Children.Add(cancel);root.Children.Add(buttons);
 
-        w.PreviewKeyDown+=(_,e)=>
+        var assignments=GetMacroSources()
+            .Where(m=>!string.Equals(m.Name,selectedMacro,StringComparison.OrdinalIgnoreCase))
+            .Select(m=>(m.Name,Shortcut:MacroShortcutFromSource(m.Source)))
+            .ToList();
+
+        void ValidateShortcut(string value)
         {
-            if(e.Key is Key.Escape or Key.Enter)return;
-            var value=BuildShortcutString(e);
+            display.Text=value;
+            assign.IsEnabled=false;
             if(string.IsNullOrWhiteSpace(value))
             {
-                status.Text="Use at least one of Ctrl, Alt or Shift with another key.";
+                status.Text="Press a shortcut using Ctrl, Alt or Shift.";
                 return;
             }
-            if(IsReservedShortcut(value))
+            var reserved=ReservedShortcutCommand(value);
+            if(reserved!=null)
             {
-                display.Text=value;assign.IsEnabled=false;
-                status.Text="That combination is reserved by the selected keyboard profile.";
-                e.Handled=true;return;
+                status.Text=$"{value} is reserved for {reserved} in this keyboard profile.";
+                return;
             }
-            var conflict=GetMacroSources().FirstOrDefault(m=>
-                !string.Equals(m.Name,selectedMacro,StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(MacroShortcutFromSource(m.Source),value,StringComparison.OrdinalIgnoreCase));
+            var conflict=assignments.Find(m=>string.Equals(m.Shortcut,value,StringComparison.OrdinalIgnoreCase));
             if(!string.IsNullOrWhiteSpace(conflict.Name))
             {
-                display.Text=value;assign.IsEnabled=false;
                 status.Text=$"Already assigned to {conflict.Name}.";
-                e.Handled=true;return;
+                return;
             }
-            display.Text=value;status.Text="Available.";assign.IsEnabled=true;e.Handled=true;
+            status.Text="Available.";
+            assign.IsEnabled=true;
+        }
+
+        ValidateShortcut(current);
+        w.PreviewKeyDown+=(_,e)=>
+        {
+            if(Keyboard.Modifiers==ModifierKeys.None && (e.Key is Key.Escape or Key.Enter))return;
+            var value=BuildShortcutString(e);
+            if(string.IsNullOrWhiteSpace(value))return;
+            ValidateShortcut(value);
+            e.Handled=true;
         };
         assign.Click+=(_,__)=>{chosen=display.Text.Trim();w.DialogResult=true;};
         clear.Click+=(_,__)=>{chosen="";w.DialogResult=true;};
@@ -4797,7 +4828,7 @@ INSERT_FIELD date
     {
         if(e.IsRepeat)return false;
         var pressed=BuildShortcutString(e);
-        if(string.IsNullOrWhiteSpace(pressed))return false;
+        if(string.IsNullOrWhiteSpace(pressed) || ReservedShortcutCommand(pressed)!=null)return false;
 
         foreach(var macro in GetMacroSources())
         {
@@ -4805,6 +4836,7 @@ INSERT_FIELD date
             if(string.IsNullOrWhiteSpace(shortcut))continue;
             if(string.Equals(shortcut,pressed,StringComparison.OrdinalIgnoreCase))
             {
+                e.Handled=true;
                 try{await RunMacroSourceAsync(macro.Name,macro.Source);Status.Text="Macro: "+macro.Name;}
                 catch(Exception ex){ShowMacroError(macro.Name,macro.Source,ex);}
                 return true;
@@ -4815,6 +4847,7 @@ INSERT_FIELD date
 
     static string BuildShortcutString(KeyEventArgs e)
     {
+        if(Keyboard.Modifiers.HasFlag(ModifierKeys.Windows))return "";
         var parts=new List<string>();
         if(Keyboard.Modifiers.HasFlag(ModifierKeys.Control))parts.Add("Ctrl");
         if(Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))parts.Add("Alt");
@@ -4855,6 +4888,7 @@ INSERT_FIELD date
         }
         wordStarPrefix=false;
         UpdateKeyboardMenuState();
+        RefreshMacroMenus();
         SaveAppSettings();
     }
 
