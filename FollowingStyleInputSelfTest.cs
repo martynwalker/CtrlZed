@@ -166,10 +166,22 @@ public partial class MainWindow
     }
 
     static void PressReturn()=>SendKeys(new[]{KeyInput(0x0D),KeyInput(0x0D,true)});
-    static void TypeInput(string text)=>SendKeys(text.SelectMany(c=>new[]{
-        new NativeInput{Type=1,Data=new InputUnion{Keyboard=new KeyboardInput{Scan=c,Flags=4}}},
-        new NativeInput{Type=1,Data=new InputUnion{Keyboard=new KeyboardInput{Scan=c,Flags=6}}}
-    }).ToArray());
+    static void TypeInput(string text)
+    {
+        var inputs=new System.Collections.Generic.List<NativeInput>();
+        foreach(var c in text)
+        {
+            if(c!=' ' && (c<'A' || c>'Z') && (c<'a' || c>'z'))
+                throw new InvalidOperationException("The keyboard fixture requires ASCII letters and spaces.");
+            var shift=c>='A' && c<='Z';
+            var key=(ushort)(c==' '?0x20:char.ToUpperInvariant(c));
+            if(shift)inputs.Add(KeyInput(0x10));
+            inputs.Add(KeyInput(key));
+            inputs.Add(KeyInput(key,true));
+            if(shift)inputs.Add(KeyInput(0x10,true));
+        }
+        SendKeys(inputs.ToArray());
+    }
 
     static NativeInput KeyInput(ushort key,bool up=false)
         =>new(){Type=1,Data=new InputUnion{Keyboard=new KeyboardInput{Key=key,Flags=up?2U:0U}}};
