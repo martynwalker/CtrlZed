@@ -14,7 +14,6 @@ public partial class MainWindow
         AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(LanguageReviewPreviewKeyDown),true);
         ContentRendered+=(_,__)=>Dispatcher.BeginInvoke(new Action(() =>
         {
-            WireReviewShortcutMenu();
             WireSettingsMenu();
 
             var version=typeof(MainWindow).Assembly
@@ -59,22 +58,6 @@ public partial class MainWindow
         language.Click+=LanguageSettings_Click;
         settings.Items.Add(general);
         settings.Items.Add(language);
-    }
-
-    void WireReviewShortcutMenu()
-    {
-        var review=MainMenu.Items.OfType<MenuItem>()
-            .FirstOrDefault(x=>(x.Tag as string)=="CtrlZedReviewMenu");
-        if(review==null)return;
-
-        void RefreshShortcut()
-        {
-            var next=review.Items.OfType<MenuItem>().FirstOrDefault();
-            if(next!=null)next.InputGestureText=profile==KeyboardProfile.Word?"F7":"";
-        }
-
-        review.SubmenuOpened+=(_,__)=>RefreshShortcut();
-        RefreshShortcut();
     }
 
     void LanguageReviewPreviewKeyDown(object sender,KeyEventArgs e)

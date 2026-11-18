@@ -16,18 +16,6 @@ public partial class MainWindow
         beta33WordChoiceShortcutInstalled=true;
         AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(Beta33WordChoicePreviewKeyDown),true);
 
-        var review=MainMenu.Items.OfType<MenuItem>()
-            .FirstOrDefault(x=>(x.Tag as string)=="CtrlZedReviewMenu");
-        if(review==null)return;
-        void Refresh()
-        {
-            var thesaurus=review.Items.OfType<MenuItem>()
-                .FirstOrDefault(x=>(x.Tag as string)=="CtrlZedContextualThesaurus" ||
-                    (x.Header?.ToString()??"").Contains("Contextual Thesaurus",StringComparison.OrdinalIgnoreCase));
-            if(thesaurus!=null)thesaurus.InputGestureText=profile==KeyboardProfile.Word?"Shift+F7":"";
-        }
-        review.SubmenuOpened+=(_,__)=>Refresh();
-        Refresh();
     }
 
     void Beta33WordChoicePreviewKeyDown(object sender,KeyEventArgs e)

@@ -2150,9 +2150,9 @@ public partial class MainWindow : Window
         AddMacroSubmenu(menu);
         if(menu.Items.Count>0)menu.Items.Add(new Separator());
 
-        var cut=new MenuItem{Header="Cut",Command=ApplicationCommands.Cut,CommandTarget=Editor,InputGestureText="Ctrl+X"};
-        var copy=new MenuItem{Header="Copy",Command=ApplicationCommands.Copy,CommandTarget=Editor,InputGestureText="Ctrl+C"};
-        var paste=new MenuItem{Header="Paste",Command=ApplicationCommands.Paste,CommandTarget=Editor,InputGestureText="Ctrl+V"};
+        var cut=new MenuItem{Header="Cut",Command=ApplicationCommands.Cut,CommandTarget=Editor,InputGestureText=KeyboardMenuGesture("Edit>Cut")};
+        var copy=new MenuItem{Header="Copy",Command=ApplicationCommands.Copy,CommandTarget=Editor,InputGestureText=KeyboardMenuGesture("Edit>Copy")};
+        var paste=new MenuItem{Header="Paste",Command=ApplicationCommands.Paste,CommandTarget=Editor,InputGestureText=KeyboardMenuGesture("Edit>Paste")};
         menu.Items.Add(cut);menu.Items.Add(copy);menu.Items.Add(paste);
         menu.PlacementTarget=Editor;
         menu.IsOpen=true;
@@ -2310,7 +2310,8 @@ public partial class MainWindow : Window
 
     MenuItem CreateMacroCommand((string Name,string Source) macro,MacroMenuMetadata meta)
     {
-        var item=new MenuItem{Header=meta.Name,Tag=new MacroMenuTag("Command",meta.Position)};
+        var item=new MenuItem{Header=meta.Name,Tag=new MacroMenuTag("Command",meta.Position),
+            InputGestureText=MacroShortcutFromSource(macro.Source)??""};
         item.Click+=async (_,__)=>
         {
             try
@@ -4832,26 +4833,7 @@ INSERT_FIELD date
         WPProfile.IsChecked=profile==KeyboardProfile.WordPerfect51;
         WSProfile.IsChecked=profile==KeyboardProfile.WordStar40;
 
-        foreach(var item in new[]{NewMenu,OpenMenu,SaveMenu,SaveAsMenu,PrintMenu,ExitMenu,UndoMenu,RedoMenu,CutMenu,CopyMenu,PasteMenu,FindReplaceMenu,PageBreakMenu,BoldMenu,ItalicMenu,UnderlineMenu,CentreMenu,ReformatMenu,AboutMenu})
-            item.InputGestureText="";
-
-        if(profile==KeyboardProfile.Word)
-        {
-            NewMenu.InputGestureText="Ctrl+N";OpenMenu.InputGestureText="Ctrl+O";SaveMenu.InputGestureText="Ctrl+S";SaveAsMenu.InputGestureText="Ctrl+Shift+S";
-            PrintMenu.InputGestureText="Ctrl+P";UndoMenu.InputGestureText="Ctrl+Z";RedoMenu.InputGestureText="Ctrl+Y";
-            CutMenu.InputGestureText="Ctrl+X";CopyMenu.InputGestureText="Ctrl+C";PasteMenu.InputGestureText="Ctrl+V";
-            FindReplaceMenu.InputGestureText="Ctrl+H";PageBreakMenu.InputGestureText="Ctrl+Enter";
-            BoldMenu.InputGestureText="Ctrl+B";ItalicMenu.InputGestureText="Ctrl+I";UnderlineMenu.InputGestureText="Ctrl+U";
-            ReformatMenu.InputGestureText="F9";
-        }
-        else if(profile==KeyboardProfile.WordPerfect51)
-        {
-            PrintMenu.InputGestureText="Shift+F7";ExitMenu.InputGestureText="F7";CentreMenu.InputGestureText="Shift+F6";AboutMenu.InputGestureText="F3";
-        }
-        else
-        {
-            SaveMenu.InputGestureText="Ctrl+K, S";ExitMenu.InputGestureText="Ctrl+K, X";
-        }
+        RefreshBeta34KeyboardLabels();
     }
 
     void Keyboard_Click(object s,RoutedEventArgs e)

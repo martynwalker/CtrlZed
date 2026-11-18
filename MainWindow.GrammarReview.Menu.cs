@@ -172,9 +172,9 @@ public partial class MainWindow
 
         AddMacroSubmenu(menu);
         if(menu.Items.Count>0)menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem{Header="Cut",Command=ApplicationCommands.Cut,CommandTarget=Editor,InputGestureText="Ctrl+X"});
-        menu.Items.Add(new MenuItem{Header="Copy",Command=ApplicationCommands.Copy,CommandTarget=Editor,InputGestureText="Ctrl+C"});
-        menu.Items.Add(new MenuItem{Header="Paste",Command=ApplicationCommands.Paste,CommandTarget=Editor,InputGestureText="Ctrl+V"});
+        menu.Items.Add(new MenuItem{Header="Cut",Command=ApplicationCommands.Cut,CommandTarget=Editor,InputGestureText=KeyboardMenuGesture("Edit>Cut")});
+        menu.Items.Add(new MenuItem{Header="Copy",Command=ApplicationCommands.Copy,CommandTarget=Editor,InputGestureText=KeyboardMenuGesture("Edit>Copy")});
+        menu.Items.Add(new MenuItem{Header="Paste",Command=ApplicationCommands.Paste,CommandTarget=Editor,InputGestureText=KeyboardMenuGesture("Edit>Paste")});
         menu.PlacementTarget=Editor;
         menu.IsOpen=true;
     }

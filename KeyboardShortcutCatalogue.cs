@@ -33,43 +33,44 @@ public static class CtrlZedKeyboardCatalogue
 {
     public static IReadOnlyList<CtrlZedShortcut> All { get; }=new CtrlZedShortcut[]
     {
-        new("New document","Create a new document.","Ctrl+N","","","File/New"),
-        new("Open","Open or retrieve an existing document.","Ctrl+O","Shift+F10","","File/Open"),
-        new("Import document","Insert another document at the caret.","","","Ctrl+K, R","File/Import"),
-        new("Save","Save the current document.","Ctrl+S","F10","Ctrl+K, S","File/Save"),
+        new("New document","Create a new document.","Ctrl+N","","","File>New"),
+        new("Open","Open or retrieve an existing document.","Ctrl+O","Shift+F10","","File>Open"),
+        new("Import document","Insert another document at the caret.","","","Ctrl+K, R","File>Import"),
+        new("Save","Save the current document.","Ctrl+S","F10","Ctrl+K, S","File>Save"),
         new("Save and continue","WordStar save-document command.","","","Ctrl+K, D"),
-        new("Save As","Save to a new file or format.","Ctrl+Shift+S","","","File/Save As"),
-        new("Print","Print the current document.","Ctrl+P","Shift+F7","Ctrl+K, P","File/Print"),
-        new("Exit","Close CtrlZed.","","F7","Ctrl+K, X","File/Exit"),
+        new("Save As","Save to a new file or format.","Ctrl+Shift+S","","","File>Save As"),
+        new("Print","Print the current document.","Ctrl+P","Shift+F7","Ctrl+K, P","File>Print"),
+        new("Exit","Close CtrlZed.","","F7","Ctrl+K, X","File>Exit"),
         new("Close document","Close with CtrlZed's normal save prompt.","","","Ctrl+K, Q"),
 
-        new("Undo","Undo the most recent editing action.","Ctrl+Z","","","Edit/Undo"),
-        new("Redo","Redo the most recently undone action.","Ctrl+Y","","","Edit/Redo"),
-        new("Cut","Cut the selection.","Ctrl+X","","","Edit/Cut"),
-        new("Copy","Copy the selection.","Ctrl+C","","","Edit/Copy"),
-        new("Paste","Paste at the caret.","Ctrl+V","","","Edit/Paste"),
-        new("Find / Replace","Find and replace text.","Ctrl+H","F2","Ctrl+Q, F","Edit/Find / Replace"),
+        new("Undo","Undo the most recent editing action.","Ctrl+Z","","","Edit>Undo"),
+        new("Redo","Redo the most recently undone action.","Ctrl+Y","","","Edit>Redo"),
+        new("Cut","Cut the selection.","Ctrl+X","","","Edit>Cut"),
+        new("Copy","Copy the selection.","Ctrl+C","","","Edit>Copy"),
+        new("Paste","Paste at the caret.","Ctrl+V","","","Edit>Paste"),
+        new("Find / Replace","Find and replace text.","Ctrl+H","F2","Ctrl+Q, F","Edit>Find / Replace"),
         new("Replace","Open Find / Replace from WordPerfect or WordStar.","","Alt+F2","Ctrl+Q, A"),
 
-        new("Page break","Insert a manual page break.","Ctrl+Enter","","","Insert/Page Break"),
-        new("Insert picture","Insert a picture.","","Alt+F9","","Insert/Picture"),
-        new("Bold","Toggle bold formatting.","Ctrl+B","F6","","Format/Bold"),
-        new("Italic","Toggle italic formatting.","Ctrl+I","","","Format/Italic"),
-        new("Underline","Toggle underline formatting.","Ctrl+U","F8","","Format/Underline"),
+        new("Go to page","Jump to a page in paged editing.","Ctrl+G","Ctrl+G","","Edit>Go to Page"),
+        new("Page break","Insert a manual page break.","Ctrl+Enter","","","Insert>Page Break"),
+        new("Insert picture","Insert a picture.","","Alt+F9","","Insert>Picture"),
+        new("Bold","Toggle bold formatting.","Ctrl+B","F6","","Format>Bold"),
+        new("Italic","Toggle italic formatting.","Ctrl+I","","","Format>Italic"),
+        new("Underline","Toggle underline formatting.","Ctrl+U","F8","","Format>Underline"),
         new("Increase indent","Move the paragraph indentation to the right.","","F4","",""),
         new("Decrease indent","Move the paragraph indentation to the left.","","Shift+F4","",""),
-        new("Centre paragraph","Centre the current paragraph.","","Shift+F6","","Format/Align Centre"),
-        new("Align right","Align the current paragraph to the right.","","Alt+F6","","Format/Align Right"),
-        new("Page setup","Open page and margin settings.","","Shift+F8","","File/Page Setup"),
-        new("Styles","Open the style-set editor.","","Alt+F8","","Format/Styles"),
+        new("Centre paragraph","Centre the current paragraph.","","Shift+F6","","Format>Align Centre"),
+        new("Align right","Align the current paragraph to the right.","","Alt+F6","","Format>Align Right"),
+        new("Page setup","Open page and margin settings.","","Shift+F8","","File>Page Setup"),
+        new("Styles","Open the style-set editor.","","Alt+F8","","Format>Styles>Edit Styles"),
         new("Choose font","Move focus to the font selector.","","Ctrl+F8","",""),
-        new("Reformat document","Choose a style set to apply to the document.","F9","","","Format/Styles/Reformat Document"),
+        new("Reformat document","Choose a style set to apply to the document.","F9","","","Format>Styles>Reformat Document"),
 
-        new("Next spelling error","Move to the next red spelling mark.","F7","Ctrl+F2","","Review/Next Spelling Error"),
-        new("Contextual thesaurus","Open contextual alternatives for the selection or current word.","Shift+F7","","","Review/Contextual Thesaurus"),
-        new("Settings","Open CtrlZed settings.","","Shift+F1","","File/Settings"),
-        new("Fields","Open the fields manager.","","Ctrl+F9","","Tools/Fields"),
-        new("About CtrlZed","Open the About window.","","F3","","Help/About CtrlZed"),
+        new("Next spelling error","Move to the next red spelling mark.","F7","Ctrl+F2","","Review>Next Spelling Error"),
+        new("Contextual thesaurus","Open contextual alternatives for the selection or current word.","Shift+F7","","","Review>Contextual Thesaurus"),
+        new("Settings","Open CtrlZed settings.","","Shift+F1","","File>Settings>General"),
+        new("Fields","Open the fields manager.","","Ctrl+F9","","Tools>Fields"),
+        new("About CtrlZed","Open the About window.","","F3","","Help>About CtrlZed"),
 
         new("Move up one line","WordStar cursor-diamond movement.","","","Ctrl+E"),
         new("Move down one line","WordStar cursor-diamond movement.","","","Ctrl+X"),
@@ -130,13 +131,7 @@ public partial class MainWindow
         }
         beta34KeyboardCatalogueInstalled=true;
 
-        foreach(var top in MainMenu.Items.OfType<MenuItem>())
-            top.SubmenuOpened+=(_,__)=>Dispatcher.BeginInvoke(
-                new Action(RefreshBeta34KeyboardLabels),DispatcherPriority.ContextIdle);
-
-        WordProfile.Click+=Beta34KeyboardProfileChanged;
-        WPProfile.Click+=Beta34KeyboardProfileChanged;
-        WSProfile.Click+=Beta34KeyboardProfileChanged;
+        MainMenu.AddHandler(MenuItem.SubmenuOpenedEvent,new RoutedEventHandler((_,__)=>RefreshBeta34KeyboardLabels()));
 
         var help=FindBeta34MenuItem("Help","Keyboard Shortcuts");
         if(help!=null)
@@ -146,9 +141,6 @@ public partial class MainWindow
         }
         RefreshBeta34KeyboardLabels();
     }
-
-    void Beta34KeyboardProfileChanged(object sender,RoutedEventArgs e)
-        =>Dispatcher.BeginInvoke(new Action(RefreshBeta34KeyboardLabels),DispatcherPriority.ContextIdle);
 
     static string Beta34CleanHeader(object? value)
     {
@@ -174,11 +166,14 @@ public partial class MainWindow
         return current;
     }
 
+    string KeyboardMenuGesture(string path)
+        =>CtrlZedKeyboardCatalogue.All.FirstOrDefault(entry=>entry.MenuPath==path)?.For(Beta34KeyboardProfile)??"";
+
     void RefreshBeta34KeyboardLabels()
     {
         foreach(var entry in CtrlZedKeyboardCatalogue.All.Where(x=>!string.IsNullOrWhiteSpace(x.MenuPath)))
         {
-            var item=FindBeta34MenuItem(entry.MenuPath!.Split('/',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries));
+            var item=FindBeta34MenuItem(entry.MenuPath!.Split('>',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries));
             if(item!=null)item.InputGestureText=entry.For(Beta34KeyboardProfile);
         }
     }
