@@ -103,6 +103,7 @@ public partial class MainWindow : Window
         FontBox.SelectedItem = Fonts.SystemFontFamilies.FirstOrDefault(f => f.Source == "Calibri") ?? Fonts.SystemFontFamilies.First();
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
+        Editor.SelectionChanged += (_,__) => RefreshFontBox();
         Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;
         Editor.PreviewMouseRightButtonDown += Editor_PreviewMouseRightButtonDown;
 
@@ -2959,6 +2960,7 @@ public partial class MainWindow : Window
         if(spec==null)return;
         RememberParagraphStyle(Editor.Selection,style);
         ApplyStyleToRange(Editor.Selection,spec);
+        RefreshFontBox();
         MarkDirty($"Style: {style} ({activeStyleSet})");
         Editor.Focus();
     }
@@ -3024,9 +3026,20 @@ public partial class MainWindow : Window
 
     void StyleSetBox_SelectionChanged(object s,SelectionChangedEventArgs e)
     {
-        if(!IsLoaded || StyleSetBox.SelectedItem is not string name || !styleSets.ContainsKey(name))return;
+        if(!IsLoaded || StyleSetBox.SelectedItem is not string name || !styleSets.ContainsKey(name) ||
+           string.Equals(activeStyleSet,name,StringComparison.Ordinal))return;
         activeStyleSet=name;
         SaveAppSettings();
+        var paragraph=Editor.Selection.Start.Paragraph;
+        var role=paragraph==null?null:InferParagraphStyle(paragraph,styleSets.Values);
+        var spec=ResolveStyle(role??(StyleBox.SelectedItem as ComboBoxItem)?.Content as string??"Normal");
+        if(spec!=null)
+        {
+            Editor.Selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
+            if(!Editor.Selection.IsEmpty)MarkDirty();
+        }
+        Editor.Focus();
+        RefreshFontBox();
         Status.Text="Style set: "+name;
     }
 
@@ -3360,6 +3373,7 @@ public partial class MainWindow : Window
             if(applied>0)MarkDirty(summary);else Status.Text=summary;
             w.DialogResult=true;
             Editor.Focus();
+            RefreshFontBox();
         };
         w.Content=root;w.ShowDialog();
     }
@@ -4924,9 +4938,26 @@ INSERT_FIELD date
         }
     }
 
+    bool refreshingFontBox;
+
+    void RefreshFontBox()
+    {
+        var current=Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
+        refreshingFontBox=true;
+        try
+        {
+            FontBox.SelectedItem=current==null?null:FontBox.Items.OfType<FontFamily>()
+                .FirstOrDefault(font=>string.Equals(font.Source,current.Source,StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            refreshingFontBox=false;
+        }
+    }
+
     void FontBox_SelectionChanged(object s,SelectionChangedEventArgs e)
     {
-        if(FontBox.SelectedItem is FontFamily f)
+        if(!refreshingFontBox && FontBox.SelectedItem is FontFamily f)
         {
             Editor.Selection.ApplyPropertyValue(TextElement.FontFamilyProperty,f);
             if(!suppressDirty)MarkDirty();

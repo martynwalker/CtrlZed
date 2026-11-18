@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -88,4 +88,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 40.1 adds explicit Save, New and Rename style-set actions and prevents Reformat Document from resetting unrecognised paragraphs to Normal."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 40.2 applies the selected set font to the selection or typing position and synchronises the toolbar font after reformatting."
