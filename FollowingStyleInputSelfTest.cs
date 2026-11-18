@@ -62,9 +62,11 @@ public partial class MainWindow
             TypeInput("New Heading");
             if(!Equals(original.Tag,ParagraphStyleTagPrefix+role))
                 throw new InvalidOperationException("Typing lost the selected paragraph style: "+role);
+            VerifyHeadingInput(original,role+" before Return");
             PressReturn();
             var next=Editor.CaretPosition.Paragraph!;
             if(ReferenceEquals(next,original))throw new InvalidOperationException("Return did not insert a paragraph.");
+            VerifyHeadingInput((Paragraph)Editor.Document.Blocks.FirstBlock,role+" after Return");
             Editor.Undo();
             if(Editor.Document.Blocks.Count!=2)
                 throw new InvalidOperationException("Return and following-style change were not one undo operation.");
@@ -74,10 +76,7 @@ public partial class MainWindow
             PressReturn();
             TypeInput("Still normal");
             VerifyNormalTypedParagraph(Editor.CaretPosition.Paragraph!,role+" second Return");
-            var headingRange=new TextRange(original.ContentStart,original.ContentEnd);
-            if(!Equals(headingRange.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold) ||
-               (headingRange.GetPropertyValue(TextElement.ForegroundProperty) as SolidColorBrush)?.Color!=Color.FromRgb(102,204,0))
-                throw new InvalidOperationException("Return changed the original heading: "+role);
+            VerifyHeadingInput((Paragraph)Editor.Document.Blocks.FirstBlock,role+" after undo, redo and further typing");
         }
 
         // A soft break or a split within an existing heading retains its style.
@@ -121,6 +120,15 @@ public partial class MainWindow
             VerifyNormalTypedParagraph(Editor.CaretPosition.Paragraph!,"imported DOCX Heading 1");
         }
         finally { if(File.Exists(importedPath))File.Delete(importedPath); }
+    }
+
+    static void VerifyHeadingInput(Paragraph paragraph,string context)
+    {
+        var range=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
+        var weight=range.GetPropertyValue(TextElement.FontWeightProperty);
+        var colour=range.GetPropertyValue(TextElement.ForegroundProperty) as SolidColorBrush;
+        if(range.Text.Trim()!="New Heading" || !Equals(weight,FontWeights.Bold) || colour?.Color!=Color.FromRgb(102,204,0))
+            throw new InvalidOperationException($"Heading formatting changed {context}: text={range.Text.Trim()}, weight={weight}, colour={colour}.");
     }
 
     Paragraph PrepareInputParagraph()
