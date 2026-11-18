@@ -5,6 +5,12 @@ namespace CtrlZed;
 
 public static class StyleSetStore
 {
+    internal static IReadOnlyList<string> ParagraphStyleNames { get; }=
+        Array.AsReadOnly(new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"});
+
+    internal static string NormalizeFollowingStyle(string? value)
+        =>ParagraphStyleNames.FirstOrDefault(name=>string.Equals(name,value?.Trim(),StringComparison.OrdinalIgnoreCase))??"Normal";
+
     public sealed class TextStyle
     {
         public string FontFamily { get; set; }="Calibri";
@@ -13,6 +19,7 @@ public static class StyleSetStore
         public bool Bold { get; set; }
         public bool Italic { get; set; }
         public bool Underline { get; set; }
+        public string FollowingStyle { get; set; }="Normal";
         public string Alignment { get; set; }="Left";
         public double MarginLeft { get; set; }
         public double MarginTop { get; set; }

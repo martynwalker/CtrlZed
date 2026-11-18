@@ -15,6 +15,33 @@ namespace CtrlZed;
 
 public static class SelfTest
 {
+    static void VerifyFollowingParagraphStyle(string originalRole,string followingRole)
+    {
+        var run=new Run("Styled text");
+        var original=new Paragraph(new Span(run))
+        {
+            FontWeight=FontWeights.Bold,FontSize=24,
+            Tag=MainWindow.ParagraphStyleTagPrefix+originalRole
+        };
+        var document=new FlowDocument(original);
+        var editor=new RichTextBox(document);
+        editor.CaretPosition=run.ContentStart.GetPositionAtOffset(2)!;
+        if(MainWindow.ParagraphEndingAtSelection(editor)!=null)
+            throw new InvalidOperationException("A split inside a paragraph would change its following style.");
+
+        editor.CaretPosition=run.ContentEnd;
+        if(MainWindow.ParagraphEndingAtSelection(editor)!=original)
+            throw new InvalidOperationException("Return did not recognise the end of a styled paragraph.");
+        var format=StyleSetStore.Defaults()["Default"].Styles[followingRole];
+        if(!MainWindow.InsertFollowingStyledParagraph(editor,original,followingRole,format) ||
+           editor.CaretPosition.Paragraph is not Paragraph added ||
+           !Equals(added.Tag,MainWindow.ParagraphStyleTagPrefix+followingRole) ||
+           !Equals(editor.Selection.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Normal) ||
+           !Equals(editor.Selection.GetPropertyValue(TextElement.FontSizeProperty),format.SizePt*96/72) ||
+           original.FontWeight!=FontWeights.Bold || original.FontSize!=24)
+            throw new InvalidOperationException($"Return did not apply {followingRole} after {originalRole}.");
+    }
+
     public static int Run()
     {
         var root=Path.Combine(Path.GetTempPath(),"CtrlZedSelfTest_"+Guid.NewGuid().ToString("N"));
@@ -87,6 +114,13 @@ End Module
             if(string.IsNullOrWhiteSpace(CtrlZedAi.GetModel("Gemini")))return 34;
             var profile=AiDirectService.GetProfile("ChatGPT");
             if(string.IsNullOrWhiteSpace(profile.Model))return 29;
+
+            var legacyStyle=System.Text.Json.JsonSerializer.Deserialize<StyleSetStore.TextStyle>("{}");
+            if(legacyStyle?.FollowingStyle!="Normal")
+                throw new InvalidOperationException("An older style set did not default its following style to Normal.");
+
+            VerifyFollowingParagraphStyle("Heading 1","Normal");
+            VerifyFollowingParagraphStyle("Quote","Caption");
 
             var doc=new FlowDocument();
             doc.Blocks.Add(new Paragraph(new Run("CtrlZed self test")){FontSize=24,FontWeight=System.Windows.FontWeights.Bold});

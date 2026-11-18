@@ -105,6 +105,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
+        Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
         Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;
         Editor.PreviewMouseRightButtonDown += Editor_PreviewMouseRightButtonDown;
 
@@ -2983,11 +2984,11 @@ public partial class MainWindow : Window
 
     void StyleBox_SelectionChanged(object s,SelectionChangedEventArgs e)
     {
-        if(!IsLoaded || StyleBox.SelectedItem is not ComboBoxItem item)return;
+        if(updatingStyleBox || !IsLoaded || StyleBox.SelectedItem is not ComboBoxItem item)return;
         if(item.Content is string style)ApplyParagraphStyle(style);
     }
 
-    void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec)
+    static void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec)
     {
         range.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
         range.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
@@ -3133,7 +3134,7 @@ public partial class MainWindow : Window
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
 
-        var styles=new[]{"Normal","Heading 1","Heading 2","Heading 3","Quote","Caption"};
+        var styles=StyleSetStore.ParagraphStyleNames;
         var selectorPanel=new StackPanel{Margin=new Thickness(0,0,12,0)};
         selectorPanel.Children.Add(new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
         var stylePicker=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,0,0,8)};
@@ -3162,6 +3163,8 @@ public partial class MainWindow : Window
         var underline=new CheckBox{Content="Underline",Margin=new Thickness(0,3,0,5)};
         var alignment=new ComboBox{ItemsSource=new[]{"Left","Centre","Right","Justify"},Margin=new Thickness(0,3,0,8)};
         var margins=new TextBox{Margin=new Thickness(0,3,0,8),ToolTip="Left,Top,Right,Bottom"};
+        var followingStyle=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,3,0,8),
+            ToolTip="Style applied to the new paragraph when you press Return."};
 
         AddRow(form,0,"Style set",setName);
         AddRow(form,1,"Font",font);
@@ -3172,13 +3175,14 @@ public partial class MainWindow : Window
         AddRow(form,6,"Underline",underline);
         AddRow(form,7,"Alignment",alignment);
         AddRow(form,8,"Margins",margins);
+        AddRow(form,9,"Following style",followingStyle);
 
         var info=new TextBlock
         {
             Text="Save writes changes to this set. New Set copies all six styles, including your current edits.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,8,0,8)
         };
-        Grid.SetRow(info,9);Grid.SetColumnSpan(info,2);form.Children.Add(info);
+        Grid.SetRow(info,10);Grid.SetColumnSpan(info,2);form.Children.Add(info);
         Grid.SetColumn(form,1);Grid.SetRow(form,0);root.Children.Add(form);
 
         StyleSetStore.StyleSet working;
@@ -3193,6 +3197,7 @@ public partial class MainWindow : Window
                     {
                         FontFamily=x.Value.FontFamily,SizePt=x.Value.SizePt,Colour=x.Value.Colour,
                         Bold=x.Value.Bold,Italic=x.Value.Italic,Underline=x.Value.Underline,
+                        FollowingStyle=x.Value.FollowingStyle,
                         Alignment=x.Value.Alignment,MarginLeft=x.Value.MarginLeft,MarginTop=x.Value.MarginTop,
                         MarginRight=x.Value.MarginRight,MarginBottom=x.Value.MarginBottom
                     },
@@ -3206,12 +3211,13 @@ public partial class MainWindow : Window
 
         void LoadStyle(string style)
         {
-            if(!working.Styles.TryGetValue(style,out var spec))return;
+            if(!working.Styles.TryGetValue(style,out var spec))spec=StyleSetStore.Defaults()["Default"].Styles[style];
             selectedStyle=style;
             font.SelectedItem=Fonts.SystemFontFamilies.FirstOrDefault(f=>string.Equals(f.Source,spec.FontFamily,StringComparison.OrdinalIgnoreCase));
             size.Text=spec.SizePt.ToString("0.##");
             colour.Text=spec.Colour;
             bold.IsChecked=spec.Bold;italic.IsChecked=spec.Italic;underline.IsChecked=spec.Underline;
+            followingStyle.SelectedItem=StyleSetStore.NormalizeFollowingStyle(spec.FollowingStyle);
             alignment.SelectedItem=spec.Alignment=="Center"?"Centre":spec.Alignment;
             margins.Text=$"{spec.MarginLeft:0.##},{spec.MarginTop:0.##},{spec.MarginRight:0.##},{spec.MarginBottom:0.##}";
         }
@@ -3229,6 +3235,7 @@ public partial class MainWindow : Window
                 FontFamily=(font.SelectedItem as FontFamily)?.Source??font.Text,
                 SizePt=pt,Colour=string.IsNullOrWhiteSpace(colour.Text)?"#000000":colour.Text.Trim(),
                 Bold=bold.IsChecked==true,Italic=italic.IsChecked==true,Underline=underline.IsChecked==true,
+                FollowingStyle=StyleSetStore.NormalizeFollowingStyle(followingStyle.SelectedItem as string),
                 Alignment=alignment.SelectedItem?.ToString()??"Left",
                 MarginLeft=vals[0],MarginTop=vals[1],MarginRight=vals[2],MarginBottom=vals[3]
             };
