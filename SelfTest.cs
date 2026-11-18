@@ -32,14 +32,21 @@ public static class SelfTest
         editor.CaretPosition=run.ContentEnd;
         if(MainWindow.ParagraphEndingAtSelection(editor)!=original)
             throw new InvalidOperationException("Return did not recognise the end of a styled paragraph.");
+        // The built-in Return command requires an active, keyboard-focused editor.
+        // Use WPF's paragraph split directly in the headless test.
+        var next=editor.CaretPosition.InsertParagraphBreak();
+        editor.CaretPosition=next;
+        var added=next.Paragraph;
+        if(added==null || added==original)
+            throw new InvalidOperationException("The style test did not create a following paragraph.");
         var format=StyleSetStore.Defaults()["Default"].Styles[followingRole];
-        if(!MainWindow.InsertFollowingStyledParagraph(editor,original,followingRole,format) ||
-           editor.CaretPosition.Paragraph is not Paragraph added ||
-           !Equals(added.Tag,MainWindow.ParagraphStyleTagPrefix+followingRole) ||
+        MainWindow.ApplyFollowingStyle(editor,added,followingRole,format);
+        if(!Equals(added.Tag,MainWindow.ParagraphStyleTagPrefix+followingRole) ||
            !Equals(editor.Selection.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Normal) ||
            !Equals(editor.Selection.GetPropertyValue(TextElement.FontSizeProperty),format.SizePt*96/72) ||
+           added.FontWeight!=FontWeights.Normal || added.FontSize!=format.SizePt*96/72 ||
            original.FontWeight!=FontWeights.Bold || original.FontSize!=24)
-            throw new InvalidOperationException($"Return did not apply {followingRole} after {originalRole}.");
+            throw new InvalidOperationException($"The following paragraph did not apply {followingRole} after {originalRole}.");
     }
 
     public static int Run()

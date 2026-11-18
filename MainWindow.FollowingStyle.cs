@@ -58,10 +58,16 @@ public partial class MainWindow
             var paragraph=editor.CaretPosition.Paragraph;
             if(paragraph==null || paragraph==original)return false;
 
-            paragraph.Tag=ParagraphStyleTagPrefix+following;
-            ApplyStyleToRange(editor.Selection,format);
+            ApplyFollowingStyle(editor,paragraph,following,format);
             return true;
         }
         finally { editor.EndChange(); }
+    }
+
+    internal static void ApplyFollowingStyle(
+        RichTextBox editor,Paragraph paragraph,string following,StyleSetStore.TextStyle format)
+    {
+        paragraph.Tag=ParagraphStyleTagPrefix+following;
+        ApplyStyleToRange(editor.Selection,format,paragraph);
     }
 }

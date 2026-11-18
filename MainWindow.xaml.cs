@@ -2988,13 +2988,19 @@ public partial class MainWindow : Window
         if(item.Content is string style)ApplyParagraphStyle(style);
     }
 
-    static void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec)
+    static void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec,Paragraph? paragraphDefaults=null)
     {
-        range.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
-        range.ApplyPropertyValue(TextElement.FontSizeProperty,spec.SizePt*96/72);
-        range.ApplyPropertyValue(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
-        range.ApplyPropertyValue(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
-        range.ApplyPropertyValue(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
+        void ApplyCharacterProperty(DependencyProperty property,object value)
+        {
+            paragraphDefaults?.SetValue(property,value);
+            range.ApplyPropertyValue(property,value);
+        }
+
+        ApplyCharacterProperty(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
+        ApplyCharacterProperty(TextElement.FontSizeProperty,spec.SizePt*96/72);
+        ApplyCharacterProperty(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
+        ApplyCharacterProperty(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
+        ApplyCharacterProperty(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
         range.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
         range.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
         {
