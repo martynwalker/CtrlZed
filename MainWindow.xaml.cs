@@ -3144,9 +3144,22 @@ public partial class MainWindow : Window
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
 
         var styles=StyleSetStore.ParagraphStyleNames;
-        var selectorPanel=new StackPanel{Margin=new Thickness(0,0,12,0)};
-        selectorPanel.Children.Add(new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
-        var stylePicker=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,0,0,8)};
+        var selectorPanel=new DockPanel{Margin=new Thickness(0,0,12,0)};
+        var selectorLabel=new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)};
+        DockPanel.SetDock(selectorLabel,Dock.Top);
+        selectorPanel.Children.Add(selectorLabel);
+        var stylePicker=new ListBox
+        {
+            ItemsSource=styles,SelectionMode=SelectionMode.Single,Padding=new Thickness(3),
+            HorizontalContentAlignment=HorizontalAlignment.Stretch,
+            ToolTip="Choose the style to edit. Current edits are retained when you select another style."
+        };
+        var styleItem=new Style(typeof(ListBoxItem));
+        styleItem.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(6,4,6,4)));
+        stylePicker.ItemContainerStyle=styleItem;
+        ScrollViewer.SetVerticalScrollBarVisibility(stylePicker,ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(stylePicker,ScrollBarVisibility.Disabled);
+        System.Windows.Automation.AutomationProperties.SetName(stylePicker,"Style to edit");
         selectorPanel.Children.Add(stylePicker);
 
         Grid.SetColumn(selectorPanel,0);Grid.SetRow(selectorPanel,0);root.Children.Add(selectorPanel);
@@ -3188,7 +3201,7 @@ public partial class MainWindow : Window
 
         var info=new TextBlock
         {
-            Text="Save writes changes to this set. New Set copies all six styles, including your current edits.",
+            Text="Save writes changes to this set. New Set copies all styles, including your current edits.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,8,0,8)
         };
         Grid.SetRow(info,10);Grid.SetColumnSpan(info,2);form.Children.Add(info);
