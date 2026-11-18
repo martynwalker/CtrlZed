@@ -57,9 +57,7 @@ public partial class MainWindow
             heading.Underline=true;
             heading.SizePt=20;
             heading.Alignment="Centre";
-            var original=PrepareInputParagraph();
-            ApplyParagraphStyle(role);
-            TypeInput("New Heading");
+            var original=PrepareStyledInputParagraph(role,"New Heading");
             if(!Equals(original.Tag,ParagraphStyleTagPrefix+role))
                 throw new InvalidOperationException("Typing lost the selected paragraph style: "+role);
             VerifyHeadingInput(original,role+" before Return");
@@ -82,9 +80,7 @@ public partial class MainWindow
         // A soft break or a split within an existing heading retains its style.
         foreach(var softBreak in new[]{true,false})
         {
-            var original=PrepareInputParagraph();
-            ApplyParagraphStyle("Heading 1");
-            TypeInput("Heading text");
+            var original=PrepareStyledInputParagraph("Heading 1","Heading text");
             if(softBreak)
             {
                 SendKeys(new[]{KeyInput(0x10),KeyInput(0x0D),KeyInput(0x0D,true),KeyInput(0x10,true)});
@@ -106,9 +102,7 @@ public partial class MainWindow
         var importedPath=Path.Combine(Path.GetTempPath(),"CtrlZedFollowingStyle_"+Guid.NewGuid().ToString("N")+".docx");
         try
         {
-            var original=PrepareInputParagraph();
-            ApplyParagraphStyle("Heading 1");
-            TypeInput("Imported Heading");
+            var original=PrepareStyledInputParagraph("Heading 1","Imported Heading");
             DocxInterop.Save(importedPath,Editor.Document);
             Editor.Document=DocxInterop.Load(importedPath);
             original=(Paragraph)Editor.Document.Blocks.FirstBlock;
@@ -143,6 +137,17 @@ public partial class MainWindow
         PumpInput();
         if(!Editor.IsKeyboardFocused)throw new InvalidOperationException("The input test could not focus the editor.");
         return original;
+    }
+
+    Paragraph PrepareStyledInputParagraph(string role,string text)
+    {
+        var paragraph=PrepareInputParagraph();
+        TypeInput(text);
+        Editor.Selection.Select(paragraph.ContentStart,paragraph.ContentEnd);
+        ApplyParagraphStyle(role);
+        Editor.CaretPosition=paragraph.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+        PumpInput();
+        return paragraph;
     }
 
     void VerifyNormalTypedParagraph(Paragraph paragraph,string context)
