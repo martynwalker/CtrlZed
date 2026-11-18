@@ -5,6 +5,7 @@ using System.IO;
 using System.Globalization;
 using System.IO.Compression;
 using System.Printing;
+using System.Security;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -121,7 +122,7 @@ public partial class MainWindow : Window
         RefreshRecentFilesMenu();
         RefreshMacroMenus();
         recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        recoveryTimer.Tick += (_,__) => WriteRecoverySnapshot();
+        recoveryTimer.Tick += async (_,__) => await WriteRecoverySnapshotAsync();
         recoveryTimer.Start();
 
         uiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
@@ -130,7 +131,7 @@ public partial class MainWindow : Window
             uiRefreshTimer.Stop();
             UpdatePageGuideState();
             UpdateDocumentStats();
-            if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible)RefreshNavigation();
+            if(NavigationPane!=null && NavigationPane.Visibility==Visibility.Visible && !PageThumbnailsRequested)RefreshNavigation();
         };
 
         ApplyPage();
@@ -139,44 +140,65 @@ public partial class MainWindow : Window
         ApplyZoom();
         UpdateDocumentStats();
 
-        if(File.Exists(recoveryFile))
+        RecoverPreviousSession();
+    }
+
+    void RecoverPreviousSession()
+    {
+        var hasProtectedRecovery=File.Exists(ProtectedRecoveryFile);
+        if(!hasProtectedRecovery && !File.Exists(recoveryFile))return;
+
+        var choice=MessageBox.Show("CtrlZed found an automatic recovery snapshot from an earlier session. Recover it now?",
+            "Recovery",MessageBoxButton.YesNoCancel,MessageBoxImage.Question);
+        if(choice==MessageBoxResult.No)
         {
-            var choice = MessageBox.Show("CtrlZed found an automatic recovery snapshot from an earlier session. Recover it now?","Recovery",MessageBoxButton.YesNo,MessageBoxImage.Question);
-            if(choice == MessageBoxResult.Yes)
+            TryDeleteRecovery();
+            return;
+        }
+        keepLockedRecovery=hasProtectedRecovery;
+        if(choice!=MessageBoxResult.Yes)return;
+
+        try
+        {
+            suppressDirty=true;
+            if(hasProtectedRecovery)
             {
-                try
-                {
-                    suppressDirty = true;
-                    Editor.Document = new FlowDocument();
-                    using var fs = File.OpenRead(recoveryFile);
-                    new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
-                    if(File.Exists(recoverySettingsFile))
-                    {
-                        try
-                        {
-                            var recovered=JsonSerializer.Deserialize<CzdSettings>(File.ReadAllText(recoverySettingsFile));
-                            if(recovered!=null)ApplyRecoveredSettings(recovered);
-                        }
-                        catch(Exception settingsEx)
-                        {
-                            MessageBox.Show("The document body was recovered, but its recovery settings could not be read.\n\n"+settingsEx.Message,
-                                "Recovery settings",MessageBoxButton.OK,MessageBoxImage.Warning);
-                        }
-                    }
-                    WirePictureHandlers();
-                    suppressDirty = false;
-                    MarkDirty("Recovered document — save it to keep it.");
-                }
-                catch(Exception ex)
-                {
-                    suppressDirty = false;
-                    MessageBox.Show(ex.Message,"Recovery failed",MessageBoxButton.OK,MessageBoxImage.Error);
-                }
+                if(!TryReadCzd(ProtectedRecoveryFile,out var recovered,out var password))return;
+                Editor.Document=recovered.Document;
+                SetDocumentPassword(password);
+                if(recovered.Settings!=null)ApplyRecoveredSettings(recovered.Settings,documentPassword!=null);
+                keepLockedRecovery=false;
             }
             else
             {
-                TryDeleteRecovery();
+                var recoveredDocument=new FlowDocument();
+                using(var source=File.OpenRead(recoveryFile))
+                    new TextRange(recoveredDocument.ContentStart,recoveredDocument.ContentEnd).Load(source,DataFormats.Rtf);
+                Editor.Document=recoveredDocument;
+                if(File.Exists(recoverySettingsFile))
+                {
+                    try
+                    {
+                        var recovered=JsonSerializer.Deserialize<CzdSettings>(File.ReadAllText(recoverySettingsFile));
+                        if(recovered!=null)ApplyRecoveredSettings(recovered);
+                    }
+                    catch(Exception settingsEx)
+                    {
+                        MessageBox.Show("The document body was recovered, but its recovery settings could not be read.\n\n"+settingsEx.Message,
+                            "Recovery settings",MessageBoxButton.OK,MessageBoxImage.Warning);
+                    }
+                }
             }
+            WirePictureHandlers();
+            MarkDirty("Recovered document — save it to keep it.");
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show(ex.Message,"Recovery failed",MessageBoxButton.OK,MessageBoxImage.Error);
+        }
+        finally
+        {
+            suppressDirty=false;
         }
     }
 
@@ -218,6 +240,7 @@ public partial class MainWindow : Window
         suppressDirty = true;
         Editor.Document = new FlowDocument();
         currentFile = null;
+        SetDocumentPassword(null);
         headerText = footerText = "";
         customFields.Clear();
         embeddedMacros.Clear();
@@ -271,7 +294,7 @@ public partial class MainWindow : Window
     {
         if(currentFile==null)
         {
-            var d=new SaveFileDialog{Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt",DefaultExt=".czd",AddExtension=true};
+            var d=new SaveFileDialog{Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,DefaultExt=".czd",AddExtension=true};
             if(d.ShowDialog()!=true)return false;
             currentFile=d.FileName;
         }
@@ -281,6 +304,8 @@ public partial class MainWindow : Window
         try
         {
             var ext=Path.GetExtension(currentFile).ToLowerInvariant();
+            if(documentPassword!=null && ext!=".czd")
+                throw new InvalidOperationException("Choose the .czd format to save this password-protected document.");
             if(ext==".czd")SaveCzd(currentFile);
             else if(ext==".docx")
             {
@@ -346,7 +371,7 @@ public partial class MainWindow : Window
     void UpdateTitle()
     {
         var name=currentFile==null?"Untitled":Path.GetFileName(currentFile);
-        Title=$"CtrlZed — {name}{(dirty?" *":"")}";
+        Title=$"CtrlZed — {name}{(documentPassword!=null?" [Protected]":"")}{(dirty?" *":"")}";
     }
 
     CzdSettings CaptureDocumentSettings()
@@ -362,7 +387,7 @@ public partial class MainWindow : Window
             FloatingImages=CaptureFloatingImagePlacements()
         };
 
-    void ApplyRecoveredSettings(CzdSettings v)
+    void ApplyRecoveredSettings(CzdSettings v,bool isProtected=false)
     {
         pageWidth=v.PageWidth;
         pageHeight=v.PageHeight;
@@ -380,7 +405,7 @@ public partial class MainWindow : Window
             foreach(var pair in v.CustomFields)
                 if(!string.IsNullOrWhiteSpace(pair.Key))
                     customFields[pair.Key]=pair.Value??"";
-        MigrateLegacyDocumentFields();
+        if(!isProtected)MigrateLegacyDocumentFields();
 
         embeddedMacros.Clear();
         if(v.EmbeddedMacros!=null)
@@ -493,9 +518,14 @@ public partial class MainWindow : Window
         Editor.Focus();
     }
 
-    void WriteRecoverySnapshot()
+    async Task WriteRecoverySnapshotAsync()
     {
         if(!dirty)return;
+        if(documentPassword!=null)
+        {
+            await WriteProtectedRecoverySnapshotAsync();
+            return;
+        }
         var restoreFields=fieldValuesVisible;
         if(restoreFields)SetFieldValuesVisible(false);
         try
@@ -518,8 +548,12 @@ public partial class MainWindow : Window
 
     void TryDeleteRecovery()
     {
-        try{if(File.Exists(recoveryFile))File.Delete(recoveryFile);}catch{}
-        try{if(File.Exists(recoverySettingsFile))File.Delete(recoverySettingsFile);}catch{}
+        protectedRecoveryGeneration++;
+        try{DeletePlainRecoveryFiles();}catch{}
+        if(!keepLockedRecovery)
+        {
+            try{File.Delete(ProtectedRecoveryFile);}catch{}
+        }
     }
 
     void SaveRtf(string path)
@@ -532,33 +566,38 @@ public partial class MainWindow : Window
 
     void SaveCzd(string path)
     {
-        var tmp=path+".tmp";
-        if(File.Exists(tmp))File.Delete(tmp);
-        using(var zip=ZipFile.Open(tmp,ZipArchiveMode.Create))
+        if(documentPassword!=null)
         {
-            var doc=zip.CreateEntry("document.rtf");
-            var documentClone=CloneDocument();
-            using(var s=doc.Open())new TextRange(documentClone.ContentStart,documentClone.ContentEnd).Save(s,DataFormats.Rtf);
-            var settings=zip.CreateEntry("settings.json");
-            var data=CaptureDocumentSettings();
-            using(var sw=new StreamWriter(settings.Open()))sw.Write(JsonSerializer.Serialize(data));
+            SaveProtectedCzd(path,documentPassword);
+            return;
         }
+        var tmp=path+".tmp";
+        using(var output=File.Create(tmp))WriteCzdArchive(output);
         ReplaceFile(tmp,path);
     }
 
-    void LoadCzd(string path)
+    void WriteCzdArchive(Stream output)
     {
-        using var zip=ZipFile.OpenRead(path);
-        var doc=zip.GetEntry("document.rtf")??throw new InvalidDataException("This CtrlZed document has no document.rtf entry.");
-        Editor.Document=new FlowDocument();
-        using(var s=doc.Open())new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(s,DataFormats.Rtf);
-        var st=zip.GetEntry("settings.json");
-        if(st!=null)
-        {
-            using var sr=new StreamReader(st.Open());
-            var v=JsonSerializer.Deserialize<CzdSettings>(sr.ReadToEnd());
-            if(v!=null)ApplyRecoveredSettings(v);
-        }
+        using var archive=new ZipArchive(output,ZipArchiveMode.Create,leaveOpen:true);
+        var document=archive.CreateEntry("document.rtf");
+        var clone=CloneDocument();
+        using(var stream=document.Open())new TextRange(clone.ContentStart,clone.ContentEnd).Save(stream,DataFormats.Rtf);
+        var settings=archive.CreateEntry("settings.json");
+        using(var stream=settings.Open())JsonSerializer.Serialize(stream,CaptureDocumentSettings());
+    }
+
+    sealed record CzdPackage(FlowDocument Document,CzdSettings? Settings);
+
+    static CzdPackage ReadCzdArchive(Stream source)
+    {
+        using var archive=new ZipArchive(source,ZipArchiveMode.Read,leaveOpen:true);
+        var entry=archive.GetEntry("document.rtf")??throw new InvalidDataException("This CtrlZed document has no document.rtf entry.");
+        var document=new FlowDocument();
+        using(var stream=entry.Open())new TextRange(document.ContentStart,document.ContentEnd).Load(stream,DataFormats.Rtf);
+        var settings=archive.GetEntry("settings.json");
+        if(settings==null)return new CzdPackage(document,null);
+        using var settingsStream=settings.Open();
+        return new CzdPackage(document,JsonSerializer.Deserialize<CzdSettings>(settingsStream));
     }
 
     static void ReplaceFile(string tmp,string path)
@@ -607,7 +646,8 @@ public partial class MainWindow : Window
     {
         var show=NavigationPane.Visibility!=Visibility.Visible;
         NavigationPane.Visibility=show?Visibility.Visible:Visibility.Collapsed;
-        if(show)RefreshNavigation();
+        if(show && !PageThumbnailsRequested)RefreshNavigation();
+        UpdatePageNavigationDemand();
     }
 
     void RefreshNavigation_Click(object s,RoutedEventArgs e)=>RefreshNavigation();
@@ -1634,6 +1674,7 @@ public partial class MainWindow : Window
             "Requests such as ‘Space: 1999-like’, ‘a big bad font’ or ‘Arial Bold’.",
             "Experimental AI-generated fonts, including decorative capital alphabets such as animal-shaped letters.",
             "Automatic bitmap-to-vector signature tracing and SVG-native signature handling.",
+            "Bitwarden Password Manager integration to generate document passwords and save them as named vault entries.",
             "Further DOCX fidelity, comments/track changes and more advanced publishing layout."
         };
         foreach(var item in items)
@@ -1693,16 +1734,25 @@ public partial class MainWindow : Window
 
     void OpenPath(string path)
     {
+        SecureString? password=null;
         try
         {
-            if(fieldValuesVisible)SetFieldValuesVisible(false);
-                suppressDirty=true;
             var ext=Path.GetExtension(path).ToLowerInvariant();
+            CzdPackage? package=null;
+            if(ext==".czd" && !TryReadCzd(path,out package,out password))return;
+            if(fieldValuesVisible)SetFieldValuesVisible(false);
+            suppressDirty=true;
             ClearFloatingImagePlacements();
             headerText=footerText="";
             documentTitle=documentAuthor=documentSubject=documentKeywords="";
             documentVersion="1.0";
-            if(ext==".czd")LoadCzd(path);
+            if(package!=null)
+            {
+                Editor.Document=package.Document;
+                SetDocumentPassword(password);
+                password=null;
+                if(package.Settings!=null)ApplyRecoveredSettings(package.Settings,documentPassword!=null);
+            }
             else if(ext==".docx")
             {
                 var imported=DocxInterop.LoadWithLayout(path);
@@ -1722,6 +1772,7 @@ public partial class MainWindow : Window
                 using var fs=File.OpenRead(path);
                 new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
             }
+            if(package==null)SetDocumentPassword(null);
             WirePictureHandlers();RefreshFloatingImagePlacements();RefreshNavigation();
             currentFile=path;dirty=false;suppressDirty=false;
             EnsureDocumentPropertyDefaults();
@@ -1733,6 +1784,10 @@ public partial class MainWindow : Window
             suppressDirty=false;
             MessageBox.Show(ex.Message,"Open failed",MessageBoxButton.OK,MessageBoxImage.Error);
         }
+        finally
+        {
+            password?.Dispose();
+        }
     }
 
     void SaveAs_Click(object s,RoutedEventArgs e)
@@ -1740,7 +1795,7 @@ public partial class MainWindow : Window
         var old=currentFile;
         var d=new SaveFileDialog
         {
-            Filter="CtrlZed documents (*.czd)|*.czd|Word documents (*.docx)|*.docx|Rich Text Format (*.rtf)|*.rtf|Text files (*.txt)|*.txt",
+            Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,
             DefaultExt=old==null?".czd":Path.GetExtension(old),
             FileName=old==null?"":Path.GetFileName(old),
             AddExtension=true
@@ -2902,6 +2957,7 @@ public partial class MainWindow : Window
             PageGuides.PageGap=Math.Max(24,pageMargins.Top+pageMargins.Bottom);
             UpdatePageGuideState();
         }
+        ScheduleBeta35PaginationMap();
     }
 
     void StyleMenu_Click(object s,RoutedEventArgs e)
@@ -5017,6 +5073,7 @@ INSERT_FIELD date
         CaptureWindowPlacement();
         SaveAppSettings();
         TryDeleteRecovery();
+        SetDocumentPassword(null);
         closingApproved=true;
     }
 

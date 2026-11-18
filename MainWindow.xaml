@@ -1,7 +1,7 @@
 <Window x:Class="CtrlZed.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:CtrlZed" Title="CtrlZed — beta 31" Width="1100" Height="760" PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing">
 <DockPanel>
 <Menu x:Name="MainMenu" DockPanel.Dock="Top">
-<MenuItem Header="_File"><MenuItem x:Name="NewMenu" Header="_New" Click="New_Click"/><MenuItem x:Name="OpenMenu" Header="_Open…" Click="Open_Click"/><MenuItem Header="_Import…" Click="Import_Click"/><MenuItem x:Name="SaveMenu" Header="_Save" Click="Save_Click"/><MenuItem x:Name="SaveAsMenu" Header="Save _As…" Click="SaveAs_Click"/><MenuItem Header="_Recent Files" x:Name="RecentFilesMenu"/><Separator/><MenuItem Header="Document _Properties…" Click="DocumentProperties_Click"/><MenuItem Header="Page Set_up…" Click="PageSetup_Click"/><MenuItem x:Name="PrintMenu" Header="_Print…" Click="Print_Click"/><Separator/><MenuItem Header="_Settings…" Click="Settings_Click"/><Separator/><MenuItem x:Name="ExitMenu" Header="E_xit" Click="Exit_Click"/></MenuItem>
+<MenuItem Header="_File"><MenuItem x:Name="NewMenu" Header="_New" Click="New_Click"/><MenuItem x:Name="OpenMenu" Header="_Open…" Click="Open_Click"/><MenuItem Header="_Import…" Click="Import_Click"/><MenuItem x:Name="SaveMenu" Header="_Save" Click="Save_Click"/><MenuItem x:Name="SaveAsMenu" Header="Save _As…" Click="SaveAs_Click"/><MenuItem Header="_Password Protection…" Click="ProtectDocument_Click"/><MenuItem Header="_Recent Files" x:Name="RecentFilesMenu"/><Separator/><MenuItem Header="Document _Properties…" Click="DocumentProperties_Click"/><MenuItem Header="Page Set_up…" Click="PageSetup_Click"/><MenuItem x:Name="PrintMenu" Header="_Print…" Click="Print_Click"/><Separator/><MenuItem Header="_Settings…" Click="Settings_Click"/><Separator/><MenuItem x:Name="ExitMenu" Header="E_xit" Click="Exit_Click"/></MenuItem>
 <MenuItem Header="_Edit"><MenuItem x:Name="UndoMenu" Header="_Undo" Command="ApplicationCommands.Undo" CommandTarget="{Binding ElementName=Editor}"/><MenuItem x:Name="RedoMenu" Header="_Redo" Command="ApplicationCommands.Redo" CommandTarget="{Binding ElementName=Editor}"/><Separator/><MenuItem x:Name="CutMenu" Header="Cu_t" Command="ApplicationCommands.Cut" CommandTarget="{Binding ElementName=Editor}"/><MenuItem x:Name="CopyMenu" Header="_Copy" Command="ApplicationCommands.Copy" CommandTarget="{Binding ElementName=Editor}"/><MenuItem x:Name="PasteMenu" Header="_Paste" Command="ApplicationCommands.Paste" CommandTarget="{Binding ElementName=Editor}"/><Separator/><MenuItem x:Name="FindReplaceMenu" Header="_Find / Replace…" Click="FindReplace_Click"/><Separator/><MenuItem Header="_Go to Page…" Click="GoToPage_Click"/></MenuItem>
 <MenuItem Header="_Insert"><MenuItem Header="_Picture…" Click="Picture_Click"/><MenuItem Header="_Signature…" Click="Signature_Click"/><MenuItem Header="_Comment…" Click="Comment_Click"/><MenuItem Header="_Table…" Click="Table_Click"/><MenuItem x:Name="PageBreakMenu" Header="Page _Break" Click="PageBreak_Click"/><Separator/><MenuItem Header="_Header and Footer…" Click="HeaderFooter_Click"/></MenuItem>
 <MenuItem Header="F_ormat"><MenuItem x:Name="BoldMenu" Header="_Bold" Command="EditingCommands.ToggleBold" CommandTarget="{Binding ElementName=Editor}"/><MenuItem x:Name="ItalicMenu" Header="_Italic" Command="EditingCommands.ToggleItalic" CommandTarget="{Binding ElementName=Editor}"/><MenuItem x:Name="UnderlineMenu" Header="_Underline" Command="EditingCommands.ToggleUnderline" CommandTarget="{Binding ElementName=Editor}"/><Separator/><MenuItem Header="Align _Left" Command="EditingCommands.AlignLeft" CommandTarget="{Binding ElementName=Editor}"/><MenuItem x:Name="CentreMenu" Header="Align _Centre" Command="EditingCommands.AlignCenter" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="Align _Right" Command="EditingCommands.AlignRight" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Justify" Command="EditingCommands.AlignJustify" CommandTarget="{Binding ElementName=Editor}"/><Separator/><MenuItem Header="_Bullets" Command="EditingCommands.ToggleBullets" CommandTarget="{Binding ElementName=Editor}"/><MenuItem Header="_Numbering" Command="EditingCommands.ToggleNumbering" CommandTarget="{Binding ElementName=Editor}"/><Separator/><MenuItem Header="_Normal" Tag="Normal" Click="StyleMenu_Click"/><MenuItem Header="Heading _1" Tag="Heading 1" Click="StyleMenu_Click"/><MenuItem Header="Heading _2" Tag="Heading 2" Click="StyleMenu_Click"/><MenuItem Header="Heading _3" Tag="Heading 3" Click="StyleMenu_Click"/><MenuItem Header="_Quote" Tag="Quote" Click="StyleMenu_Click"/><MenuItem Header="_Caption" Tag="Caption" Click="StyleMenu_Click"/><Separator/><MenuItem Header="_Styles"><MenuItem Header="_Edit Styles…" Click="Styles_Click"/><MenuItem x:Name="ReformatMenu" Header="_Reformat Document…" Click="ReformatDocument_Click"/></MenuItem></MenuItem>
@@ -23,11 +23,41 @@
 <Grid Background="#D7D7D7">
 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 <Border x:Name="NavigationPane" Grid.Column="0" Width="240" Background="WhiteSmoke" BorderBrush="#BBB" BorderThickness="0,0,1,0" Visibility="Collapsed">
-<DockPanel Margin="8">
-<TextBlock DockPanel.Dock="Top" Text="Headings" FontWeight="Bold" Margin="4,4,4,8"/>
-<Button DockPanel.Dock="Bottom" Content="Refresh" Margin="4,8,4,4" Click="RefreshNavigation_Click"/>
-<ListBox x:Name="NavigationList" SelectionChanged="NavigationList_SelectionChanged"/>
-</DockPanel>
+<TabControl x:Name="NavigationTabs" Margin="8" SelectionChanged="NavigationTabs_SelectionChanged">
+  <TabItem Header="_Headings">
+    <DockPanel Margin="4">
+      <Button DockPanel.Dock="Bottom" Content="Refresh" Margin="0,8,0,0" Click="RefreshNavigation_Click"/>
+      <ListBox x:Name="NavigationList" SelectionChanged="NavigationList_SelectionChanged"/>
+    </DockPanel>
+  </TabItem>
+  <TabItem x:Name="NavigationPagesTab" Header="_Pages">
+    <DockPanel Margin="4">
+      <TextBlock x:Name="PageNavigationStatus" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="2,4,2,6"/>
+      <ListBox x:Name="PageNavigationList" SelectionChanged="PageNavigationList_SelectionChanged"
+               PreviewMouseLeftButtonDown="PageNavigationList_PreviewMouseLeftButtonDown"
+               VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
+          </Style>
+        </ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Margin="4,6">
+              <Border BorderBrush="#AAA" BorderThickness="1" Background="White"
+                      HorizontalAlignment="Center" Width="{Binding Width}" Height="{Binding Height}">
+                <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+              </Border>
+              <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+  </TabItem>
+</TabControl>
 </Border>
 <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Background="#D7D7D7">
 <Border x:Name="PageBorder" Width="794" MinHeight="1123" Margin="30" Padding="72" Background="White" HorizontalAlignment="Center" VerticalAlignment="Top">

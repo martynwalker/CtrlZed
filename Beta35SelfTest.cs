@@ -43,7 +43,7 @@ public static class Beta35SelfTest
 
             var stopwatch=Stopwatch.StartNew();
             var backgroundTask=PaginationMapBuilder.BuildAsync(
-                rtf,794,1123,margins,key,CancellationToken.None);
+                rtf,794,1123,margins,key,CancellationToken.None,includeThumbnails:true);
             var dispatchMilliseconds=stopwatch.ElapsedMilliseconds;
             if(dispatchMilliseconds>500)
                 return Fail(107,$"Starting the background pagination worker took {dispatchMilliseconds} ms.");
@@ -69,6 +69,17 @@ public static class Beta35SelfTest
                 return Fail(105,"Pagination mutated the RTF snapshot.");
             if(!string.Equals(first.CacheKey,key,StringComparison.Ordinal))
                 return Fail(106,"The completed map did not retain its cache key.");
+
+            if(first.Thumbnails.Count!=0 || second.Thumbnails.Count!=second.PageCount ||
+               second.Thumbnails.Any(bitmap=>bitmap==null || !bitmap.IsFrozen ||
+                   bitmap.PixelWidth<1 || bitmap.PixelWidth>136 || bitmap.PixelHeight<1 || bitmap.PixelHeight>180))
+                return Fail(111,"Thumbnail pagination did not return one frozen preview per page.");
+            var preview=second.Thumbnails[0]!;
+            var stride=preview.PixelWidth*4;
+            var previewPixels=new byte[stride*preview.PixelHeight];
+            preview.CopyPixels(previewPixels,stride,0);
+            if(!previewPixels.Any(channel=>channel<245))
+                return Fail(112,"The first page preview did not contain the fixture text.");
 
             var changedLayoutKey=PaginationMapBuilder.CreateCacheKey(
                 rtf,816,1056,new Thickness(60));

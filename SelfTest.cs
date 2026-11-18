@@ -3,6 +3,8 @@ using DocumentFormat.OpenXml.Validation;
 using ICSharpCode.AvalonEdit.Highlighting;
 using System.IO;
 using System.IO.Compression;
+using System.Security;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Controls;
@@ -154,6 +156,7 @@ End Module
                 .Any(ui=>ui.Child is Image);
             if(!importedImage)return 16;
 
+            TestDocumentProtection();
             return 0;
         }
         catch(Exception ex)
@@ -166,4 +169,52 @@ End Module
             try{Directory.Delete(root,true);}catch{}
         }
     }
+
+    static void TestDocumentProtection()
+    {
+        using var password = TestPassword("Protected editor test 194#");
+        using var wrongPassword = TestPassword("Incorrect password");
+        using var archive = new MemoryStream();
+        using (var zip = new ZipArchive(archive, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using var contents = zip.CreateEntry("document.rtf").Open();
+            contents.Write("CtrlZed body"u8);
+        }
+        using var encrypted = new MemoryStream();
+        using var encryptedAgain = new MemoryStream();
+        CzdProtection.Encrypt(encrypted, archive.ToArray(), password);
+        CzdProtection.Encrypt(encryptedAgain, archive.ToArray(), password);
+        if (encrypted.ToArray().SequenceEqual(encryptedAgain.ToArray()))
+            throw new InvalidOperationException("Protected saves reused encryption parameters.");
+
+        encrypted.Position = 0;
+        archive.Position = 0;
+        if (!CzdProtection.IsProtected(encrypted) || CzdProtection.IsProtected(archive) || encrypted.Position != 0)
+            throw new InvalidOperationException("Protected and legacy CtrlZed files were not distinguished.");
+        var decrypted = CzdProtection.Decrypt(encrypted, password);
+        if (!decrypted.SequenceEqual(archive.ToArray()))
+            throw new InvalidOperationException("The protected archive payload changed on round trip.");
+
+        AssertAuthenticationFails(encrypted.ToArray(), wrongPassword);
+        var tampered = encrypted.ToArray();
+        tampered[^1] ^= 1;
+        AssertAuthenticationFails(tampered, password);
+
+        static SecureString TestPassword(string value)
+        {
+            var secure = new SecureString();
+            foreach (var character in value) secure.AppendChar(character);
+            secure.MakeReadOnly();
+            return secure;
+        }
+
+        static void AssertAuthenticationFails(byte[] bytes, SecureString password)
+        {
+            using var input = new MemoryStream(bytes, writable: false);
+            try { CzdProtection.Decrypt(input, password); }
+            catch (AuthenticationTagMismatchException) { return; }
+            throw new InvalidOperationException("Protected archive accepted an incorrect password or changed ciphertext.");
+        }
+    }
+
 }

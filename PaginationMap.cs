@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace CtrlZed;
@@ -16,7 +17,10 @@ public sealed record PaginationMapResult(
     string CacheKey,
     int PageCount,
     IReadOnlyList<int> PageStartOffsets,
-    DateTime CreatedUtc);
+    DateTime CreatedUtc)
+{
+    public IReadOnlyList<BitmapSource?> Thumbnails { get; init; }=Array.Empty<BitmapSource?>();
+}
 
 public static class PaginationMapBuilder
 {
@@ -32,7 +36,7 @@ public static class PaginationMapBuilder
 
     public static Task<PaginationMapResult> BuildAsync(
         byte[] rtf,double pageWidth,double pageHeight,Thickness margins,
-        string cacheKey,CancellationToken cancellationToken)
+        string cacheKey,CancellationToken cancellationToken,bool includeThumbnails=false)
     {
         var completion=new TaskCompletionSource<PaginationMapResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -42,7 +46,7 @@ public static class PaginationMapBuilder
             try
             {
                 completion.TrySetResult(BuildCore(
-                    rtf,pageWidth,pageHeight,margins,cacheKey,cancellationToken));
+                    rtf,pageWidth,pageHeight,margins,cacheKey,cancellationToken,includeThumbnails));
             }
             catch(OperationCanceledException)
             {
@@ -64,7 +68,7 @@ public static class PaginationMapBuilder
 
     internal static PaginationMapResult BuildCore(
         byte[] rtf,double pageWidth,double pageHeight,Thickness margins,
-        string cacheKey,CancellationToken cancellationToken)
+        string cacheKey,CancellationToken cancellationToken,bool includeThumbnails=false)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -90,26 +94,51 @@ public static class PaginationMapBuilder
         var starts=new List<int>(pageCount){0};
         var dynamicPaginator=paginator as DynamicDocumentPaginator;
 
-        for(var pageNumber=1;pageNumber<pageCount;pageNumber++)
+        var thumbnails=includeThumbnails?new BitmapSource?[pageCount]:Array.Empty<BitmapSource?>();
+        for(var pageNumber=includeThumbnails?0:1;pageNumber<pageCount;pageNumber++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var offset=-1;
-            if(dynamicPaginator!=null)
-            {
-                var page=paginator.GetPage(pageNumber);
-                if(page!=DocumentPage.Missing &&
-                   dynamicPaginator.GetPagePosition(page) is TextPointer pointer)
-                    offset=document.ContentStart.GetOffsetToPosition(pointer);
-            }
+            var page=dynamicPaginator!=null || includeThumbnails?paginator.GetPage(pageNumber):DocumentPage.Missing;
+            if(includeThumbnails && page!=DocumentPage.Missing && page.Visual!=null)
+                thumbnails[pageNumber]=CreateThumbnail(page);
+            if(pageNumber==0)continue;
 
+            var offset=-1;
+            if(dynamicPaginator!=null && page!=DocumentPage.Missing &&
+               dynamicPaginator.GetPagePosition(page) is TextPointer pointer)
+                offset=document.ContentStart.GetOffsetToPosition(pointer);
             if(offset<0)
                 offset=(int)Math.Round(totalOffset*pageNumber/(double)pageCount);
             offset=Math.Clamp(offset,starts[^1],totalOffset);
             starts.Add(offset);
         }
 
-        return new PaginationMapResult(
-            cacheKey,pageCount,starts,DateTime.UtcNow);
+        return new PaginationMapResult(cacheKey,pageCount,starts,DateTime.UtcNow){Thumbnails=thumbnails};
+    }
+
+    static BitmapSource CreateThumbnail(DocumentPage page)
+    {
+        var scale=Math.Min(136/page.Size.Width,180/page.Size.Height);
+        var width=Math.Max(1,(int)Math.Round(page.Size.Width*scale));
+        var height=Math.Max(1,(int)Math.Round(page.Size.Height*scale));
+        var visual=new DrawingVisual();
+        var area=new Rect(0,0,width,height);
+        using(var dc=visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White,null,area);
+            var brush=new VisualBrush(page.Visual)
+            {
+                ViewboxUnits=BrushMappingMode.Absolute,
+                Viewbox=new Rect(page.Size),
+                Stretch=Stretch.Uniform,
+                AutoLayoutContent=false
+            };
+            dc.DrawRectangle(brush,null,area);
+        }
+        var bitmap=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
     }
 }
 
@@ -119,6 +148,8 @@ public partial class MainWindow
     DispatcherTimer? beta35PaginationTimer;
     CancellationTokenSource? beta35PaginationCancellation;
     PaginationMapResult? beta35PaginationMap;
+    FlowDocument? beta35PaginationDocument;
+    bool beta35PaginationDirty=true;
     string beta35PaginationCacheKey="";
     int beta35PaginationGeneration;
     TextBlock? beta35PageStatus;
@@ -180,20 +211,29 @@ public partial class MainWindow
     {
         SetBeta35PageSurfaceVisibility();
         if(!beta35PaginationInstalled)return;
-        if(CurrentEditorViewMode==EditorViewMode.Paged)
+        if(CurrentEditorViewMode==EditorViewMode.Paged || PageThumbnailsRequested)
             ScheduleBeta35PaginationMap(120);
         else
         {
             beta35PaginationTimer?.Stop();
             beta35PaginationCancellation?.Cancel();
-            if(beta35PageStatus!=null)beta35PageStatus.Text="Continuous view";
         }
+        UpdateBeta35PageStatus();
     }
 
     void ScheduleBeta35PaginationMap(int delayMilliseconds=850)
     {
-        if(!beta35PaginationInstalled || beta35PaginationTimer==null ||
-           CurrentEditorViewMode!=EditorViewMode.Paged)return;
+        if(!beta35PaginationInstalled || beta35PaginationTimer==null)return;
+
+        beta35PaginationDirty=true;
+        if(!ReferenceEquals(beta35PaginationDocument,Editor.Document))
+        {
+            beta35PaginationMap=null;
+            beta35PaginationDocument=null;
+            beta35PaginationCacheKey="";
+        }
+        UpdatePageNavigation();
+        if(CurrentEditorViewMode!=EditorViewMode.Paged && !PageThumbnailsRequested)return;
 
         beta35PaginationCancellation?.Cancel();
         beta35PaginationGeneration++;
@@ -201,33 +241,38 @@ public partial class MainWindow
         beta35PaginationTimer.Interval=TimeSpan.FromMilliseconds(
             Math.Clamp(delayMilliseconds,100,2500));
         beta35PaginationTimer.Start();
-        if(beta35PageStatus!=null)beta35PageStatus.Text="Page map updating…";
+        if(beta35PageStatus!=null && CurrentEditorViewMode==EditorViewMode.Paged &&
+           beta35PageStatus.Text!="Page map updating…")beta35PageStatus.Text="Page map updating…";
     }
 
     async Task RebuildBeta35PaginationMapAsync()
     {
-        if(CurrentEditorViewMode!=EditorViewMode.Paged)return;
+        var includeThumbnails=PageThumbnailsRequested;
+        if(CurrentEditorViewMode!=EditorViewMode.Paged && !includeThumbnails)return;
+        var document=Editor.Document;
 
         byte[] rtf;
         try
         {
             using var stream=new MemoryStream();
-            new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd)
+            new TextRange(document.ContentStart,document.ContentEnd)
                 .Save(stream,DataFormats.Rtf);
             rtf=stream.ToArray();
         }
         catch(Exception ex)
         {
-            if(beta35PageStatus!=null)beta35PageStatus.Text="Page map unavailable";
+            ReportPageNavigationFailure();
+            if(beta35PageStatus!=null && CurrentEditorViewMode==EditorViewMode.Paged)beta35PageStatus.Text="Page map unavailable";
             Status.Text="Pagination snapshot failed: "+ex.Message;
             return;
         }
 
         var key=PaginationMapBuilder.CreateCacheKey(
             rtf,pageWidth,pageHeight,pageMargins);
-        if(beta35PaginationMap!=null && key==beta35PaginationCacheKey)
+        if(beta35PaginationMap!=null && key==beta35PaginationCacheKey &&
+           (!includeThumbnails || beta35PaginationMap.Thumbnails.Count==beta35PaginationMap.PageCount))
         {
-            ApplyBeta35PaginationMap(beta35PaginationMap);
+            CompleteBeta35PaginationMap(beta35PaginationMap,document);
             return;
         }
 
@@ -240,20 +285,31 @@ public partial class MainWindow
         try
         {
             var map=await PaginationMapBuilder.BuildAsync(
-                rtf,pageWidth,pageHeight,pageMargins,key,token);
+                rtf,pageWidth,pageHeight,pageMargins,key,token,includeThumbnails);
             if(token.IsCancellationRequested || generation!=beta35PaginationGeneration ||
-               CurrentEditorViewMode!=EditorViewMode.Paged)return;
+               !ReferenceEquals(document,Editor.Document))return;
 
-            beta35PaginationMap=map;
             beta35PaginationCacheKey=key;
-            ApplyBeta35PaginationMap(map);
+            CompleteBeta35PaginationMap(map,document);
         }
         catch(OperationCanceledException){ }
         catch(Exception ex)
         {
-            if(beta35PageStatus!=null)beta35PageStatus.Text="Page map unavailable";
+            if(token.IsCancellationRequested || generation!=beta35PaginationGeneration ||
+               !ReferenceEquals(document,Editor.Document))return;
+            ReportPageNavigationFailure();
+            if(beta35PageStatus!=null && CurrentEditorViewMode==EditorViewMode.Paged)beta35PageStatus.Text="Page map unavailable";
             Status.Text="Pagination map failed: "+ex.Message;
         }
+    }
+
+    void CompleteBeta35PaginationMap(PaginationMapResult map,FlowDocument document)
+    {
+        beta35PaginationMap=map;
+        beta35PaginationDocument=document;
+        beta35PaginationDirty=false;
+        if(CurrentEditorViewMode==EditorViewMode.Paged)ApplyBeta35PaginationMap(map);
+        UpdatePageNavigation();
     }
 
     void ApplyBeta35PaginationMap(PaginationMapResult map)
@@ -373,11 +429,7 @@ public partial class MainWindow
                 return;
             }
 
-            var documentLength=Editor.Document.ContentStart.GetOffsetToPosition(
-                Editor.Document.ContentEnd);
-            var offset=Math.Clamp(map.PageStartOffsets[requested-1],0,documentLength);
-            var target=Editor.Document.ContentStart.GetPositionAtOffset(
-                offset,LogicalDirection.Forward);
+            var target=FindBeta35PageStart(map,requested);
             if(target==null)
             {
                 MessageBox.Show(w,"CtrlZed could not locate the start of that page.",
@@ -399,6 +451,15 @@ public partial class MainWindow
 
     void GoToPage_Click(object sender,RoutedEventArgs e)
         =>ShowBeta35GoToPageDialog();
+
+    TextPointer? FindBeta35PageStart(PaginationMapResult map,int pageNumber)
+    {
+        if(!ReferenceEquals(beta35PaginationDocument,Editor.Document) ||
+           pageNumber<1 || pageNumber>map.PageStartOffsets.Count)return null;
+        var start=Editor.Document.ContentStart;
+        var length=start.GetOffsetToPosition(Editor.Document.ContentEnd);
+        return start.GetPositionAtOffset(Math.Clamp(map.PageStartOffsets[pageNumber-1],0,length),LogicalDirection.Forward);
+    }
 
     void NavigateToBeta35TextPointer(TextPointer target)
     {
