@@ -35,6 +35,7 @@ public partial class MainWindow
     bool grammarReviewInitialised;
     bool grammarAnalysisRunning;
     bool grammarReviewPending;
+    internal int grammarAnalysisPasses;
 
     internal void InitialiseBeta32GrammarReview()
     {
@@ -94,13 +95,15 @@ public partial class MainWindow
         }
 
         UpdateGrammarStatus();
+        grammarReviewTimer.Interval=TimeSpan.FromMilliseconds(1100);
         grammarReviewTimer.Start();
     }
 
     void GrammarReviewTimer_Tick(object? sender,EventArgs e)
     {
+        if(IsMenuInteractionActive)return;
         grammarReviewTimer?.Stop();
-        RunLocalGrammarReview();
+        if(grammarReviewPending)RunLocalGrammarReview();
     }
 
     void ScheduleGrammarReview(bool immediate=false)
@@ -109,17 +112,21 @@ public partial class MainWindow
         grammarReviewTimer.Stop();
         grammarReviewPending=true;
         UpdateGrammarStatus();
-        if(immediate)
-        {
-            Dispatcher.BeginInvoke(new Action(RunLocalGrammarReview),DispatcherPriority.ApplicationIdle);
-            return;
-        }
+        // One restartable timer coalesces requests, including settings changes.
+        // Queued delegates used to survive cancellation and run duplicate passes.
+        grammarReviewTimer.Interval=TimeSpan.FromMilliseconds(immediate?100:1100);
         grammarReviewTimer.Start();
     }
 
     void RunLocalGrammarReview()
     {
         if(grammarAnalysisRunning || !languageSettings.GrammarAndStyleSuggestions)return;
+        if(IsMenuInteractionActive)
+        {
+            ScheduleGrammarReview();
+            return;
+        }
+        grammarAnalysisPasses++;
         grammarAnalysisRunning=true;
         grammarReviewPending=false;
         try

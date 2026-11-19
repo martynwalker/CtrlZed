@@ -155,19 +155,30 @@ public partial class MainWindow
     TextBlock? beta35PageStatus;
     bool beta35PageStatusQueued;
     DispatcherOperation? beta35PendingNavigationScroll;
+    PaginationMapResult? beta35DeferredPaginationMap;
+    FlowDocument? beta35DeferredPaginationDocument;
 
     internal void InstallBeta35PaginationMap()
     {
         if(beta35PaginationInstalled)return;
         beta35PaginationInstalled=true;
 
-        beta35PaginationTimer=new DispatcherTimer
+        beta35PaginationTimer=new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval=TimeSpan.FromMilliseconds(850)
         };
         beta35PaginationTimer.Tick+=async (_,__)=>
         {
+            if(IsMenuInteractionActive)return;
             beta35PaginationTimer.Stop();
+            if(beta35DeferredPaginationMap is { } map &&
+               ReferenceEquals(beta35DeferredPaginationDocument,Editor.Document))
+            {
+                beta35DeferredPaginationMap=null;
+                beta35DeferredPaginationDocument=null;
+                CompleteBeta35PaginationMap(map,Editor.Document);
+                return;
+            }
             await RebuildBeta35PaginationMapAsync();
         };
 
@@ -183,6 +194,13 @@ public partial class MainWindow
         Editor.TextChanged+=(_,__)=>ScheduleBeta35PaginationMap();
         Editor.SelectionChanged+=(_,__)=>QueueBeta35PageStatusUpdate();
         PageBorder.SizeChanged+=(_,__)=>ScheduleBeta35PaginationMap();
+        Closed+=(_,__)=>
+        {
+            beta35PaginationTimer.Stop();
+            beta35PaginationCancellation?.Cancel();
+            beta35DeferredPaginationMap=null;
+            beta35DeferredPaginationDocument=null;
+        };
 
         var statusBar=FindBeta35Descendant<StatusBar>(this);
         if(statusBar!=null)
@@ -226,6 +244,8 @@ public partial class MainWindow
         if(!beta35PaginationInstalled || beta35PaginationTimer==null)return;
 
         beta35PaginationDirty=true;
+        beta35DeferredPaginationMap=null;
+        beta35DeferredPaginationDocument=null;
         if(!ReferenceEquals(beta35PaginationDocument,Editor.Document))
         {
             beta35PaginationMap=null;
@@ -305,6 +325,13 @@ public partial class MainWindow
 
     void CompleteBeta35PaginationMap(PaginationMapResult map,FlowDocument document)
     {
+        if(IsMenuInteractionActive)
+        {
+            beta35DeferredPaginationMap=map;
+            beta35DeferredPaginationDocument=document;
+            beta35PaginationTimer?.Start();
+            return;
+        }
         beta35PaginationMap=map;
         beta35PaginationDocument=document;
         beta35PaginationDirty=false;

@@ -56,10 +56,6 @@ public partial class MainWindow
                 review.Items.Insert(index,clear);
             }
 
-            review.SubmenuClosed+=(_,__)=>
-            {
-                if(languageSettings.GrammarAndStyleSuggestions)ScheduleGrammarReview(true);
-            };
         }
 
         var fileMenu=MainMenu.Items.OfType<MenuItem>()

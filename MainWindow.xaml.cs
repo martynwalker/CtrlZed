@@ -122,13 +122,17 @@ public partial class MainWindow : Window
         EnsureDocumentPropertyDefaults();
         RefreshRecentFilesMenu();
         RefreshMacroMenus();
-        recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        recoveryTimer.Tick += async (_,__) => await WriteRecoverySnapshotAsync();
+        recoveryTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(30) };
+        recoveryTimer.Tick += async (_,__) =>
+        {
+            if(!IsMenuInteractionActive)await WriteRecoverySnapshotAsync();
+        };
         recoveryTimer.Start();
 
-        uiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+        uiRefreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(450) };
         uiRefreshTimer.Tick += (_,__)=>
         {
+            if(IsMenuInteractionActive)return;
             uiRefreshTimer.Stop();
             UpdatePageGuideState();
             UpdateDocumentStats();
@@ -3058,50 +3062,7 @@ public partial class MainWindow : Window
     }
 
     string? PickColour(Window owner,string initial)
-    {
-        var start=Colors.Black;
-        try
-        {
-            if(ColorConverter.ConvertFromString(initial) is Color parsed)start=parsed;
-        }
-        catch { }
-
-        var w=new Window
-        {
-            Title="Choose Colour",Owner=owner,Width=420,Height=310,
-            WindowStartupLocation=WindowStartupLocation.CenterOwner,ResizeMode=ResizeMode.NoResize,
-            Icon=Branding.CreateIconImageSource()
-        };
-        var root=new Grid{Margin=new Thickness(16)};
-        for(int i=0;i<6;i++)root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(70)});
-        root.ColumnDefinitions.Add(new ColumnDefinition());
-
-        Slider MakeSlider(byte value)=>new(){Minimum=0,Maximum=255,Value=value,TickFrequency=1,IsSnapToTickEnabled=true,Margin=new Thickness(0,4,0,8)};
-        var red=MakeSlider(start.R);var green=MakeSlider(start.G);var blue=MakeSlider(start.B);
-        var preview=new Border{Height=46,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(0,5,0,8)};
-        var hex=new TextBox{IsReadOnly=true,Margin=new Thickness(0,4,0,8)};
-        AddRow(root,0,"Red",red);AddRow(root,1,"Green",green);AddRow(root,2,"Blue",blue);AddRow(root,3,"Hex",hex);
-        Grid.SetRow(preview,4);Grid.SetColumnSpan(preview,2);root.Children.Add(preview);
-
-        string CurrentHex()=>"#"+((byte)red.Value).ToString("X2")+((byte)green.Value).ToString("X2")+((byte)blue.Value).ToString("X2");
-        void Refresh()
-        {
-            var value=CurrentHex();
-            hex.Text=value;
-            preview.Background=BrushFromHex(value);
-        }
-        red.ValueChanged+=(_,__)=>Refresh();green.ValueChanged+=(_,__)=>Refresh();blue.ValueChanged+=(_,__)=>Refresh();
-
-        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
-        var ok=new Button{Content="OK",Width=80,Margin=new Thickness(4),IsDefault=true};
-        var cancel=new Button{Content="Cancel",Width=80,Margin=new Thickness(4),IsCancel=true};
-        buttons.Children.Add(ok);buttons.Children.Add(cancel);
-        Grid.SetRow(buttons,5);Grid.SetColumnSpan(buttons,2);root.Children.Add(buttons);
-        ok.Click+=(_,__)=>w.DialogResult=true;
-        Refresh();w.Content=root;
-        return w.ShowDialog()==true?CurrentHex():null;
-    }
+        =>NativeColourDialog.Show(owner,initial);
 
     void RefreshStyleSetBox()
     {

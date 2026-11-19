@@ -48,6 +48,7 @@ public partial class MainWindow
     double floatingDragStartWidth,floatingDragStartHeight;
     bool resizingFloatingImage;
     bool floatingImagePlacementInstalled;
+    DispatcherTimer? floatingImageRefreshTimer;
 
     internal void InstallFloatingImagePlacement()
     {
@@ -56,14 +57,34 @@ public partial class MainWindow
 
         Editor.PreviewMouseMove+=FloatingImage_PreviewMouseMove;
         Editor.PreviewMouseLeftButtonUp+=FloatingImage_PreviewMouseLeftButtonUp;
-        Editor.TextChanged+=(_,__)=>Dispatcher.BeginInvoke(
-            new Action(RefreshFloatingImagePlacements),DispatcherPriority.Loaded);
-        Editor.SizeChanged+=(_,__)=>Dispatcher.BeginInvoke(
-            new Action(RefreshFloatingImagePlacements),DispatcherPriority.Loaded);
-        PageBorder.SizeChanged+=(_,__)=>Dispatcher.BeginInvoke(
-            new Action(RefreshFloatingImagePlacements),DispatcherPriority.Loaded);
+        Editor.TextChanged+=(_,__)=>ScheduleFloatingImageRefresh();
+        Editor.SizeChanged+=(_,__)=>ScheduleFloatingImageRefresh();
+        PageBorder.SizeChanged+=(_,__)=>ScheduleFloatingImageRefresh();
+        Closed+=(_,__)=>floatingImageRefreshTimer?.Stop();
 
-        Dispatcher.BeginInvoke(new Action(RefreshFloatingImagePlacements),DispatcherPriority.Loaded);
+        ScheduleFloatingImageRefresh();
+    }
+
+    void ScheduleFloatingImageRefresh()
+    {
+        if(floatingImagePlacements.Count==0)return;
+        if(floatingImageRefreshTimer==null)
+        {
+            floatingImageRefreshTimer=new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval=TimeSpan.FromMilliseconds(100)
+            };
+            floatingImageRefreshTimer.Tick+=(_,__)=>
+            {
+                if(IsMenuInteractionActive)return;
+                floatingImageRefreshTimer.Stop();
+                RefreshFloatingImagePlacements();
+            };
+        }
+        // Many text/layout events can occur within one edit. Only the latest
+        // settled layout needs an overlay update, and menu input goes first.
+        floatingImageRefreshTimer.Stop();
+        floatingImageRefreshTimer.Start();
     }
 
     List<FloatingImagePlacementData> CaptureFloatingImagePlacements()
@@ -117,11 +138,12 @@ public partial class MainWindow
                     Mode=item.Mode
                 });
         }
-        Dispatcher.BeginInvoke(new Action(RefreshFloatingImagePlacements),DispatcherPriority.Loaded);
+        ScheduleFloatingImageRefresh();
     }
 
     void ClearFloatingImagePlacements()
     {
+        floatingImageRefreshTimer?.Stop();
         foreach(var placement in floatingImagePlacements)
             if(placement.RuntimeImage!=null)
                 placement.RuntimeImage.Visibility=Visibility.Visible;

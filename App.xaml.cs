@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--menu-performance-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunMenuResponsivenessSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--following-style-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunFollowingStyleInputSelfTest());

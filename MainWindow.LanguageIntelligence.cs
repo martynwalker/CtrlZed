@@ -92,6 +92,7 @@ public partial class MainWindow
                     languageSettings.PoetryRhymeSuggestions=false;
                 LanguageIntelligenceSettingsStore.Save(languageSettings);
                 UpdateLanguageMenuState();
+                ScheduleGrammarReview(true);
                 Status.Text="Writing mode: "+profile.DisplayName;
             };
             writingModeMenu.Items.Add(item);

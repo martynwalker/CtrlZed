@@ -55,6 +55,10 @@ public static class SelfTest
         Directory.CreateDirectory(root);
         try
         {
+            if(NativeColourDialog.InitialColourRef("#FF0000")!=0x0000FF ||
+               NativeColourDialog.InitialColourRef("#0000FF")!=0xFF0000 ||
+               NativeColourDialog.ColourRefToHex(0x00CC66)!="#66CC00")
+                throw new InvalidOperationException("The native colour palette swapped RGB colour channels.");
             if(Branding.CreateIconImageSource()==null)return 26;
             if(HighlightingManager.Instance.GetDefinition("VBNET")==null)return 35;
 
