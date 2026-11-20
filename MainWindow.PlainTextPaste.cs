@@ -106,37 +106,108 @@ public partial class MainWindow
         };
         if(collection==null)return;
 
-        var start=editor.Selection.Start.GetPositionAtOffset(0,LogicalDirection.Backward)!;
-        var end=editor.Selection.End.GetPositionAtOffset(0,LogicalDirection.Forward)!;
-        var before=new Span(link.ContentStart,start);
-        var after=new Span(end,link.ContentEnd);
-        link.Inlines.Remove(before);
-        link.Inlines.Remove(after);
-
-        Hyperlink CopyLink(Span content)
+        static void CopyProperties(Inline source,Inline destination)
         {
-            var copy=new Hyperlink(content)
-            {
-                NavigateUri=link.NavigateUri,TargetName=link.TargetName,
-                Command=link.Command,CommandParameter=link.CommandParameter,CommandTarget=link.CommandTarget
-            };
-            var values=link.GetLocalValueEnumerator();
+            var values=source.GetLocalValueEnumerator();
             while(values.MoveNext())
             {
                 var entry=values.Current;
-                if(!entry.Property.ReadOnly && entry.Property!=FrameworkContentElement.NameProperty)
-                    copy.SetValue(entry.Property,entry.Value);
+                if(!entry.Property.ReadOnly && entry.Property!=FrameworkContentElement.NameProperty &&
+                   entry.Property!=Run.TextProperty)
+                    destination.SetValue(entry.Property,source.GetValue(entry.Property));
             }
+        }
+
+        static void MoveChildren(IEnumerable<Inline> children,InlineCollection target)
+        {
+            foreach(var child in children)
+            {
+                if(child.Parent is Span oldSpan)oldSpan.Inlines.Remove(child);
+                else if(child.Parent is Paragraph oldParagraph)oldParagraph.Inlines.Remove(child);
+                target.Add(child);
+            }
+        }
+
+        static Span CopySpan(Span source)
+        {
+            Span copy=source switch { Bold=>new Bold(),Italic=>new Italic(),Underline=>new Underline(),_=>new Span() };
+            CopyProperties(source,copy);
             return copy;
         }
 
-        if(!string.IsNullOrEmpty(new TextRange(before.ContentStart,before.ContentEnd).Text))
-            collection.InsertBefore(link,CopyLink(before));
+        // Span(start,end) itself tries to split ancestor Hyperlink elements,
+        // which WPF forbids. Partition explicitly instead. All boundaries are
+        // read before moving any existing child, so the caret cannot migrate
+        // into a detached text container during this traversal.
+        var origin=link.ContentStart;
+        var at=origin.GetOffsetToPosition(editor.Selection.Start);
+        var populate=new System.Collections.Generic.List<Action>();
+        (System.Collections.Generic.List<Inline> Before,System.Collections.Generic.List<Inline> After) Partition(InlineCollection children)
+        {
+            var left=new System.Collections.Generic.List<Inline>();
+            var right=new System.Collections.Generic.List<Inline>();
+            foreach(var child in children.ToList())
+            {
+                var first=origin.GetOffsetToPosition(child.ContentStart);
+                var last=origin.GetOffsetToPosition(child.ContentEnd);
+                if(at<=first)right.Add(child);
+                else if(at>=last)left.Add(child);
+                else if(child is Run run)
+                {
+                    var offset=Math.Clamp(at-first,0,run.Text.Length);
+                    if(offset>0)
+                    {
+                        var beforeRun=new Run(run.Text[..offset]);
+                        CopyProperties(run,beforeRun);
+                        left.Add(beforeRun);
+                    }
+                    if(offset<run.Text.Length)
+                    {
+                        var afterRun=new Run(run.Text[offset..]);
+                        CopyProperties(run,afterRun);
+                        right.Add(afterRun);
+                    }
+                }
+                else if(child is Span span)
+                {
+                    var pieces=Partition(span.Inlines);
+                    if(pieces.Before.Count>0)
+                    {
+                        var beforeSpan=CopySpan(span);
+                        populate.Add(()=>MoveChildren(pieces.Before,beforeSpan.Inlines));
+                        left.Add(beforeSpan);
+                    }
+                    if(pieces.After.Count>0)
+                    {
+                        var afterSpan=CopySpan(span);
+                        populate.Add(()=>MoveChildren(pieces.After,afterSpan.Inlines));
+                        right.Add(afterSpan);
+                    }
+                }
+                else
+                {
+                    // Insertion positions cannot divide an embedded inline.
+                    // Keep the existing object intact on the corresponding side.
+                    if(at-first<last-at)right.Add(child);else left.Add(child);
+                }
+            }
+            return (left,right);
+        }
+
+        var parts=Partition(link.Inlines);
+        var before=new Hyperlink();
+        var after=new Hyperlink();
+        CopyProperties(link,before);
+        CopyProperties(link,after);
+        foreach(var action in populate)action();
+        MoveChildren(parts.Before,before.Inlines);
+        MoveChildren(parts.After,after.Inlines);
+
+        if(before.Inlines.Count>0)collection.InsertBefore(link,before);
         var insertion=new Run();
         foreach(var (property,value) in formatting)insertion.SetValue(property,value);
         collection.InsertBefore(link,insertion);
-        if(!string.IsNullOrEmpty(new TextRange(after.ContentStart,after.ContentEnd).Text))
-            collection.InsertBefore(link,CopyLink(after));
+        if(after.Inlines.Count>0)collection.InsertBefore(link,after);
         collection.Remove(link);
         var position=insertion.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
         editor.Selection.Select(position,position);

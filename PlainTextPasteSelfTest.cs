@@ -110,7 +110,7 @@ public partial class MainWindow
         // Pasting into an existing hyperlink must preserve line breaks and
         // retain the untouched destination link text on each side.
         var linkedRun=new Run("linked words");
-        var link=new Hyperlink(linkedRun){NavigateUri=new Uri("https://destination.example")};
+        var link=new Hyperlink(new Span(new Bold(linkedRun))){NavigateUri=new Uri("https://destination.example")};
         var paragraph=new Paragraph();
         paragraph.Inlines.Add(new Run("Before "));
         paragraph.Inlines.Add(link);
@@ -124,7 +124,8 @@ public partial class MainWindow
             throw new InvalidOperationException("Plain paste lost multiline text at a hyperlink boundary.");
         var links=EnumeratePlainPasteLinks(Editor.Document).ToArray();
         if(links.Length!=2 || links.Any(item=>item.NavigateUri?.Host!="destination.example") ||
-           links.Any(item=>new TextRange(item.ContentStart,item.ContentEnd).Text.Contains("Pasted",StringComparison.Ordinal)))
+           links.Any(item=>new TextRange(item.ContentStart,item.ContentEnd).Text.Contains("Pasted",StringComparison.Ordinal)) ||
+           links.Any(item=>!Equals(new TextRange(item.ContentStart,item.ContentEnd).GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold)))
             throw new InvalidOperationException("Plain paste imported link behaviour or changed the untouched destination links.");
         Editor.Undo();
         if(PlainPasteDocumentText()!=before || EnumeratePlainPasteLinks(Editor.Document).Count()!=1)
