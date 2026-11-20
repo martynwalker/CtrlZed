@@ -123,11 +123,17 @@ public partial class MainWindow
         if(!PasteUnformattedText() || PlainPasteDocumentText()!="Before linkedPasted plain\nsecond line words after\n")
             throw new InvalidOperationException("Plain paste lost multiline text at a hyperlink boundary.");
         var links=EnumeratePlainPasteLinks(Editor.Document).ToArray();
+        var linkTexts=links.Select(item=>new TextRange(item.ContentStart,item.ContentEnd).Text).ToArray();
+        // The whole Hyperlink range includes structural Span boundaries and
+        // may aggregate FontWeight to UnsetValue. Verify the actual nonempty
+        // text runs, whose effective weight determines the visible text.
+        var linkRuns=links.Select(item=>EnumeratePlainPasteRuns(item.Inlines)
+            .Where(run=>run.Text.Length>0).ToArray()).ToArray();
         if(links.Length!=2 || links.Any(item=>item.NavigateUri?.Host!="destination.example") ||
-           links.Any(item=>new TextRange(item.ContentStart,item.ContentEnd).Text.Contains("Pasted",StringComparison.Ordinal)) ||
-           links.Any(item=>!Equals(new TextRange(item.ContentStart,item.ContentEnd).GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold)))
+           !linkTexts.SequenceEqual(new[]{"linked"," words"}) ||
+           linkRuns.Any(runs=>runs.Length==0 || runs.Any(run=>run.FontWeight!=FontWeights.Bold)))
         {
-            var details=string.Join(" | ",links.Select(item=>$"URI={item.NavigateUri}; Text=[{new TextRange(item.ContentStart,item.ContentEnd).Text}]; Weight={new TextRange(item.ContentStart,item.ContentEnd).GetPropertyValue(TextElement.FontWeightProperty)}"));
+            var details=string.Join(" | ",links.Select(item=>$"URI={item.NavigateUri}; Text=[{new TextRange(item.ContentStart,item.ContentEnd).Text}]; Runs={string.Join(", ",EnumeratePlainPasteRuns(item.Inlines).Select(run=>$"[{run.Text}]/{run.FontWeight}"))}"));
             using var markup=new MemoryStream();
             new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(markup,DataFormats.Xaml);
             throw new InvalidOperationException($"Plain paste imported link behaviour or changed the untouched destination links. Count={links.Length}; {details}. Fixture XAML: {System.Text.Encoding.UTF8.GetString(markup.ToArray())}");
@@ -187,5 +193,15 @@ public partial class MainWindow
         }
         foreach(var paragraph in document.Blocks.OfType<Paragraph>())
             foreach(var link in Inlines(paragraph.Inlines))yield return link;
+    }
+
+    static IEnumerable<Run> EnumeratePlainPasteRuns(InlineCollection items)
+    {
+        foreach(var inline in items)
+        {
+            if(inline is Run run)yield return run;
+            else if(inline is Span span)
+                foreach(var nested in EnumeratePlainPasteRuns(span.Inlines))yield return nested;
+        }
     }
 }
