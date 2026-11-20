@@ -204,12 +204,15 @@ public partial class MainWindow
         MoveChildren(parts.After,after.Inlines);
 
         if(before.Inlines.Count>0)collection.InsertBefore(link,before);
-        var insertion=new Run();
+        // A nonempty temporary run gives the replacement a precise range.
+        // WPF may normalise an empty run into either neighbouring hyperlink.
+        // The marker is replaced inside the same undo block and never remains
+        // in the document or reaches the clipboard.
+        var insertion=new Run("\u200B");
         foreach(var (property,value) in formatting)insertion.SetValue(property,value);
         collection.InsertBefore(link,insertion);
         if(after.Inlines.Count>0)collection.InsertBefore(link,after);
         collection.Remove(link);
-        var position=insertion.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
-        editor.Selection.Select(position,position);
+        editor.Selection.Select(insertion.ContentStart,insertion.ContentEnd);
     }
 }

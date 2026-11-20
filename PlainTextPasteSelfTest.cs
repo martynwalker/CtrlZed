@@ -126,7 +126,12 @@ public partial class MainWindow
         if(links.Length!=2 || links.Any(item=>item.NavigateUri?.Host!="destination.example") ||
            links.Any(item=>new TextRange(item.ContentStart,item.ContentEnd).Text.Contains("Pasted",StringComparison.Ordinal)) ||
            links.Any(item=>!Equals(new TextRange(item.ContentStart,item.ContentEnd).GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold)))
-            throw new InvalidOperationException("Plain paste imported link behaviour or changed the untouched destination links.");
+        {
+            var details=string.Join(" | ",links.Select(item=>$"URI={item.NavigateUri}; Text=[{new TextRange(item.ContentStart,item.ContentEnd).Text}]; Weight={new TextRange(item.ContentStart,item.ContentEnd).GetPropertyValue(TextElement.FontWeightProperty)}"));
+            using var markup=new MemoryStream();
+            new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(markup,DataFormats.Xaml);
+            throw new InvalidOperationException($"Plain paste imported link behaviour or changed the untouched destination links. Count={links.Length}; {details}. Fixture XAML: {System.Text.Encoding.UTF8.GetString(markup.ToArray())}");
+        }
         Editor.Undo();
         if(PlainPasteDocumentText()!=before || EnumeratePlainPasteLinks(Editor.Document).Count()!=1)
             throw new InvalidOperationException("Hyperlink-boundary paste could not be undone as one operation.");
