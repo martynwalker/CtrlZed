@@ -104,8 +104,8 @@ public static class UserProfileService
             if(replace || !userFields.ContainsKey(pair.Key))
                 userFields[pair.Key]=pair.Value??"";
 
-        var importedStyles=ReadJson<Dictionary<string,StyleSetStore.StyleSet>>(zip,"style-sets.json")
-                           ??new Dictionary<string,StyleSetStore.StyleSet>(StringComparer.OrdinalIgnoreCase);
+        var importedStyles=StyleSetStore.NormalizeSets(
+            ReadJson<Dictionary<string,StyleSetStore.StyleSet>>(zip,"style-sets.json"));
         if(replace)styleSets.Clear();
         foreach(var pair in importedStyles)
             if(replace || !styleSets.ContainsKey(pair.Key))

@@ -76,6 +76,7 @@ public partial class MainWindow : Window
         public string Version { get; set; } = "1.0";
         public List<DocumentCommentData> Comments { get; set; } = new();
         public List<FloatingImagePlacementData> FloatingImages { get; set; } = new();
+        public StyleDocumentState? Styles { get; set; }
     }
 
     sealed class DocumentCommentData
@@ -106,6 +107,7 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
         Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
+        Editor.AddHandler(CommandManager.PreviewExecutedEvent,new ExecutedRoutedEventHandler(Editor_FollowingStylePreviewExecuted));
         Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;
         Editor.PreviewMouseRightButtonDown += Editor_PreviewMouseRightButtonDown;
 
@@ -299,7 +301,7 @@ public partial class MainWindow : Window
     {
         if(currentFile==null)
         {
-            var d=new SaveFileDialog{Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,DefaultExt=".czd",AddExtension=true};
+            var d=new SaveFileDialog{Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,DefaultExt=".czd",AddExtension=true,FileName=SuggestedFirstSaveFileName()};
             if(d.ShowDialog()!=true)return false;
             currentFile=d.FileName;
         }
@@ -314,6 +316,7 @@ public partial class MainWindow : Window
             if(ext==".czd")SaveCzd(currentFile);
             else if(ext==".docx")
             {
+                PrepareDocumentStylesForInterop();
                 var temporaryPath=currentFile+"."+Guid.NewGuid().ToString("N")+".tmp";
                 try
                 {
@@ -389,11 +392,13 @@ public partial class MainWindow : Window
             EmbeddedMacros=new Dictionary<string,string>(embeddedMacros,StringComparer.OrdinalIgnoreCase),
             Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion,
             Comments=CaptureComments(),
-            FloatingImages=CaptureFloatingImagePlacements()
+            FloatingImages=CaptureFloatingImagePlacements(),
+            Styles=CaptureStyleDocumentState()
         };
 
     void ApplyRecoveredSettings(CzdSettings v,bool isProtected=false)
     {
+        RestoreStyleDocumentState(v.Styles);
         pageWidth=v.PageWidth;
         pageHeight=v.PageHeight;
         pageMargins=new Thickness(v.Left,v.Top,v.Right,v.Bottom);
@@ -683,11 +688,11 @@ public partial class MainWindow : Window
             var weightValue=range.GetPropertyValue(TextElement.FontWeightProperty);
             var size=sizeValue is double d?d:0;
             var weight=weightValue is FontWeight fw?fw.ToOpenTypeWeight():0;
-            if(size>=17 || weight>=600 && size>=15)
-            {
-                var level=size>=23?1:size>=19?2:3;
-                items.Add(new HeadingItem{Text=$"{new string(' ',(level-1)*2)}{text}",Paragraph=p});
-            }
+            var role=InferParagraphStyle(p,styleSets.Values);
+            var known=role==null?null:ResolveStyle(role);
+            var level=known?.OutlineLevel??(size>=23?1:size>=19?2:3);
+            if(known!=null?level>0:size>=17 || weight>=600 && size>=15)
+                items.Add(new HeadingItem{Text=$"{new string(' ',Math.Max(0,level-1)*2)}{text}",Paragraph=p});
         }
         else if(block is Section section)
         {
@@ -786,6 +791,7 @@ public partial class MainWindow : Window
         stream.Position=0;
         var clone=new FlowDocument();
         new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
+        DocxInterop.CopyDocumentStyles(Editor.Document,clone);
         return clone;
     }
 
@@ -1771,6 +1777,7 @@ public partial class MainWindow : Window
             {
                 var imported=DocxInterop.LoadWithLayout(path);
                 Editor.Document=imported.Document;
+                AdoptImportedDocumentStyles();
                 headerText=imported.Header;footerText=imported.Footer;
                 if(imported.PageWidth>0)pageWidth=imported.PageWidth;
                 if(imported.PageHeight>0)pageHeight=imported.PageHeight;
@@ -1811,7 +1818,7 @@ public partial class MainWindow : Window
         {
             Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,
             DefaultExt=old==null?".czd":Path.GetExtension(old),
-            FileName=old==null?"":Path.GetFileName(old),
+            FileName=old==null?SuggestedFirstSaveFileName():Path.GetFileName(old),
             AddExtension=true
         };
         if(d.ShowDialog()!=true)return;
@@ -2981,80 +2988,6 @@ public partial class MainWindow : Window
         ScheduleBeta35PaginationMap();
     }
 
-    void StyleMenu_Click(object s,RoutedEventArgs e)
-    {
-        if(s is MenuItem m && m.Tag is string style)ApplyParagraphStyle(style);
-    }
-
-    void StyleBox_SelectionChanged(object s,SelectionChangedEventArgs e)
-    {
-        if(updatingStyleBox || !IsLoaded || StyleBox.SelectedItem is not ComboBoxItem item)return;
-        if(item.Content is string style)ApplyParagraphStyle(style);
-    }
-
-    static void ApplyStyleToRange(TextRange range,StyleSetStore.TextStyle spec,Paragraph? paragraphDefaults=null)
-    {
-        // WPF clears pending character formatting when a paragraph property is
-        // applied to an empty selection. Set layout first, then typing format.
-        range.ApplyPropertyValue(Paragraph.TextAlignmentProperty,spec.Alignment.ToLowerInvariant() switch
-        {
-            "center" or "centre"=>TextAlignment.Center,
-            "right"=>TextAlignment.Right,
-            "justify"=>TextAlignment.Justify,
-            _=>TextAlignment.Left
-        });
-        range.ApplyPropertyValue(Paragraph.MarginProperty,new Thickness(
-            spec.MarginLeft,spec.MarginTop,spec.MarginRight,spec.MarginBottom));
-
-        void ApplyCharacterProperty(DependencyProperty property,object value)
-        {
-            paragraphDefaults?.SetValue(property,value);
-            range.ApplyPropertyValue(property,value);
-        }
-
-        ApplyCharacterProperty(TextElement.FontFamilyProperty,new FontFamily(spec.FontFamily));
-        ApplyCharacterProperty(TextElement.FontSizeProperty,spec.SizePt*96/72);
-        ApplyCharacterProperty(TextElement.FontStyleProperty,spec.Italic?FontStyles.Italic:FontStyles.Normal);
-        ApplyCharacterProperty(TextElement.FontWeightProperty,spec.Bold?FontWeights.Bold:FontWeights.Normal);
-        ApplyCharacterProperty(TextElement.ForegroundProperty,BrushFromHex(spec.Colour));
-        range.ApplyPropertyValue(Inline.TextDecorationsProperty,spec.Underline?TextDecorations.Underline:null);
-    }
-
-    StyleSetStore.TextStyle? ResolveStyle(string style)
-    {
-        if(!styleSets.TryGetValue(activeStyleSet,out var set))
-        {
-            set=StyleSetStore.Defaults()["Default"];
-            activeStyleSet="Default";
-        }
-        if(set.Styles.TryGetValue(style,out var spec))return spec;
-        return StyleSetStore.Defaults()["Default"].Styles.TryGetValue(style,out spec)?spec:null;
-    }
-
-    internal const string ParagraphStyleTagPrefix="CtrlZed:ParagraphStyle:";
-
-    void RememberParagraphStyle(TextRange range,string style)
-    {
-        foreach(var paragraph in EnumerateDocumentParagraphs())
-        {
-            if(paragraph==range.Start.Paragraph ||
-               (paragraph.ContentEnd.CompareTo(range.Start)>0 && paragraph.ContentStart.CompareTo(range.End)<0))
-                paragraph.Tag=ParagraphStyleTagPrefix+style;
-        }
-    }
-
-    void ApplyParagraphStyle(string style)
-    {
-        if(Editor==null)return;
-        var spec=ResolveStyle(style);
-        if(spec==null)return;
-        RememberParagraphStyle(Editor.Selection,style);
-        ApplyStyleToRange(Editor.Selection,spec);
-        RefreshFontBox();
-        MarkDirty($"Style: {style} ({activeStyleSet})");
-        Editor.Focus();
-    }
-
     static Brush BrushFromHex(string value)
     {
         try{return (Brush)new BrushConverter().ConvertFromString(value)!;}
@@ -3069,6 +3002,7 @@ public partial class MainWindow : Window
         if(StyleSetBox==null)return;
         StyleSetBox.ItemsSource=styleSets.Keys.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToList();
         StyleSetBox.SelectedItem=styleSets.ContainsKey(activeStyleSet)?activeStyleSet:"Default";
+        RefreshParagraphStyleBox();
     }
 
     void StyleSetBox_SelectionChanged(object s,SelectionChangedEventArgs e)
@@ -3076,6 +3010,7 @@ public partial class MainWindow : Window
         if(!IsLoaded || StyleSetBox.SelectedItem is not string name || !styleSets.ContainsKey(name) ||
            string.Equals(activeStyleSet,name,StringComparison.Ordinal))return;
         activeStyleSet=name;
+        RefreshParagraphStyleBox();
         SaveAppSettings();
         var paragraph=Editor.Selection.Start.Paragraph;
         var role=paragraph==null?null:InferParagraphStyle(paragraph,styleSets.Values);
@@ -3090,286 +3025,7 @@ public partial class MainWindow : Window
         Status.Text="Style set: "+name;
     }
 
-    void Styles_Click(object s,RoutedEventArgs e)
-    {
-        var w=new Window
-        {
-            Title="CtrlZed Styles",Owner=this,Width=760,Height=560,
-            WindowStartupLocation=WindowStartupLocation.CenterOwner,
-            Icon=Branding.CreateIconImageSource()
-        };
-        var root=new Grid{Margin=new Thickness(14)};
-        root.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(180)});
-        root.ColumnDefinitions.Add(new ColumnDefinition());
-        root.RowDefinitions.Add(new RowDefinition());
-        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-
-        var styles=StyleSetStore.ParagraphStyleNames;
-        var selectorPanel=new DockPanel{Margin=new Thickness(0,0,12,0)};
-        var selectorLabel=new TextBlock{Text="Style to edit",FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)};
-        DockPanel.SetDock(selectorLabel,Dock.Top);
-        selectorPanel.Children.Add(selectorLabel);
-        var stylePicker=new ListBox
-        {
-            ItemsSource=styles,SelectionMode=SelectionMode.Single,Padding=new Thickness(3),
-            HorizontalContentAlignment=HorizontalAlignment.Stretch,
-            ToolTip="Choose the style to edit. Current edits are retained when you select another style."
-        };
-        var styleItem=new Style(typeof(ListBoxItem));
-        styleItem.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(6,4,6,4)));
-        stylePicker.ItemContainerStyle=styleItem;
-        ScrollViewer.SetVerticalScrollBarVisibility(stylePicker,ScrollBarVisibility.Auto);
-        ScrollViewer.SetHorizontalScrollBarVisibility(stylePicker,ScrollBarVisibility.Disabled);
-        System.Windows.Automation.AutomationProperties.SetName(stylePicker,"Style to edit");
-        selectorPanel.Children.Add(stylePicker);
-
-        Grid.SetColumn(selectorPanel,0);Grid.SetRow(selectorPanel,0);root.Children.Add(selectorPanel);
-
-        var form=new Grid();
-        for(int i=0;i<11;i++)form.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        form.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(120)});
-        form.ColumnDefinitions.Add(new ColumnDefinition());
-
-        var setName=new TextBox{Text=activeStyleSet,IsReadOnly=true,Margin=new Thickness(0,3,0,8)};
-        var font=new ComboBox{ItemsSource=Fonts.SystemFontFamilies.OrderBy(x=>x.Source).ToList(),DisplayMemberPath="Source",Margin=new Thickness(0,3,0,8)};
-        var size=new TextBox{Margin=new Thickness(0,3,0,8)};
-        var colourPanel=new DockPanel{Margin=new Thickness(0,3,0,8)};
-        var pickColour=new Button{Content="Pick Colour…",MinWidth=100,Margin=new Thickness(6,0,0,0)};
-        DockPanel.SetDock(pickColour,Dock.Right);colourPanel.Children.Add(pickColour);
-        var swatch=new Border{Width=26,BorderBrush=Brushes.Gray,BorderThickness=new Thickness(1),Margin=new Thickness(6,0,0,0)};
-        DockPanel.SetDock(swatch,Dock.Right);colourPanel.Children.Add(swatch);
-        var colour=new ComboBox{ItemsSource=new[]{"#000000","#333333","#666666","#808080","#FFFFFF","#8B0000","#CC0000","#006400","#00008B","#1E4D7B","#4B0082"},IsEditable=true};
-        colourPanel.Children.Add(colour);
-        colour.AddHandler(TextBox.TextChangedEvent,new TextChangedEventHandler((_,__)=>swatch.Background=BrushFromHex(colour.Text)));
-        var bold=new CheckBox{Content="Bold",Margin=new Thickness(0,3,0,5)};
-        var italic=new CheckBox{Content="Italic",Margin=new Thickness(0,3,0,5)};
-        var underline=new CheckBox{Content="Underline",Margin=new Thickness(0,3,0,5)};
-        var alignment=new ComboBox{ItemsSource=new[]{"Left","Centre","Right","Justify"},Margin=new Thickness(0,3,0,8)};
-        var margins=new TextBox{Margin=new Thickness(0,3,0,8),ToolTip="Left,Top,Right,Bottom"};
-        var followingStyle=new ComboBox{ItemsSource=styles,Margin=new Thickness(0,3,0,8),
-            ToolTip="Style applied to the new paragraph when you press Return."};
-
-        AddRow(form,0,"Style set",setName);
-        AddRow(form,1,"Font",font);
-        AddRow(form,2,"Size (pt)",size);
-        AddRow(form,3,"Colour",colourPanel);
-        AddRow(form,4,"Bold",bold);
-        AddRow(form,5,"Italic",italic);
-        AddRow(form,6,"Underline",underline);
-        AddRow(form,7,"Alignment",alignment);
-        AddRow(form,8,"Margins",margins);
-        AddRow(form,9,"Following style",followingStyle);
-
-        var info=new TextBlock
-        {
-            Text="Save writes changes to this set. New Set copies all styles, including your current edits.",
-            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,8,0,8)
-        };
-        Grid.SetRow(info,10);Grid.SetColumnSpan(info,2);form.Children.Add(info);
-        Grid.SetColumn(form,1);Grid.SetRow(form,0);root.Children.Add(form);
-
-        StyleSetStore.StyleSet working;
-        if(styleSets.TryGetValue(activeStyleSet,out var current))
-        {
-            working=new StyleSetStore.StyleSet
-            {
-                Name=current.Name,
-                Styles=current.Styles.ToDictionary(
-                    x=>x.Key,
-                    x=>new StyleSetStore.TextStyle
-                    {
-                        FontFamily=x.Value.FontFamily,SizePt=x.Value.SizePt,Colour=x.Value.Colour,
-                        Bold=x.Value.Bold,Italic=x.Value.Italic,Underline=x.Value.Underline,
-                        FollowingStyle=x.Value.FollowingStyle,
-                        Alignment=x.Value.Alignment,MarginLeft=x.Value.MarginLeft,MarginTop=x.Value.MarginTop,
-                        MarginRight=x.Value.MarginRight,MarginBottom=x.Value.MarginBottom
-                    },
-                    StringComparer.OrdinalIgnoreCase)
-            };
-        }
-        else working=StyleSetStore.Defaults()["Default"];
-
-        string? selectedStyle=null;
-        var restoringStyleSelection=false;
-
-        void LoadStyle(string style)
-        {
-            if(!working.Styles.TryGetValue(style,out var spec))spec=StyleSetStore.Defaults()["Default"].Styles[style];
-            selectedStyle=style;
-            font.SelectedItem=Fonts.SystemFontFamilies.FirstOrDefault(f=>string.Equals(f.Source,spec.FontFamily,StringComparison.OrdinalIgnoreCase));
-            size.Text=spec.SizePt.ToString("0.##");
-            colour.Text=spec.Colour;
-            bold.IsChecked=spec.Bold;italic.IsChecked=spec.Italic;underline.IsChecked=spec.Underline;
-            followingStyle.SelectedItem=StyleSetStore.NormalizeFollowingStyle(spec.FollowingStyle);
-            alignment.SelectedItem=spec.Alignment=="Center"?"Centre":spec.Alignment;
-            margins.Text=$"{spec.MarginLeft:0.##},{spec.MarginTop:0.##},{spec.MarginRight:0.##},{spec.MarginBottom:0.##}";
-        }
-
-        void SaveCurrentStyle()
-        {
-            if(selectedStyle==null)return;
-            if(!double.TryParse(size.Text,out var pt) || pt<=0)throw new InvalidOperationException("Enter a valid font size.");
-            var parts=margins.Text.Split(',');
-            if(parts.Length!=4 || !parts.All(p=>double.TryParse(p.Trim(),out _)))
-                throw new InvalidOperationException("Margins must be four numbers: Left,Top,Right,Bottom.");
-            var vals=parts.Select(p=>double.Parse(p.Trim())).ToArray();
-            working.Styles[selectedStyle]=new StyleSetStore.TextStyle
-            {
-                FontFamily=(font.SelectedItem as FontFamily)?.Source??font.Text,
-                SizePt=pt,Colour=string.IsNullOrWhiteSpace(colour.Text)?"#000000":colour.Text.Trim(),
-                Bold=bold.IsChecked==true,Italic=italic.IsChecked==true,Underline=underline.IsChecked==true,
-                FollowingStyle=StyleSetStore.NormalizeFollowingStyle(followingStyle.SelectedItem as string),
-                Alignment=alignment.SelectedItem?.ToString()??"Left",
-                MarginLeft=vals[0],MarginTop=vals[1],MarginRight=vals[2],MarginBottom=vals[3]
-            };
-        }
-
-        stylePicker.SelectionChanged+=(_,__)=>
-        {
-            if(restoringStyleSelection)return;
-            try
-            {
-                SaveCurrentStyle();
-                if(stylePicker.SelectedItem is string style)LoadStyle(style);
-            }
-            catch(InvalidOperationException ex)
-            {
-                restoringStyleSelection=true;
-                stylePicker.SelectedItem=selectedStyle;
-                restoringStyleSelection=false;
-                MessageBox.Show(w,ex.Message,"Styles",MessageBoxButton.OK,MessageBoxImage.Warning);
-            }
-        };
-        pickColour.Click+=(_,__)=>
-        {
-            var picked=PickColour(w,colour.Text);
-            if(!string.IsNullOrWhiteSpace(picked))colour.Text=picked;
-        };
-
-        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
-        var saveSet=new Button{Content="Save Set",Width=90,Margin=new Thickness(4)};
-        var deleteSet=new Button{Content="Delete Set",Width=90,Margin=new Thickness(4)};
-        var close=new Button{Content="Close",Width=80,Margin=new Thickness(4)};
-        var newSet=new Button{Content="New Set…",Width=90,Margin=new Thickness(4)};
-        var renameSet=new Button{Content="Rename Set…",Width=100,Margin=new Thickness(4)};
-        renameSet.IsEnabled=!string.Equals(setName.Text,"Default",StringComparison.OrdinalIgnoreCase);
-        buttons.Children.Add(newSet);buttons.Children.Add(renameSet);
-        buttons.Children.Add(deleteSet);buttons.Children.Add(saveSet);buttons.Children.Add(close);
-        Grid.SetColumn(buttons,0);Grid.SetColumnSpan(buttons,2);Grid.SetRow(buttons,1);root.Children.Add(buttons);
-
-        void PersistSet(string name,string? previousName=null)
-        {
-            SaveCurrentStyle();
-            var updated=new Dictionary<string,StyleSetStore.StyleSet>(styleSets,StringComparer.OrdinalIgnoreCase);
-            if(previousName!=null)updated.Remove(previousName);
-            updated[name]=new StyleSetStore.StyleSet
-            {
-                Name=name,
-                Styles=new Dictionary<string,StyleSetStore.TextStyle>(working.Styles,StringComparer.OrdinalIgnoreCase)
-            };
-            StyleSetStore.Save(updated);
-            styleSets.Clear();
-            foreach(var entry in updated)styleSets.Add(entry.Key,entry.Value);
-            activeStyleSet=name;
-            setName.Text=name;
-            renameSet.IsEnabled=!string.Equals(name,"Default",StringComparison.OrdinalIgnoreCase);
-            RefreshStyleSetBox();
-            SaveAppSettings();
-        }
-
-        void ChangeSetName(bool rename)
-        {
-            var currentName=setName.Text;
-            var title=rename?"Rename Set":"New Set";
-            var name=ShowMacroInput("Style set name",rename?currentName:"",w,title)?.Trim();
-            if(name==null)return;
-            if(name.Length==0 || (styleSets.ContainsKey(name) &&
-               !(rename && string.Equals(name,currentName,StringComparison.OrdinalIgnoreCase))))
-            {
-                MessageBox.Show(w,"Enter a unique style-set name.",title,MessageBoxButton.OK,MessageBoxImage.Warning);
-                return;
-            }
-            try{PersistSet(name,rename?currentName:null);}
-            catch(Exception ex){MessageBox.Show(w,ex.Message,title,MessageBoxButton.OK,MessageBoxImage.Warning);}
-        }
-
-        newSet.Click+=(_,__)=>ChangeSetName(false);
-        renameSet.Click+=(_,__)=>ChangeSetName(true);
-        saveSet.Click+=(_,__)=>
-        {
-            try
-            {
-                PersistSet(setName.Text);
-                MessageBox.Show(w,$"Style set “{setName.Text}” has been saved.","Styles",MessageBoxButton.OK,MessageBoxImage.Information);
-            }
-            catch(Exception ex){MessageBox.Show(w,ex.Message,"Save style set",MessageBoxButton.OK,MessageBoxImage.Warning);}
-        };
-
-        deleteSet.Click+=(_,__)=>
-        {
-            var name=setName.Text.Trim();
-            if(string.Equals(name,"Default",StringComparison.OrdinalIgnoreCase))
-            {
-                MessageBox.Show("The Default style set cannot be deleted.","Styles",MessageBoxButton.OK,MessageBoxImage.Information);
-                return;
-            }
-            if(styleSets.Remove(name))
-            {
-                activeStyleSet="Default";
-                StyleSetStore.Save(styleSets);
-                RefreshStyleSetBox();
-                SaveAppSettings();
-                w.Close();
-            }
-        };
-        close.Click+=(_,__)=>w.Close();
-
-        stylePicker.SelectedItem=(StyleBox.SelectedItem as ComboBoxItem)?.Content as string ?? styles[0];
-        w.Content=root;w.ShowDialog();
-    }
-
-    string? InferParagraphStyle(Paragraph paragraph,IEnumerable<StyleSetStore.StyleSet> sourceSets)
-    {
-        if(paragraph.Tag is string tag && tag.StartsWith(ParagraphStyleTagPrefix,StringComparison.Ordinal))
-            return tag[ParagraphStyleTagPrefix.Length..];
-        if(DocxInterop.GetImportedParagraphRole(paragraph) is string importedRole)return importedRole;
-
-        var probe=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
-        var family=probe.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily;
-        var sizeValue=probe.GetPropertyValue(TextElement.FontSizeProperty);
-        var weightValue=probe.GetPropertyValue(TextElement.FontWeightProperty);
-        var styleValue=probe.GetPropertyValue(TextElement.FontStyleProperty);
-        var alignment=paragraph.TextAlignment;
-        var margin=paragraph.Margin;
-
-        var fontName=family?.Source??"";
-        var size=sizeValue is double d?d*72/96:0;
-        var bold=weightValue is FontWeight fw && fw>=FontWeights.SemiBold;
-        var italic=styleValue is FontStyle fs && fs==FontStyles.Italic;
-
-        var matches=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach(var (name,spec) in sourceSets.SelectMany(set=>set.Styles))
-        {
-            if(!string.Equals(fontName,spec.FontFamily,StringComparison.OrdinalIgnoreCase))continue;
-            if(Math.Abs(size-spec.SizePt)>0.15)continue;
-            if(bold!=spec.Bold || italic!=spec.Italic)continue;
-
-            var wantedAlignment=spec.Alignment.ToLowerInvariant() switch
-            {
-                "center" or "centre"=>TextAlignment.Center,
-                "right"=>TextAlignment.Right,
-                "justify"=>TextAlignment.Justify,
-                _=>TextAlignment.Left
-            };
-            if(alignment!=wantedAlignment)continue;
-            if(Math.Abs(margin.Left-spec.MarginLeft)>0.5 ||
-               Math.Abs(margin.Top-spec.MarginTop)>0.5 ||
-               Math.Abs(margin.Right-spec.MarginRight)>0.5 ||
-               Math.Abs(margin.Bottom-spec.MarginBottom)>0.5)continue;
-            matches.Add(name);
-        }
-        return matches.Count==1?matches.Single():null;
-    }
+    void Styles_Click(object s,RoutedEventArgs e)=>ShowStyleEditor();
 
     void ReformatDocument_Click(object s,RoutedEventArgs e)
     {
@@ -3397,7 +3053,7 @@ public partial class MainWindow : Window
         root.Children.Add(picker);
         root.Children.Add(new TextBlock
         {
-            Text="Apply the selected set’s Normal, Heading, Quote and Caption definitions across the document.",
+            Text="Apply matching named styles from the selected set across the document.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,10)
         });
         var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
@@ -3420,10 +3076,13 @@ public partial class MainWindow : Window
                 foreach(var item in mappings)
                 {
                     if(item.Style==null)continue;
-                    if(targetSet.Styles.TryGetValue(item.Style,out var spec) ||
-                       defaultStyles.TryGetValue(item.Style,out spec))
+                    if((StyleSetStore.ResolveStyle(targetSet,item.Style) ??
+                        StyleSetStore.ResolveStyle(defaults,item.Style)) is { } spec)
                     {
-                        ApplyStyleToRange(new TextRange(item.Paragraph.ContentStart,item.Paragraph.ContentEnd),spec);
+                        var targetRole=StyleSetStore.ResolveStyleName(targetSet,item.Style)
+                            ??StyleSetStore.ResolveStyleName(defaults,item.Style)??item.Style;
+                        ApplyStyleToRange(new TextRange(item.Paragraph.ContentStart,item.Paragraph.ContentEnd),spec,item.Paragraph);
+                        item.Paragraph.Tag=ParagraphStyleTag(targetRole,spec);
                         applied++;
                     }
                 }
@@ -3434,6 +3093,7 @@ public partial class MainWindow : Window
             }
 
             activeStyleSet=targetName;
+            PrepareDocumentStylesForInterop();
             RefreshStyleSetBox();
             SaveAppSettings();
             var summary=$"Reformatted {applied} of {mappings.Count} paragraphs using {targetName}.";
@@ -4427,7 +4087,7 @@ INSERT_FIELD date
                     break;
                 }
                 case "NEW_PARAGRAPH":
-                    EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+                    InsertParagraphWithFollowingStyle();
                     break;
                 case "PAGE_BREAK":
                     PageBreak_Click(this,new RoutedEventArgs());
@@ -4808,6 +4468,7 @@ INSERT_FIELD date
             "CTRL+X"=>"Cut",
             "CTRL+C"=>"Copy",
             "CTRL+V"=>"Paste",
+            "CTRL+SHIFT+V"=>"Paste Unformatted Text",
             "CTRL+Z"=>"Undo",
             "CTRL+Y"=>"Redo",
             "CTRL+A"=>"Select All",
@@ -4959,6 +4620,13 @@ INSERT_FIELD date
 
     async void Window_PreviewKeyDown(object sender,KeyEventArgs e)
     {
+        if(!e.Handled && e.Key==Key.V && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift) &&
+           (Editor.IsKeyboardFocusWithin || MainMenu.IsKeyboardFocusWithin))
+        {
+            e.Handled=true;
+            PasteUnformattedText();
+            return;
+        }
         if(await TryRunMacroShortcutAsync(e)){e.Handled=true;return;}
         if(profile==KeyboardProfile.Word && Keyboard.Modifiers==ModifierKeys.None && e.Key==Key.F9)
         {

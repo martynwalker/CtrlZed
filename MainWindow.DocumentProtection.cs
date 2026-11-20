@@ -35,7 +35,7 @@ public partial class MainWindow
                 Title = "Save Password-Protected Document",
                 Filter = NativeDocumentFilter,
                 DefaultExt = ".czd",
-                FileName = Path.GetFileNameWithoutExtension(path) ?? "",
+                FileName = path==null?SuggestedFirstSaveFileName():Path.GetFileNameWithoutExtension(path),
                 AddExtension = true
             };
             if (dialog.ShowDialog(this) != true) return;

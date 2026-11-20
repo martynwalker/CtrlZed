@@ -48,6 +48,7 @@ public static class CtrlZedKeyboardCatalogue
         new("Cut","Cut the selection.","Ctrl+X","","","Edit>Cut"),
         new("Copy","Copy the selection.","Ctrl+C","","","Edit>Copy"),
         new("Paste","Paste at the caret.","Ctrl+V","","","Edit>Paste"),
+        new("Paste Unformatted Text","Paste plain text using the destination formatting.","Ctrl+Shift+V","Ctrl+Shift+V","Ctrl+Shift+V","Edit>Paste Unformatted Text"),
         new("Find / Replace","Find and replace text.","Ctrl+H","F2","Ctrl+Q, F","Edit>Find / Replace"),
         new("Replace","Open Find / Replace from WordPerfect or WordStar.","","Alt+F2","Ctrl+Q, A"),
 

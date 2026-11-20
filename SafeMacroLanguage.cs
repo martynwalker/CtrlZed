@@ -30,7 +30,7 @@ INSERT_QR {LINK}
 INSERT_FIELD name
 NEW_PARAGRAPH
 PAGE_BREAK
-APPLY_STYLE Normal|Heading 1|Heading 2|Heading 3|Quote|Caption
+APPLY_STYLE style name (Normal, Heading 1/2/3, Quote, Caption, or a named style in the active set)
 ALIGN LEFT|CENTRE|RIGHT|JUSTIFY
 BULLETS
 NUMBERING

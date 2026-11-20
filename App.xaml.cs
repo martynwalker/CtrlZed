@@ -8,6 +8,17 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--style45-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunRelease45StyleSelfTest());
+            return;
+        }
+        if(e.Args.Any(a=>a.Equals("--plain-text-paste-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunPlainTextPasteSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--menu-performance-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunMenuResponsivenessSelfTest());

@@ -9,33 +9,73 @@ namespace CtrlZed;
 public partial class MainWindow
 {
     bool updatingStyleBox;
+    bool enteringFollowingParagraph;
+
+    void Editor_FollowingStylePreviewExecuted(object sender,ExecutedRoutedEventArgs e)
+    {
+        if(enteringFollowingParagraph || e.Command!=EditingCommands.EnterParagraphBreak || Editor.IsReadOnly ||
+           ParagraphEndingAtSelection(Editor) is not Paragraph paragraph)return;
+        var role=InferParagraphStyle(paragraph,styleSets.Values)??"Normal";
+        var following=StyleSetStore.NormalizeFollowingStyle(ResolveStyle(role)?.FollowingStyle,ActiveParagraphStyleSet);
+        if(string.Equals(role,following,StringComparison.OrdinalIgnoreCase))return;
+        e.Handled=true;
+        InsertParagraphWithFollowingStyle();
+    }
 
     void Editor_FollowingStylePreviewKeyDown(object sender,KeyEventArgs e)
     {
         if(e.Handled || e.Key!=Key.Enter || Keyboard.Modifiers!=ModifierKeys.None ||
            Editor.IsReadOnly || !Editor.IsKeyboardFocused)return;
 
-        var paragraph=ParagraphEndingAtSelection(Editor);
-        if(paragraph==null)return;
-
-        var role=InferParagraphStyle(paragraph,styleSets.Values)??"Normal";
-        var following=StyleSetStore.NormalizeFollowingStyle(ResolveStyle(role)?.FollowingStyle);
-        if(string.Equals(role,following,StringComparison.OrdinalIgnoreCase))return;
-
-        var format=ResolveStyle(following);
-        if(format==null || !EditingCommands.EnterParagraphBreak.CanExecute(null,Editor))return;
-
+        if(ParagraphEndingAtSelection(Editor)==null ||
+           !EditingCommands.EnterParagraphBreak.CanExecute(null,Editor))return;
+        var role=InferParagraphStyle(Editor.CaretPosition.Paragraph!,styleSets.Values)??"Normal";
+        var following=StyleSetStore.NormalizeFollowingStyle(ResolveStyle(role)?.FollowingStyle,ActiveParagraphStyleSet);
+        if(string.Equals(role,"Normal",StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(following,"Normal",StringComparison.OrdinalIgnoreCase))return;
         e.Handled=true;
-        if(InsertFollowingStyledParagraph(Editor,paragraph,following,format))
-        {
-            updatingStyleBox=true;
-            try
-            {
-                StyleBox.SelectedItem=StyleBox.Items.OfType<ComboBoxItem>()
-                    .FirstOrDefault(item=>string.Equals(item.Content as string,following,StringComparison.Ordinal));
-            }
-            finally { updatingStyleBox=false; }
+        InsertParagraphWithFollowingStyle();
+    }
 
+    internal void InsertParagraphWithFollowingStyle()
+    {
+        if(Editor.IsReadOnly || !EditingCommands.EnterParagraphBreak.CanExecute(null,Editor))return;
+        Editor.Focus();
+        var paragraph=ParagraphEndingAtSelection(Editor);
+        if(paragraph==null)
+        {
+            // Splitting existing text retains its current paragraph style.
+            var tag=Editor.CaretPosition.Paragraph?.Tag;
+            enteringFollowingParagraph=true;
+            try { EditingCommands.EnterParagraphBreak.Execute(null,Editor); }
+            finally { enteringFollowingParagraph=false; }
+            if(Editor.CaretPosition.Paragraph is Paragraph split && tag is string identity)
+                split.Tag=identity;
+            return;
+        }
+        var role=InferParagraphStyle(paragraph,styleSets.Values)??"Normal";
+        var following=StyleSetStore.NormalizeFollowingStyle(ResolveStyle(role)?.FollowingStyle,ActiveParagraphStyleSet);
+        if(string.Equals(role,"Normal",StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(following,"Normal",StringComparison.OrdinalIgnoreCase))
+        {
+            enteringFollowingParagraph=true;
+            try { EditingCommands.EnterParagraphBreak.Execute(null,Editor); }
+            finally { enteringFollowingParagraph=false; }
+            if(Editor.CaretPosition.Paragraph is Paragraph body)body.Tag=ParagraphStyleTagPrefix+"Normal";
+            return;
+        }
+        var format=ResolveStyle(following);
+        var inserted=false;
+        enteringFollowingParagraph=true;
+        try
+        {
+            if(format!=null)inserted=InsertFollowingStyledParagraph(Editor,paragraph,following,format);
+        }
+        finally { enteringFollowingParagraph=false; }
+        if(inserted)
+        {
+            PrepareDocumentStylesForInterop();
+            RefreshParagraphStyleBox();
             RefreshFontBox();
         }
     }
@@ -69,7 +109,7 @@ public partial class MainWindow
     internal static void ApplyFollowingStyle(
         RichTextBox editor,Paragraph paragraph,string following,StyleSetStore.TextStyle format)
     {
-        paragraph.Tag=ParagraphStyleTagPrefix+following;
+        paragraph.Tag=ParagraphStyleTag(following,format);
 
         // Paragraph formatting clears WPF's pending typing format. Complete it
         // before positioning the caret and setting the character properties.

@@ -55,6 +55,7 @@ public static class SelfTest
         Directory.CreateDirectory(root);
         try
         {
+            FileNameSelfTest.Run();
             if(NativeColourDialog.InitialColourRef("#FF0000")!=0x0000FF ||
                NativeColourDialog.InitialColourRef("#0000FF")!=0xFF0000 ||
                NativeColourDialog.ColourRefToHex(0x00CC66)!="#66CC00")

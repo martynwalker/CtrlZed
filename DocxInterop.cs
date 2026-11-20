@@ -33,10 +33,74 @@ public static class DocxInterop
 {
     static readonly ConditionalWeakTable<FlowDocument,W.Styles> ImportedStyleDefinitions=new();
     static readonly ConditionalWeakTable<Paragraph,ImportedParagraphStyle> ImportedParagraphStyles=new();
+    static readonly ConditionalWeakTable<FlowDocument,StyleSetStore.StyleSet> DocumentStyleSets=new();
     sealed record ImportedParagraphStyle(string? Id,string? Role);
 
     internal static string? GetImportedParagraphRole(Paragraph paragraph)
         =>ImportedParagraphStyles.TryGetValue(paragraph,out var style)?style.Role:null;
+
+    internal static StyleSetStore.StyleSet? GetDocumentStyles(FlowDocument document)
+        =>DocumentStyleSets.TryGetValue(document,out var styles)?styles:null;
+
+    internal static void SetDocumentStyles(FlowDocument document,StyleSetStore.StyleSet styles)
+    {
+        DocumentStyleSets.Remove(document);
+        DocumentStyleSets.Add(document,StyleSetStore.NormalizeSet(styles));
+    }
+
+    internal static void CopyDocumentStyles(FlowDocument source,FlowDocument target)
+    {
+        if(DocumentStyleSets.TryGetValue(source,out var styles))SetDocumentStyles(target,styles);
+        if(ImportedStyleDefinitions.TryGetValue(source,out var original))
+        {
+            ImportedStyleDefinitions.Remove(target);
+            ImportedStyleDefinitions.Add(target,(W.Styles)original.CloneNode(true));
+        }
+        var before=StyleParagraphs(source.Blocks).ToList();
+        var after=StyleParagraphs(target.Blocks).ToList();
+        for(var index=0;index<Math.Min(before.Count,after.Count);index++)
+        {
+            after[index].Tag=before[index].Tag;
+            after[index].Margin=before[index].Margin;
+            after[index].TextIndent=before[index].TextIndent;
+            after[index].LineHeight=before[index].LineHeight;
+            after[index].LineStackingStrategy=before[index].LineStackingStrategy;
+            after[index].KeepWithNext=before[index].KeepWithNext;
+            after[index].KeepTogether=before[index].KeepTogether;
+            after[index].BreakPageBefore=before[index].BreakPageBefore;
+            if(ImportedParagraphStyles.TryGetValue(before[index],out var originalStyle))
+            {
+                ImportedParagraphStyles.Remove(after[index]);
+                ImportedParagraphStyles.Add(after[index],originalStyle);
+            }
+        }
+    }
+
+    static IEnumerable<Paragraph> StyleParagraphs(IEnumerable<Block> blocks)
+    {
+        foreach(var block in blocks)
+        {
+            if(block is Paragraph paragraph)yield return paragraph;
+            else if(block is Section section)
+                foreach(var value in StyleParagraphs(section.Blocks))yield return value;
+            else if(block is List list)
+                foreach(var item in list.ListItems)
+                    foreach(var value in StyleParagraphs(item.Blocks))yield return value;
+            else if(block is Table table)
+                foreach(var group in table.RowGroups)
+                    foreach(var row in group.Rows)
+                        foreach(var cell in row.Cells)
+                            foreach(var value in StyleParagraphs(cell.Blocks))yield return value;
+        }
+    }
+
+    static string StyleIdentity(string styleId)
+        =>styleId.StartsWith("CZ_",StringComparison.Ordinal)?styleId[3..]:"docx:"+styleId;
+
+    static string WordStyleId(string name,StyleSetStore.TextStyle style)
+        =>StyleSetStore.ParagraphStyleNames.Contains(name,StringComparer.OrdinalIgnoreCase)
+            ?name.Replace(" ","")
+            :style.Id.StartsWith("docx:",StringComparison.Ordinal)?style.Id[5..]:"CZ_"+style.Id;
 
     static string? ImportedStyleRole(MainDocumentPart main,string? styleId)
     {
@@ -56,7 +120,7 @@ public static class DocxInterop
             .FirstOrDefault(style=>style.Type?.Value==W.StyleValues.Paragraph &&
                 string.Equals(style.StyleId?.Value,styleId,StringComparison.OrdinalIgnoreCase))
             ?.GetFirstChild<W.StyleName>()?.Val?.Value;
-        return KnownRole(styleId)??KnownRole(name);
+        return KnownRole(styleId)??KnownRole(name)??name??styleId;
     }
 
     sealed record NumberingInfo(int NumberId,int Level,TextMarkerStyle MarkerStyle);
@@ -80,7 +144,7 @@ public static class DocxInterop
         word.PackageProperties.Keywords=keywords??"";
 
         ImportedStyleDefinitions.TryGetValue(document,out var originalStyles);
-        EnsureStyles(main,originalStyles);
+        EnsureStyles(main,originalStyles,GetDocumentStyles(document));
         EnsureNumbering(main);
         EnsureDocumentSettings(main);
 
@@ -147,6 +211,7 @@ public static class DocxInterop
 
         if(main.StyleDefinitionsPart?.Styles is W.Styles styles)
             ImportedStyleDefinitions.Add(result,(W.Styles)styles.CloneNode(true));
+        SetDocumentStyles(result,ReadDocumentStyles(main));
 
         var children=body.ChildElements.ToList();
         for(var i=0;i<children.Count;i++)
@@ -237,7 +302,7 @@ public static class DocxInterop
         part.Settings.Save();
     }
 
-    static void EnsureStyles(MainDocumentPart main,W.Styles? originalStyles)
+    static void EnsureStyles(MainDocumentPart main,W.Styles? originalStyles,StyleSetStore.StyleSet? catalogue=null)
     {
         var part=main.StyleDefinitionsPart??main.AddNewPart<StyleDefinitionsPart>();
         if(part.Styles!=null && part.Styles.Elements<W.Style>().Any())return;
@@ -257,6 +322,14 @@ public static class DocxInterop
                 if(ids.Add(style.StyleId?.Value))merged.Append(style.CloneNode(true));
             styles=merged;
         }
+        if(catalogue!=null)
+            foreach(var (name,spec) in catalogue.Styles)
+            {
+                var definition=CreateDocumentParagraphStyle(name,spec,catalogue);
+                styles.Elements<W.Style>().FirstOrDefault(existing=>
+                    string.Equals(existing.StyleId?.Value,definition.StyleId?.Value,StringComparison.OrdinalIgnoreCase))?.Remove();
+                styles.Append(definition);
+            }
         part.Styles=styles;
         part.Styles.Save();
     }
@@ -293,6 +366,118 @@ public static class DocxInterop
         runProperties.Append(new W.FontSize{Val=halfPoints.ToString()});
         style.Append(runProperties);
         return style;
+    }
+
+    static W.Style CreateDocumentParagraphStyle(string name,StyleSetStore.TextStyle spec,StyleSetStore.StyleSet catalogue)
+    {
+        var id=WordStyleId(name,spec);
+        var following=StyleSetStore.NormalizeFollowingStyle(spec.FollowingStyle,catalogue);
+        var next=StyleSetStore.ResolveStyle(catalogue,following)??catalogue.Styles["Normal"];
+        var definition=new W.Style{Type=W.StyleValues.Paragraph,StyleId=id};
+        if(string.Equals(name,"Normal",StringComparison.OrdinalIgnoreCase))definition.Default=true;
+        definition.Append(new W.StyleName{Val=name});
+        if(id!="Normal")definition.Append(new W.BasedOn{Val="Normal"});
+        definition.Append(new W.NextParagraphStyle{Val=WordStyleId(following,next)});
+        var paragraphs=new W.StyleParagraphProperties();
+        paragraphs.Append(new W.KeepNext{Val=spec.KeepWithNext});
+        paragraphs.Append(new W.KeepLines{Val=spec.KeepTogether});
+        paragraphs.Append(new W.PageBreakBefore{Val=spec.BreakPageBefore});
+        var spacing=new W.SpacingBetweenLines{Before=Twips(spec.MarginTop),After=Twips(spec.MarginBottom)};
+        if(spec.LineHeight>0)
+        {
+            spacing.Line=Twips(spec.LineHeight);
+            spacing.LineRule=W.LineSpacingRuleValues.Exact;
+        }
+        else { spacing.Line="240";spacing.LineRule=W.LineSpacingRuleValues.Auto; }
+        paragraphs.Append(spacing);
+        var indent=new W.Indentation{Left=Twips(spec.MarginLeft),Right=Twips(spec.MarginRight)};
+        if(spec.FirstLineIndent>=0)indent.FirstLine=Twips(spec.FirstLineIndent);
+        else indent.Hanging=Twips(-spec.FirstLineIndent);
+        paragraphs.Append(indent);
+        paragraphs.Append(new W.Justification{Val=spec.Alignment.ToLowerInvariant() switch
+        {
+            "center" or "centre"=>W.JustificationValues.Center,
+            "right"=>W.JustificationValues.Right,
+            "justify"=>W.JustificationValues.Both,
+            _=>W.JustificationValues.Left
+        }});
+        paragraphs.Append(new W.OutlineLevel{Val=spec.OutlineLevel>0?spec.OutlineLevel-1:9});
+        definition.Append(paragraphs);
+        var runs=new W.StyleRunProperties();
+        runs.Append(new W.RunFonts{Ascii=spec.FontFamily,HighAnsi=spec.FontFamily});
+        runs.Append(new W.Bold{Val=spec.Bold});
+        runs.Append(new W.Italic{Val=spec.Italic});
+        var colour="000000";
+        try
+        {
+            if(ColorConverter.ConvertFromString(spec.Colour) is Color value)colour=Rgb(value);
+        }
+        catch { }
+        runs.Append(new W.Color{Val=colour});
+        runs.Append(new W.FontSize{Val=((int)Math.Round(spec.SizePt*2)).ToString()});
+        runs.Append(new W.Underline{Val=spec.Underline?W.UnderlineValues.Single:W.UnderlineValues.None});
+        definition.Append(runs);
+        return definition;
+    }
+
+    static IEnumerable<W.Style> StyleChain(MainDocumentPart main,string? id)
+    {
+        var visited=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var chain=new System.Collections.Generic.List<W.Style>();
+        while(!string.IsNullOrWhiteSpace(id) && visited.Add(id))
+        {
+            var style=main.StyleDefinitionsPart?.Styles?.Elements<W.Style>()
+                .FirstOrDefault(value=>string.Equals(value.StyleId?.Value,id,StringComparison.OrdinalIgnoreCase));
+            if(style==null)break;
+            chain.Add(style);
+            id=style.BasedOn?.Val?.Value;
+        }
+        chain.Reverse();
+        return chain;
+    }
+
+    static StyleSetStore.StyleSet ReadDocumentStyles(MainDocumentPart main)
+    {
+        var result=new StyleSetStore.StyleSet{Name="Imported document"};
+        foreach(var definition in main.StyleDefinitionsPart?.Styles?.Elements<W.Style>()??Enumerable.Empty<W.Style>())
+        {
+            if(definition.Type?.Value!=W.StyleValues.Paragraph || string.IsNullOrWhiteSpace(definition.StyleId?.Value))continue;
+            var id=definition.StyleId!.Value!;
+            var role=ImportedStyleRole(main,id)??id;
+            var name=role;
+            var suffix=2;
+            while(result.Styles.ContainsKey(name))name=role+" ("+(suffix++)+")";
+            var paragraph=new Paragraph{FontFamily=new FontFamily("Calibri"),FontSize=16};
+            ApplyImportedStyle(main,paragraph,id);
+            var prototype=new Run();
+            var outline=0;
+            foreach(var inherited in StyleChain(main,id))
+            {
+                ApplyTextProperties(prototype,inherited.StyleRunProperties);
+                if(inherited.StyleParagraphProperties?.GetFirstChild<W.OutlineLevel>()?.Val?.Value is int level)
+                    outline=level>=0 && level<=8?level+1:0;
+            }
+            double Finite(double value)=>double.IsFinite(value)?Math.Max(0,value):0;
+            var spec=new StyleSetStore.TextStyle
+            {
+                Id=StyleSetStore.ParagraphStyleNames.Contains(name,StringComparer.OrdinalIgnoreCase)?name.Replace(" ",""):StyleIdentity(id),
+                FontFamily=paragraph.FontFamily.Source,SizePt=paragraph.FontSize*72/96,
+                Colour=paragraph.Foreground is SolidColorBrush foreground?"#"+Rgb(foreground.Color):"#000000",
+                Bold=paragraph.FontWeight>=FontWeights.SemiBold,Italic=paragraph.FontStyle==FontStyles.Italic,
+                Underline=HasDecoration(prototype.TextDecorations,TextDecorationLocation.Underline),
+                Alignment=paragraph.TextAlignment==TextAlignment.Center?"Centre":paragraph.TextAlignment==TextAlignment.Justify?"Justify":paragraph.TextAlignment.ToString(),
+                MarginLeft=Finite(paragraph.Margin.Left),MarginTop=Finite(paragraph.Margin.Top),
+                MarginRight=Finite(paragraph.Margin.Right),MarginBottom=Finite(paragraph.Margin.Bottom),
+                FirstLineIndent=paragraph.TextIndent,LineHeight=Finite(paragraph.LineHeight),
+                KeepWithNext=paragraph.KeepWithNext,KeepTogether=paragraph.KeepTogether,
+                BreakPageBefore=paragraph.BreakPageBefore,OutlineLevel=outline,
+                FollowingStyle=definition.NextParagraphStyle?.Val?.Value??"Normal"
+            };
+            result.Styles[name]=spec;
+        }
+        foreach(var spec in result.Styles.Values)
+            spec.FollowingStyle=ImportedStyleRole(main,spec.FollowingStyle)??"Normal";
+        return StyleSetStore.NormalizeSet(result);
     }
 
     static W.Paragraph BuildHeaderFooterParagraph(string template)
@@ -428,11 +613,11 @@ public static class DocxInterop
     {
         var wordParagraph=new W.Paragraph();
         var properties=new W.ParagraphProperties();
-        var style=DetectStyleId(paragraph);
+        var style=DetectStyleId(main,paragraph);
         if(style!=null)properties.Append(new W.ParagraphStyleId{Val=style});
-        if(paragraph.KeepWithNext)properties.Append(new W.KeepNext());
-        if(paragraph.KeepTogether)properties.Append(new W.KeepLines());
-        if(paragraph.BreakPageBefore)properties.Append(new W.PageBreakBefore());
+        properties.Append(new W.KeepNext{Val=paragraph.KeepWithNext});
+        properties.Append(new W.KeepLines{Val=paragraph.KeepTogether});
+        properties.Append(new W.PageBreakBefore{Val=paragraph.BreakPageBefore});
 
         if(paragraph.Background is SolidColorBrush paragraphBackground && paragraphBackground.Color.A>0)
             properties.Append(new W.Shading
@@ -457,7 +642,8 @@ public static class DocxInterop
         if(!double.IsNaN(paragraph.LineHeight) && paragraph.LineHeight>0)
         {
             spacing.Line=Twips(paragraph.LineHeight);
-            spacing.LineRule=W.LineSpacingRuleValues.AtLeast;
+            spacing.LineRule=paragraph.LineStackingStrategy==LineStackingStrategy.BlockLineHeight
+                ?W.LineSpacingRuleValues.Exact:W.LineSpacingRuleValues.AtLeast;
             hasSpacing=true;
         }
         if(hasSpacing)properties.Append(spacing);
@@ -634,8 +820,8 @@ public static class DocxInterop
         if(!double.IsNaN(size) && size>0)
             properties.Append(new W.FontSize{Val=((int)Math.Round(size*72/96*2)).ToString()});
 
-        if(HasDecoration(decorations,TextDecorationLocation.Underline))
-            properties.Append(new W.Underline{Val=W.UnderlineValues.Single});
+        properties.Append(new W.Underline{Val=HasDecoration(decorations,TextDecorationLocation.Underline)
+            ?W.UnderlineValues.Single:W.UnderlineValues.None});
 
         var background=EffectiveInlineBackground(run);
         if(background!=null && background.Color.A>0)
@@ -830,7 +1016,11 @@ public static class DocxInterop
         var style=source.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
         var effectiveStyle=style??main.StyleDefinitionsPart?.Styles?.Elements<W.Style>()
             .FirstOrDefault(item=>item.Type?.Value==W.StyleValues.Paragraph && item.Default?.Value==true)?.StyleId?.Value;
-        ImportedParagraphStyles.Add(result,new ImportedParagraphStyle(style,ImportedStyleRole(main,effectiveStyle)));
+        var role=ImportedStyleRole(main,effectiveStyle);
+        ImportedParagraphStyles.Add(result,new ImportedParagraphStyle(style??effectiveStyle,role));
+        if(role!=null)
+            result.Tag=MainWindow.ParagraphStyleTagPrefix+(StyleSetStore.ParagraphStyleNames.Contains(role,StringComparer.OrdinalIgnoreCase)
+                ?role:"#"+StyleIdentity(effectiveStyle??role));
         if(!string.IsNullOrWhiteSpace(effectiveStyle))ApplyImportedStyle(main,result,effectiveStyle);
         ApplyParagraphProperties(result,source.ParagraphProperties);
         AppendParagraphContent(main,result,source);
@@ -846,11 +1036,11 @@ public static class DocxInterop
             {
                 foreach(var item in run.ChildElements)
                 {
-                    if(item is W.Text text)target.Inlines.Add(FromWordRun(run,text.Text));
-                    else if(item is W.TabChar)target.Inlines.Add(FromWordRun(run,"\t"));
+                    if(item is W.Text text)target.Inlines.Add(FromWordRun(main,target,run,text.Text));
+                    else if(item is W.TabChar)target.Inlines.Add(FromWordRun(main,target,run,"\t"));
                     else if(item is W.Break || item.LocalName=="cr")target.Inlines.Add(new LineBreak());
-                    else if(item.LocalName=="noBreakHyphen")target.Inlines.Add(FromWordRun(run,"‑"));
-                    else if(item.LocalName=="softHyphen")target.Inlines.Add(FromWordRun(run,"\u00AD"));
+                    else if(item.LocalName=="noBreakHyphen")target.Inlines.Add(FromWordRun(main,target,run,"‑"));
+                    else if(item.LocalName=="softHyphen")target.Inlines.Add(FromWordRun(main,target,run,"\u00AD"));
                     else if(item is W.Drawing drawing)
                     {
                         var image=FromWordDrawing(main,drawing);
@@ -887,9 +1077,12 @@ public static class DocxInterop
         return image;
     }
 
-    static Run FromWordRun(W.Run source,string text)
+    static Run FromWordRun(MainDocumentPart main,Paragraph paragraph,W.Run source,string text)
     {
         var result=new Run(text);
+        if(ImportedParagraphStyles.TryGetValue(paragraph,out var original))
+            foreach(var inherited in StyleChain(main,original.Id??"Normal"))
+                ApplyTextProperties(result,inherited.StyleRunProperties);
         ApplyTextProperties(result,source.RunProperties);
         return result;
     }
@@ -911,7 +1104,8 @@ public static class DocxInterop
             var strike=properties.GetFirstChild<W.Strike>();
             if(strike!=null && (strike.Val?.Value??true))
                 decorations.Add(TextDecorations.Strikethrough[0]);
-            if(decorations.Count>0)inline.TextDecorations=decorations;
+            if(decorations.Count>0 || properties.GetFirstChild<W.Underline>()!=null || strike!=null)
+                inline.TextDecorations=decorations;
         }
 
         var fonts=properties.GetFirstChild<W.RunFonts>();
@@ -973,11 +1167,11 @@ public static class DocxInterop
         else if(justification==W.JustificationValues.Right)paragraph.TextAlignment=TextAlignment.Right;
         else if(justification==W.JustificationValues.Both)paragraph.TextAlignment=TextAlignment.Justify;
         var pageBreak=properties.GetFirstChild<W.PageBreakBefore>();
-        if(pageBreak!=null && (pageBreak.Val?.Value??true))paragraph.BreakPageBefore=true;
+        if(pageBreak!=null)paragraph.BreakPageBefore=pageBreak.Val?.Value??true;
         var keepLines=properties.GetFirstChild<W.KeepLines>();
-        if(keepLines!=null && (keepLines.Val?.Value??true))paragraph.KeepTogether=true;
+        if(keepLines!=null)paragraph.KeepTogether=keepLines.Val?.Value??true;
         var keepNext=properties.GetFirstChild<W.KeepNext>();
-        if(keepNext!=null && (keepNext.Val?.Value??true))paragraph.KeepWithNext=true;
+        if(keepNext!=null)paragraph.KeepWithNext=keepNext.Val?.Value??true;
 
         var paragraphFill=properties.GetFirstChild<W.Shading>()?.Fill?.Value;
         if(TryBrush(paragraphFill,out var paragraphBackground))paragraph.Background=paragraphBackground;
@@ -991,7 +1185,10 @@ public static class DocxInterop
                 TryTwips(spacing.Before?.Value,margin.Top),
                 margin.Right,
                 TryTwips(spacing.After?.Value,margin.Bottom));
-            if(double.TryParse(spacing.Line?.Value,out var line) && line>0)
+            paragraph.LineStackingStrategy=spacing.LineRule?.Value==W.LineSpacingRuleValues.Exact
+                ?LineStackingStrategy.BlockLineHeight:LineStackingStrategy.MaxHeight;
+            if(spacing.LineRule?.Value==W.LineSpacingRuleValues.Auto)paragraph.LineHeight=double.NaN;
+            else if(double.TryParse(spacing.Line?.Value,out var line) && line>0)
                 paragraph.LineHeight=line/15.0;
         }
         var indentation=properties.GetFirstChild<W.Indentation>();
@@ -1063,10 +1260,15 @@ public static class DocxInterop
         return table;
     }
 
-    static string? DetectStyleId(Paragraph paragraph)
+    static string? DetectStyleId(MainDocumentPart main,Paragraph paragraph)
     {
         if(paragraph.Tag is string role && role.StartsWith(MainWindow.ParagraphStyleTagPrefix,StringComparison.Ordinal))
-            return role[MainWindow.ParagraphStyleTagPrefix.Length..].Replace(" ","");
+        {
+            var identity=role[MainWindow.ParagraphStyleTagPrefix.Length..];
+            if(!identity.StartsWith('#'))return identity.Replace(" ","");
+            identity=identity[1..];
+            return identity.StartsWith("docx:",StringComparison.Ordinal)?identity[5..]:"CZ_"+identity;
+        }
         if(ImportedParagraphStyles.TryGetValue(paragraph,out var originalStyle))return originalStyle.Id;
 
         var range=new TextRange(paragraph.ContentStart,paragraph.ContentEnd);
