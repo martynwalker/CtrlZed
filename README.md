@@ -6,9 +6,23 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The latest accepted prerelease is **[Beta 44.5 (0.44.5)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.44.5-beta.44.5)**, built from the `beta445` branch. Martyn confirmed it as a pass on 20 November 2026, with menu performance back to normal.
+The current GitHub `main` baseline is **[Beta 45 (0.45.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.0-beta.45)**. The complete [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44839859965) on source commit `0b54b7ffe930d34dcb892c9f622a3d91b8871c35` before publication and baseline promotion. **User acceptance of Beta 45 is pending.**
 
-The [next-release plan](docs/NEXT-RELEASE.md) retains the queued style and paragraph work and records the latest requested additions.
+The previous user-accepted baseline is **[Beta 44.5](https://github.com/martynwalker/CtrlZed/releases/tag/v0.44.5-beta.44.5)**. Martyn confirmed it as a pass on 20 November 2026, with menu performance back to normal. Beta 45 builds forward from that version.
+
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45 work, verification and later ideas.
+
+### Beta 45 — custom styles and everyday editing
+
+- The Styles list supports additional named styles in each set, with New Style, Rename Style and Delete Style controls. The six built-in style names remain protected for compatibility.
+- Paragraph controls include spacing before/after, left/right and first-line or hanging indentation, automatic or explicit line height, keep-with-next, keep-together, page-break-before and heading outline level.
+- Custom styles have stable identities. Renamed styles retain aliases for existing named macros; copied sets resolve shared identities using the active set's current names.
+- Native `.czd` documents carry their style definitions, paragraph identities and paragraph layout. The supported custom paragraph styles and layout properties also round-trip through DOCX.
+- Return, safe-macro `NEW_PARAGRAPH` and compiled macros using `EditingCommands.EnterParagraphBreak` share following-style handling at a paragraph's end. A soft break or a split within existing text retains the current style.
+- First save suggests the first non-empty recognised heading, otherwise the first sentence, as an editable Windows-safe filename. Empty documents use a fallback; later saves retain the existing filename.
+- **Edit → Paste Unformatted Text**, also **Ctrl+Shift+V**, inserts clipboard text and line breaks using the destination typing format. Source fonts, emphasis, colours, images and link behaviour are not imported; ordinary Ctrl+V remains the rich paste command.
+- Ctrl+Shift+V is reserved before macro-shortcut dispatch. A macro previously assigned that key remains stored and can be assigned another available shortcut.
+- The accepted Beta 44.5 standard Windows colour palette and menu-responsiveness changes are retained.
 
 ### Beta 35 — safe paged editing foundation
 
@@ -52,25 +66,24 @@ The current feature set includes:
 
 DOCX support uses the MIT-licensed Open XML SDK 3.5.1. It remains deliberately conservative.
 
-Currently targeted for round-trip:
+The implemented interchange path covers:
 
-- paragraphs and text
-- bold, italic and underline
-- basic font family and size
-- paragraph alignment
-- manual page breaks
-- basic Heading 1/2/3 import
-- tables
+- paragraphs and text; font family, size and colour; bold, italic and underline
+- built-in and custom named paragraph styles, stable custom style identities and following-style definitions
+- paragraph alignment, spacing, left/right and first-line or hanging indentation, automatic or explicit line height, outline level and paragraph/page-break controls
+- tables and supported inline images, including paragraph alignment
+- retention of unrelated imported style definitions when saving a document
+
+Custom style and paragraph-layout round trips are checked by the Beta 45 regression suite, including a styled paragraph inside a table. This is support for the implemented subset, not a claim of complete Word fidelity.
 
 Not yet claimed as preserved in DOCX:
 
-- CtrlZed custom fields
-- CtrlZed header/footer field templates
-- advanced Word styles/themes
-- tracked changes/comments
+- CtrlZed custom fields or header/footer field templates
+- every advanced Word style/theme feature
+- tracked changes or Word comments
 - footnotes/endnotes
 - complex lists/numbering definitions
-- floating objects and Word-specific layout
+- floating objects and Word-specific publishing layout
 
 Use `.czd` as the canonical working format and DOCX as an interchange format.
 
@@ -78,17 +91,16 @@ Use `.czd` as the canonical working format and DOCX as an interchange format.
 
 A release must pass:
 
-1. compile on GitHub-hosted Windows
-2. self-contained Windows publish
-3. executable launch smoke test
-4. non-interactive `--self-test`
-5. RTF round-trip test
-6. DOCX creation/import test
-7. table preservation check
-8. inline-image round-trip check
-9. Open XML schema validation
-10. language-intelligence regression checks
-11. packaging and prerelease publication
+1. compilation on GitHub-hosted Windows and self-contained Windows publication
+2. executable launch with a responsive main window
+3. `--self-test`, including RTF/DOCX round trips, tables, inline images, Open XML schema validation, language-intelligence checks and filename-suggestion cases
+4. `--following-style-test`, exercising actual keyboard input after headings, captions and quotes, repeated Return, soft breaks and Undo/Redo
+5. `--menu-performance-test`, exercising repeated menu opening on a 600-paragraph document, preserving commands and resuming deferred maintenance after edits
+6. `--style45-test`, covering legacy style data, custom style identities and aliases, paragraph controls, shared Return/macro behaviour and native/DOCX persistence
+7. `--plain-text-paste-test`, covering physical Ctrl+Shift+V, rich-source removal, destination formatting, line breaks, selection replacement, Undo and empty/image-only/read-only cases
+8. packaging and prerelease publication
+
+The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation remain part of user acceptance. Automated verification is recorded separately from user acceptance.
 
 ## Macros
 
@@ -218,4 +230,4 @@ Beta 32 adds the first grammar and style review system:
 - Help text explaining why an unintelligible word remains red-underlined rather than being guessed;
 - corrected single ampersands in dynamically generated menu captions.
 
-The contextual thesaurus and poetry rhyme assistance remain scheduled for the next language-intelligence release.
+At the Beta 32 milestone, contextual thesaurus and poetry rhyme assistance were queued for the next language-intelligence release; they were subsequently delivered in Beta 33. Later language-intelligence improvements remain tracked in [issue #17](https://github.com/martynwalker/CtrlZed/issues/17).
