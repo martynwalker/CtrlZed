@@ -129,6 +129,7 @@ public partial class MainWindow
         body.FollowingStyle="Normal";
         set.Styles["Book Body"]=body;
         set.Aliases["Body Note"]=body.Id;
+        set.Aliases["Body, old name"]=body.Id;
         var lead=StyleSetStore.CreateStyle("Section Lead",set.Styles["Heading 1"]);
         lead.SizePt=19;
         lead.Colour="#006400";
@@ -173,15 +174,16 @@ public partial class MainWindow
         RefreshParagraphStyleBox();
         report.AppendLine("Copied sets resolve shared style identities using the active set's current names.");
 
-        foreach(var useReturn in new[]{true,false})
+        foreach(var path in new[]{"physical Return","safe macro","WPF command"})
         {
             var heading=PrepareStyledInputParagraph("Section Lead","Custom heading");
             VerifyRelease45Paragraph(heading,"Section Lead",set.Styles["Section Lead"],"before paragraph insertion");
-            if(useReturn)PressReturn();
-            else InsertParagraphWithFollowingStyle();
+            if(path=="physical Return")PressReturn();
+            else if(path=="safe macro")RunSafeMacroAsync("NEW_PARAGRAPH").GetAwaiter().GetResult();
+            else EditingCommands.EnterParagraphBreak.Execute(null,Editor);
             TypeInput("Body words");
             VerifyRelease45Paragraph(Editor.CaretPosition.Paragraph!,"Book Body",set.Styles["Book Body"],
-                useReturn?"physical Return":"macro paragraph insertion");
+                path);
         }
         report.AppendLine("Physical Return and the macro paragraph path both selected the custom following style with its paragraph settings.");
 
@@ -232,8 +234,18 @@ public partial class MainWindow
         var docx=Path.Combine(temporary,"custom-styles.docx");
         PrepareDocumentStylesForInterop();
         DocxInterop.Save(docx,Editor.Document);
+        using(var validationPackage=DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(docx,false))
+        {
+            var errors=new DocumentFormat.OpenXml.Validation.OpenXmlValidator().Validate(validationPackage).Take(3).ToArray();
+            RequireRelease45Style(errors.Length==0,"The custom-style DOCX is invalid: "+
+                string.Join("; ",errors.Select(error=>error.Description)));
+        }
         Editor.Document=DocxInterop.Load(docx);
         AdoptImportedDocumentStyles();
+        RequireRelease45Style(StyleSetStore.ResolveStyleName(styleSets[activeStyleSet],"Body Note")=="Book Body",
+            "The DOCX document lost the alias used by a renamed style's existing macros.");
+        RequireRelease45Style(StyleSetStore.ResolveStyleName(styleSets[activeStyleSet],"Body, old name")=="Book Body",
+            "The DOCX document lost punctuation in a renamed style's macro alias.");
         restored=EnumerateDocumentParagraphs().ToArray();
         RequireRelease45Style(restored.Length==4,"The custom-style DOCX lost a paragraph.");
         VerifyRelease45Paragraph(restored[0],"Section Lead",set.Styles["Section Lead"],"DOCX heading",0.15);

@@ -7,6 +7,8 @@ using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Xml;
+using System.Xml.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -145,6 +147,7 @@ public static class DocxInterop
 
         ImportedStyleDefinitions.TryGetValue(document,out var originalStyles);
         EnsureStyles(main,originalStyles,GetDocumentStyles(document));
+        WriteStyleAliases(main,GetDocumentStyles(document));
         EnsureNumbering(main);
         EnsureDocumentSettings(main);
 
@@ -376,6 +379,10 @@ public static class DocxInterop
         var definition=new W.Style{Type=W.StyleValues.Paragraph,StyleId=id};
         if(string.Equals(name,"Normal",StringComparison.OrdinalIgnoreCase))definition.Default=true;
         definition.Append(new W.StyleName{Val=name});
+        var aliases=catalogue.Aliases.Where(pair=>string.Equals(pair.Value,spec.Id,StringComparison.OrdinalIgnoreCase))
+            .Select(pair=>pair.Key).Where(alias=>!alias.Contains(','))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if(aliases.Length>0)definition.Append(new W.Aliases{Val=string.Join(",",aliases)});
         if(id!="Normal")definition.Append(new W.BasedOn{Val="Normal"});
         definition.Append(new W.NextParagraphStyle{Val=WordStyleId(following,next)});
         var paragraphs=new W.StyleParagraphProperties();
@@ -474,10 +481,66 @@ public static class DocxInterop
                 FollowingStyle=definition.NextParagraphStyle?.Val?.Value??"Normal"
             };
             result.Styles[name]=spec;
+            foreach(var alias in (definition.GetFirstChild<W.Aliases>()?.Val?.Value??"")
+                        .Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
+                if(!string.Equals(alias,name,StringComparison.OrdinalIgnoreCase))result.Aliases[alias]=spec.Id;
         }
         foreach(var spec in result.Styles.Values)
             spec.FollowingStyle=ImportedStyleRole(main,spec.FollowingStyle)??"Normal";
+        ReadStyleAliases(main,result);
         return StyleSetStore.NormalizeSet(result);
+    }
+
+    const string StyleAliasNamespace="urn:ctrlzed:styles:v1";
+
+    static void WriteStyleAliases(MainDocumentPart main,StyleSetStore.StyleSet? catalogue)
+    {
+        if(catalogue==null || catalogue.Aliases.Count==0)return;
+        XNamespace ns=StyleAliasNamespace;
+        var root=new XElement(ns+"styleAliases",new XAttribute("version","1"));
+        foreach(var (alias,id) in catalogue.Aliases)
+        {
+            var name=StyleSetStore.ResolveStyleName(catalogue,id);
+            if(name==null)continue;
+            root.Add(new XElement(ns+"alias",new XAttribute("name",alias),
+                new XAttribute("styleId",WordStyleId(name,catalogue.Styles[name]))));
+        }
+        // Word's w:aliases is comma-delimited. Keep an exact companion map so
+        // a valid user style name containing a comma survives a round trip.
+        var part=main.AddCustomXmlPart(CustomXmlPartType.CustomXml);
+        using var stream=part.GetStream(FileMode.Create,FileAccess.Write);
+        root.Save(stream);
+    }
+
+    static void ReadStyleAliases(MainDocumentPart main,StyleSetStore.StyleSet catalogue)
+    {
+        XNamespace ns=StyleAliasNamespace;
+        foreach(var part in main.CustomXmlParts)
+        {
+            try
+            {
+                using var stream=part.GetStream(FileMode.Open,FileAccess.Read);
+                using var reader=XmlReader.Create(stream,new XmlReaderSettings
+                {
+                    DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null
+                });
+                var root=XElement.Load(reader);
+                if(root.Name!=ns+"styleAliases")continue;
+                foreach(var alias in root.Elements(ns+"alias"))
+                {
+                    var name=alias.Attribute("name")?.Value;
+                    var wordId=alias.Attribute("styleId")?.Value;
+                    if(string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(wordId))continue;
+                    var canonical=ImportedStyleRole(main,wordId);
+                    var style=StyleSetStore.ResolveStyle(catalogue,StyleIdentity(wordId))
+                        ??(canonical==null?null:StyleSetStore.ResolveStyle(catalogue,canonical));
+                    if(style!=null && !catalogue.Styles.ContainsKey(name))catalogue.Aliases[name]=style.Id;
+                }
+            }
+            catch(XmlException) { }
+            catch(InvalidDataException) { }
+            catch(IOException) { }
+        }
     }
 
     static W.Paragraph BuildHeaderFooterParagraph(string template)

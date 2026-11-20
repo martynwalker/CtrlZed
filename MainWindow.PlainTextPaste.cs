@@ -79,7 +79,8 @@ public partial class MainWindow
         })
         {
             var value=editor.Selection.GetPropertyValue(property);
-            if(value==DependencyProperty.UnsetValue)value=editor.Selection.Start.GetPropertyValue(property);
+            if(value==DependencyProperty.UnsetValue)
+                value=new TextRange(editor.Selection.Start,editor.Selection.Start).GetPropertyValue(property);
             if(value!=DependencyProperty.UnsetValue)result.Add((property,value));
         }
         return result;
