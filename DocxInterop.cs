@@ -329,12 +329,62 @@ public static class DocxInterop
             foreach(var (name,spec) in catalogue.Styles)
             {
                 var definition=CreateDocumentParagraphStyle(name,spec,catalogue);
-                styles.Elements<W.Style>().FirstOrDefault(existing=>
-                    string.Equals(existing.StyleId?.Value,definition.StyleId?.Value,StringComparison.OrdinalIgnoreCase))?.Remove();
+                var original=styles.Elements<W.Style>().FirstOrDefault(existing=>
+                    string.Equals(existing.StyleId?.Value,definition.StyleId?.Value,StringComparison.OrdinalIgnoreCase));
+                if(original!=null)
+                {
+                    definition=MergeDocumentParagraphStyle(original,definition);
+                    original.Remove();
+                }
                 styles.Append(definition);
             }
         part.Styles=styles;
         part.Styles.Save();
+    }
+
+    static W.Style MergeDocumentParagraphStyle(W.Style original,W.Style edited)
+    {
+        // Retain imported style attributes, inheritance and properties that
+        // CtrlZed does not edit (for example tabs, borders and language).
+        var merged=(W.Style)original.CloneNode(true);
+        foreach(var child in edited.ChildElements)
+        {
+            var current=merged.ChildElements.FirstOrDefault(value=>value.GetType()==child.GetType());
+            if(child is W.BasedOn && current!=null)continue;
+            if(current==null)merged.AddChild(child.CloneNode(true));
+            else MergeEditedStyleProperties(current,child);
+        }
+        return merged;
+    }
+
+    static void MergeEditedStyleProperties(OpenXmlElement original,OpenXmlElement edited)
+    {
+        // First-line and hanging indents are mutually exclusive. All other
+        // untouched attributes remain on the imported element.
+        if(edited is W.Indentation indent)
+        {
+            const string wordNamespace="http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+            if(indent.FirstLine!=null)original.RemoveAttribute("hanging",wordNamespace);
+            if(indent.Hanging!=null)original.RemoveAttribute("firstLine",wordNamespace);
+        }
+        var retainAutomaticLineSpacing=original is W.SpacingBetweenLines oldSpacing &&
+            edited is W.SpacingBetweenLines newSpacing &&
+            oldSpacing.LineRule?.Value==W.LineSpacingRuleValues.Auto &&
+            newSpacing.LineRule?.Value==W.LineSpacingRuleValues.Auto;
+        foreach(var attribute in edited.GetAttributes())
+        {
+            // The editor's Auto option has no multiple-line-spacing control.
+            // Retain an imported 1.5x/2x value unless exact height is selected.
+            if(retainAutomaticLineSpacing && attribute.LocalName is "line" or "lineRule")continue;
+            original.SetAttribute(attribute);
+        }
+        if(original is not OpenXmlCompositeElement composite)return;
+        foreach(var child in edited.ChildElements)
+        {
+            var current=composite.ChildElements.FirstOrDefault(value=>value.GetType()==child.GetType());
+            if(current==null)composite.AddChild(child.CloneNode(true));
+            else MergeEditedStyleProperties(current,child);
+        }
     }
 
     static W.Style CreateParagraphStyle(

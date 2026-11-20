@@ -240,6 +240,19 @@ public partial class MainWindow
             RequireRelease45Style(errors.Length==0,"The custom-style DOCX is invalid: "+
                 string.Join("; ",errors.Select(error=>error.Description)));
         }
+        using(var sourcePackage=DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(docx,true))
+        {
+            var definition=sourcePackage.MainDocumentPart!.StyleDefinitionsPart!.Styles!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Style>()
+                .First(style=>style.StyleName?.Val?.Value=="Book Body");
+            definition.StyleParagraphProperties!.AddChild(new DocumentFormat.OpenXml.Wordprocessing.Tabs(
+                new DocumentFormat.OpenXml.Wordprocessing.TabStop
+                {
+                    Val=DocumentFormat.OpenXml.Wordprocessing.TabStopValues.Right,Position=1440
+                }),true);
+            definition.StyleRunProperties!.AddChild(new DocumentFormat.OpenXml.Wordprocessing.Languages{Val="en-GB"},true);
+            sourcePackage.MainDocumentPart.StyleDefinitionsPart.Styles.Save();
+        }
         Editor.Document=DocxInterop.Load(docx);
         AdoptImportedDocumentStyles();
         RequireRelease45Style(StyleSetStore.ResolveStyleName(styleSets[activeStyleSet],"Body Note")=="Book Body",
@@ -252,6 +265,21 @@ public partial class MainWindow
         VerifyRelease45Paragraph(restored[1],"Book Body",set.Styles["Book Body"],"DOCX body",0.15);
         VerifyRelease45Paragraph(restored[2],"Book Body",set.Styles["Book Body"],"DOCX table cell",0.15);
         RequireRelease45Style(InferParagraphStyle(restored[3],styleSets.Values)=="Normal","The DOCX document lost the trailing Normal paragraph role.");
+        var roundTrip=Path.Combine(temporary,"custom-styles-round-trip.docx");
+        PrepareDocumentStylesForInterop();
+        DocxInterop.Save(roundTrip,Editor.Document);
+        using(var retainedPackage=DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(roundTrip,false))
+        {
+            var definition=retainedPackage.MainDocumentPart!.StyleDefinitionsPart!.Styles!
+                .Elements<DocumentFormat.OpenXml.Wordprocessing.Style>()
+                .First(style=>style.StyleName?.Val?.Value=="Book Body");
+            RequireRelease45Style(definition.StyleParagraphProperties?.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Tabs>()!=null &&
+                definition.StyleRunProperties?.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Languages>()?.Val?.Value=="en-GB",
+                "Saving an imported style discarded its original tab stops or language.");
+            var errors=new DocumentFormat.OpenXml.Validation.OpenXmlValidator().Validate(retainedPackage).Take(3).ToArray();
+            RequireRelease45Style(errors.Length==0,"The saved imported-style DOCX is invalid: "+
+                string.Join("; ",errors.Select(error=>error.Description)));
+        }
         report.AppendLine("Custom DOCX style names and paragraph settings survived save/import.");
     }
 
