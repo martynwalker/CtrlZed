@@ -245,6 +245,24 @@ public partial class MainWindow
         AssertRichPasteFormat(selected,"Georgia",24,Color.FromRgb(0x1E,0x4D,0x7B),"UTF-8 HTML fragment and inherited formatting");
         AssertBrowserClipboardUnchanged(unicodeHtml,selected);
 
+        // Valid CSS can contain layout values that WPF does not accept.
+        // Ignore/bound those values without discarding supported rich text.
+        const string boundedText="Bounded layout";
+        var boundedHtml=CreatePlainPasteCfHtml("<p style=\"margin-top: -2px; margin-bottom: -5pt; line-height: 0.00001px; font-family: Georgia; font-size: 18pt; color: #1E4D7B; font-weight: bold; font-style: italic; text-decoration: underline\">Bounded layout</p>");
+        SetBrowserClipboard(boundedHtml,boundedText);
+        PreparePlainPasteDocument("");
+        PressPasteKeyChord();
+        AssertRichPasteFormat(boundedText,"Georgia",24,Color.FromRgb(0x1E,0x4D,0x7B),"HTML with unsupported layout values");
+        foreach(var paragraph in EnumerateDocumentParagraphs())
+        {
+            var margin=paragraph.Margin;
+            var sides=new[]{margin.Left,margin.Top,margin.Right,margin.Bottom};
+            if(sides.Any(value=>!double.IsNaN(value) && (!double.IsFinite(value) || value<0)) ||
+               (!double.IsNaN(paragraph.LineHeight) && (!double.IsFinite(paragraph.LineHeight) || paragraph.LineHeight<=0)))
+                throw new InvalidOperationException("Browser HTML retained an invalid paragraph margin or zero line height.");
+        }
+        AssertBrowserClipboardUnchanged(boundedHtml,boundedText);
+
         // Heading/paragraph boundaries and a soft break have different
         // semantics. Keep them distinct while retaining HTML emphasis tags.
         const string structured="<h2>Selected heading</h2><p><strong>Bold words</strong><br><em>Italic words</em></p>";

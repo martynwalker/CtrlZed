@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using System.Windows.Media;
+using System.Windows.Documents;
+using System.Windows.Markup;
 using HtmlAgilityPack;
 
 namespace CtrlZed;
@@ -42,12 +44,16 @@ internal static class HtmlClipboardFormat
             RenderContainer(document.DocumentNode,section,new Format(),included,0);
             if(!section.Descendants(Wpf+"Run").Any(run=>run.Value.Length>0) && !section.Descendants(Wpf+"LineBreak").Any())return false;
             xaml=section.ToString(SaveOptions.DisableFormatting);
+            // Validate only our generated, whitelisted markup before handing it
+            // to WPF. Unsupported layout values must leave native paste usable.
+            if(XamlReader.Parse(xaml) is not Section)return false;
             return true;
         }
         catch(FormatException){return false;}
         catch(ArgumentException){return false;}
         catch(OverflowException){return false;}
         catch(InvalidOperationException){return false;}
+        catch(XamlParseException){return false;}
     }
 
     static string ExtractHtml(string payload)
@@ -169,8 +175,8 @@ internal static class HtmlClipboardFormat
             if(css.TryGetValue("margin",out var margin) && Margin(margin,format.Size) is string thickness)paragraph.SetAttributeValue("Margin",thickness);
             else if(css.TryGetValue("margin-top",out var top) || css.TryGetValue("margin-bottom",out _))
             {
-                var before=Length(top??"0",format.Size)??0;
-                var after=Length(css.GetValueOrDefault("margin-bottom","0"),format.Size)??0;
+                var before=Math.Max(0,Length(top??"0",format.Size)??0);
+                var after=Math.Max(0,Length(css.GetValueOrDefault("margin-bottom","0"),format.Size)??0);
                 paragraph.SetAttributeValue("Margin",$"0,{Number(before)},0,{Number(after)}");
             }
             foreach(var child in node.ChildNodes)
@@ -228,7 +234,7 @@ internal static class HtmlClipboardFormat
         {
             double? value=double.TryParse(height,NumberStyles.Float,CultureInfo.InvariantCulture,out var ratio)
                 ?ratio*format.Size:Length(height,format.Size);
-            if(value is >0 and <=2000)paragraph.SetAttributeValue("LineHeight",Number(value.Value));
+            if(value is >=1 and <=2000)paragraph.SetAttributeValue("LineHeight",Number(value.Value));
         }
         return paragraph;
     }
