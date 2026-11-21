@@ -106,6 +106,7 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_,__) => Save_Click(this,new RoutedEventArgs())));
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
+        InitializeRichTextPaste();
         Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
         Editor.AddHandler(CommandManager.PreviewExecutedEvent,new ExecutedRoutedEventHandler(Editor_FollowingStylePreviewExecuted));
         Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;

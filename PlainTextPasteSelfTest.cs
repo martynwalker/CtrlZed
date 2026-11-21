@@ -128,6 +128,7 @@ public partial class MainWindow
             throw new InvalidOperationException("Ctrl+Shift+V imported browser HTML or hyperlink behaviour.");
         AssertPlainPasteDestinationFormat();
         AssertBrowserClipboardUnchanged(browserHtml,browserText);
+        CheckBrowserHtmlEditing(browserHtml,browserText);
 
         run=PreparePlainPasteDocument("Keep selected text");
         Editor.Selection.Select(run.ContentStart,run.ContentEnd);
@@ -205,6 +206,77 @@ public partial class MainWindow
     string PlainPasteDocumentText()
         =>new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text.Replace("\r\n","\n");
 
+    void CheckBrowserHtmlEditing(string browserHtml,string browserText)
+    {
+        // Retain the normal rich paste selection-replacement transaction: the
+        // surrounding text survives and Undo/Redo applies to the complete paste.
+        var original=PreparePlainPasteDocument("Before replace after");
+        Editor.Selection.Select(original.ContentStart.GetPositionAtOffset(7)!,original.ContentStart.GetPositionAtOffset(14)!);
+        var before=PlainPasteDocumentText();
+        PressPasteKeyChord();
+        AssertBrowserReplacement();
+        Editor.Undo();
+        if(PlainPasteDocumentText()!=before || EnumeratePlainPasteLinks(Editor.Document).Any())
+            throw new InvalidOperationException("Browser HTML selection replacement was not one Undo operation.");
+        Editor.Redo();
+        AssertBrowserReplacement();
+        AssertBrowserClipboardUnchanged(browserHtml,browserText);
+
+        void AssertBrowserReplacement()
+        {
+            var links=EnumeratePlainPasteLinks(Editor.Document).ToArray();
+            var runs=links.SelectMany(link=>EnumeratePlainPasteRuns(link.Inlines)).Where(run=>run.Text.Length>0).ToArray();
+            if(PlainPasteDocumentText().Replace("\n","")!="Before "+browserText+" after" ||
+               links.Length!=1 || links[0].NavigateUri?.AbsoluteUri!="https://source.example/article" ||
+               new TextRange(links[0].ContentStart,links[0].ContentEnd).Text!=browserText || runs.Length==0 ||
+               runs.Any(run=>!HasPlainPasteRichFormat(run,"Georgia",24,Color.FromRgb(0x1E,0x4D,0x7B))))
+                throw new InvalidOperationException("Browser HTML replacement or Redo lost source formatting, its link, or surrounding text.");
+        }
+
+        // The byte offsets must be measured in UTF-8, and a copied fragment
+        // still inherits formatting from ancestors outside StartFragment.
+        const string selected="Été — café 😀";
+        var unicodeHtml=CreatePlainPasteCfHtml("<span>"+selected+"</span>",
+            "<div style=\"font-family: Georgia; font-size: 18pt; color: #1E4D7B; font-weight: bold; font-style: italic; text-decoration: underline\">Hors sélection 🚤 ",
+            " Après sélection é</div>");
+        SetBrowserClipboard(unicodeHtml,selected);
+        PreparePlainPasteDocument("");
+        PressPasteKeyChord();
+        AssertRichPasteFormat(selected,"Georgia",24,Color.FromRgb(0x1E,0x4D,0x7B),"UTF-8 HTML fragment and inherited formatting");
+        AssertBrowserClipboardUnchanged(unicodeHtml,selected);
+
+        // Heading/paragraph boundaries and a soft break have different
+        // semantics. Keep them distinct while retaining HTML emphasis tags.
+        const string structured="<h2>Selected heading</h2><p><strong>Bold words</strong><br><em>Italic words</em></p>";
+        const string structuredText="Selected heading\r\nBold words\r\nItalic words";
+        var structuredHtml=CreatePlainPasteCfHtml(structured);
+        SetBrowserClipboard(structuredHtml,structuredText);
+        PreparePlainPasteDocument("");
+        PressPasteKeyChord();
+        var paragraphs=EnumerateDocumentParagraphs().Where(paragraph=>
+            !string.IsNullOrWhiteSpace(new TextRange(paragraph.ContentStart,paragraph.ContentEnd).Text)).ToArray();
+        if(paragraphs.Length!=2 ||
+           new TextRange(paragraphs[0].ContentStart,paragraphs[0].ContentEnd).Text.TrimEnd('\r','\n')!="Selected heading" ||
+           new TextRange(paragraphs[1].ContentStart,paragraphs[1].ContentEnd).Text.Replace("\r\n","\n").TrimEnd('\n')!="Bold words\nItalic words")
+            throw new InvalidOperationException("Browser HTML lost heading/paragraph boundaries or the br line break. Text=["+PlainPasteDocumentText()+"].");
+        var headingRuns=EnumeratePlainPasteRuns(paragraphs[0].Inlines).Where(run=>run.Text.Length>0).ToArray();
+        var bodyRuns=EnumeratePlainPasteRuns(paragraphs[1].Inlines).Where(run=>run.Text.Length>0).ToArray();
+        if(headingRuns.Length==0 || bodyRuns.Length==0 || headingRuns.Any(run=>run.FontWeight!=FontWeights.Bold) ||
+           headingRuns.Min(run=>run.FontSize)<=bodyRuns.Max(run=>run.FontSize) ||
+           !bodyRuns.Any(run=>run.Text=="Bold words" && run.FontWeight==FontWeights.Bold && run.FontStyle==FontStyles.Normal) ||
+           !bodyRuns.Any(run=>run.Text=="Italic words" && run.FontStyle==FontStyles.Italic && run.FontWeight==FontWeights.Normal))
+            throw new InvalidOperationException("Browser HTML lost heading emphasis/size or leaked strong/em formatting between text spans.");
+        AssertBrowserClipboardUnchanged(structuredHtml,structuredText);
+    }
+
+    static void SetBrowserClipboard(string html,string text)
+    {
+        var data=new DataObject();
+        data.SetData(DataFormats.Html,html,false);
+        data.SetData(DataFormats.UnicodeText,text,false);
+        Clipboard.SetDataObject(data,true);
+    }
+
     static void PressPasteKeyChord(bool unformatted=false)
     {
         if(unformatted)
@@ -218,15 +290,17 @@ public partial class MainWindow
         var runs=EnumerateDocumentParagraphs().SelectMany(paragraph=>EnumeratePlainPasteRuns(paragraph.Inlines))
             .Where(run=>run.Text.Length>0).ToArray();
         if(PlainPasteDocumentText().TrimEnd('\n')!=text || runs.Length==0 ||
-           runs.Any(run=>run.FontWeight!=FontWeights.Bold || run.FontStyle!=FontStyles.Italic ||
-               Math.Abs(run.FontSize-size)>0.01 || !string.Equals(run.FontFamily.Source,font,StringComparison.OrdinalIgnoreCase) ||
-               (run.Foreground as SolidColorBrush)?.Color!=colour ||
-               !HasPlainPasteUnderline(run)))
+           runs.Any(run=>!HasPlainPasteRichFormat(run,font,size,colour)))
         {
             var details=string.Join(" | ",runs.Select(run=>$"[{run.Text}] Font={run.FontFamily.Source}; Size={run.FontSize}; Weight={run.FontWeight}; Style={run.FontStyle}; Colour={run.Foreground}; Underline={HasPlainPasteUnderline(run)}"));
             throw new InvalidOperationException($"{context} lost source text or formatting. Text=[{PlainPasteDocumentText()}]. Runs: {details}");
         }
     }
+
+    static bool HasPlainPasteRichFormat(Run run,string font,double size,Color colour)
+        =>run.FontWeight==FontWeights.Bold && run.FontStyle==FontStyles.Italic &&
+            Math.Abs(run.FontSize-size)<=0.01 && string.Equals(run.FontFamily.Source,font,StringComparison.OrdinalIgnoreCase) &&
+            (run.Foreground as SolidColorBrush)?.Color==colour && HasPlainPasteUnderline(run);
 
     static bool HasPlainPasteUnderline(Run run)
     {
@@ -244,10 +318,10 @@ public partial class MainWindow
             throw new InvalidOperationException("Pasting browser HTML changed the global clipboard payload.");
     }
 
-    static string CreatePlainPasteCfHtml(string fragment)
+    static string CreatePlainPasteCfHtml(string fragment,string beforeFragment="",string afterFragment="")
     {
-        const string prefix="<html><head><meta charset=\"utf-8\"></head><body><!--StartFragment-->";
-        const string suffix="<!--EndFragment--></body></html>";
+        var prefix="<html><head><meta charset=\"utf-8\"></head><body>"+beforeFragment+"<!--StartFragment-->";
+        var suffix="<!--EndFragment-->"+afterFragment+"</body></html>";
         const string template="Version:1.0\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
         var headerLength=System.Text.Encoding.UTF8.GetByteCount(string.Format(System.Globalization.CultureInfo.InvariantCulture,template,0,0,0,0));
         var startFragment=headerLength+System.Text.Encoding.UTF8.GetByteCount(prefix);
