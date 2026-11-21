@@ -57,6 +57,7 @@ public partial class MainWindow
     {
         languageSettings.GrammarAndStyleSuggestions=false;
         SpellCheck.SetIsEnabled(Editor,false);
+        CheckBrowserCssColours();
         const string plain="Pasted plain\r\nsecond line";
         const string rtf="{\\rtf1\\ansi{\\fonttbl{\\f0 Times New Roman;}}{\\colortbl;\\red255\\green0\\blue0;}\\f0\\fs48\\b\\i\\ul\\cf1 RICH SOURCE\\ul0\\i0\\b0}";
         var rich=new DataObject();
@@ -293,6 +294,32 @@ public partial class MainWindow
         data.SetData(DataFormats.Html,html,false);
         data.SetData(DataFormats.UnicodeText,text,false);
         Clipboard.SetDataObject(data,true);
+    }
+
+    static void CheckBrowserCssColours()
+    {
+        // WPF accepts colour syntaxes that are not CSS and can refer to an
+        // external ICC profile. HTML colours must not activate that syntax.
+        const string context="<p style=\"color: #123456\"><span style=\"color: ContextColor file:///C:/CtrlZedNoProfile-8DB3ACF2.icc 1,0,0,0\">Safe colour</span></p>";
+        if(!HtmlClipboardFormat.TryConvert(context,out var safeXaml))
+            throw new InvalidOperationException("A non-CSS profile colour prevented safe parent-colour inheritance.");
+        var ns=(System.Xml.Linq.XNamespace)"http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var safeRuns=System.Xml.Linq.XElement.Parse(safeXaml).Descendants(ns+"Run").ToArray();
+        if(safeRuns.Length!=1 || safeRuns[0].Value!="Safe colour" ||
+           !string.Equals((string?)safeRuns[0].Attribute("Foreground"),"#FF123456",StringComparison.OrdinalIgnoreCase) ||
+           safeXaml.Contains("ContextColor",StringComparison.OrdinalIgnoreCase) ||
+           safeXaml.Contains(".icc",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("HTML admitted a non-CSS profile colour instead of retaining the parent colour.");
+
+        // CSS alpha is the final channel; WPF's eight-digit form puts it first.
+        const string alpha="<p><span style=\"color: #1A2B3C80\">Eight</span><span style=\"color: #1234\">Four</span></p>";
+        if(!HtmlClipboardFormat.TryConvert(alpha,out var alphaXaml))
+            throw new InvalidOperationException("CSS alpha hexadecimal colours were rejected.");
+        var alphaRuns=System.Xml.Linq.XElement.Parse(alphaXaml).Descendants(ns+"Run").ToArray();
+        if(alphaRuns.Length!=2 || alphaRuns[0].Value!="Eight" || alphaRuns[1].Value!="Four" ||
+           !string.Equals((string?)alphaRuns[0].Attribute("Foreground"),"#801A2B3C",StringComparison.OrdinalIgnoreCase) ||
+           !string.Equals((string?)alphaRuns[1].Attribute("Foreground"),"#44112233",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("CSS alpha hexadecimal colours did not retain their RGBA channel order.");
     }
 
     static void PressPasteKeyChord(bool unformatted=false)

@@ -326,6 +326,15 @@ internal static class HtmlClipboardFormat
             var alpha=rgb.Groups[4].Success?(byte)Math.Clamp(Math.Round(double.Parse(rgb.Groups[4].Value,CultureInfo.InvariantCulture)*255),0,255):(byte)255;
             return $"#{alpha:X2}{Channel(rgb.Groups[1].Value):X2}{Channel(rgb.Groups[2].Value):X2}{Channel(rgb.Groups[3].Value):X2}";
         }
+        // WPF also recognises non-CSS ContextColor values that can load an
+        // external colour profile. Accept only CSS hex or named-colour tokens.
+        if(Regex.IsMatch(value,@"^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",RegexOptions.IgnoreCase))
+        {
+            var hex=value[1..].ToUpperInvariant();
+            if(hex.Length is 3 or 4)hex=string.Concat(hex.Select(character=>new string(character,2)));
+            return hex.Length==6?"#FF"+hex:"#"+hex[6..8]+hex[..6];
+        }
+        if(!Regex.IsMatch(value,@"^[a-z]{1,40}$",RegexOptions.IgnoreCase))return null;
         try{return ColorConverter.ConvertFromString(value) is Color colour?$"#{colour.A:X2}{colour.R:X2}{colour.G:X2}{colour.B:X2}":null;}
         catch(FormatException){return null;}
         catch(NotSupportedException){return null;}
