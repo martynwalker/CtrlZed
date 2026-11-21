@@ -58,7 +58,7 @@ public partial class MainWindow
         languageSettings.GrammarAndStyleSuggestions=false;
         SpellCheck.SetIsEnabled(Editor,false);
         const string plain="Pasted plain\r\nsecond line";
-        const string rtf="{\\rtf1\\ansi{\\fonttbl{\\f0 Times New Roman;}}{\\colortbl;\\red255\\green0\\blue0;}\\f0\\fs48\\b\\cf1 RICH SOURCE\\b0}";
+        const string rtf="{\\rtf1\\ansi{\\fonttbl{\\f0 Times New Roman;}}{\\colortbl;\\red255\\green0\\blue0;}\\f0\\fs48\\b\\i\\ul\\cf1 RICH SOURCE\\ul0\\i0\\b0}";
         var rich=new DataObject();
         rich.SetData(DataFormats.UnicodeText,plain,false);
         rich.SetData(DataFormats.Rtf,rtf,false);
@@ -82,12 +82,52 @@ public partial class MainWindow
         if(PlainPasteDocumentText()!=before)
             throw new InvalidOperationException("Plain paste and selection replacement were not one undo operation.");
 
-        // Ordinary paste must retain its existing rich-content route.
+        // Exercise the physical ordinary-paste chord, not just Editor.Paste:
+        // selecting the rich payload is insufficient if its formatting is lost.
         run=PreparePlainPasteDocument("");
         Editor.CaretPosition=run.ContentStart;
-        Editor.Paste();
-        if(!PlainPasteDocumentText().Contains("RICH SOURCE",StringComparison.Ordinal))
-            throw new InvalidOperationException("Ordinary paste no longer selected the rich clipboard payload.");
+        PressPasteKeyChord();
+        AssertRichPasteFormat("RICH SOURCE","Times New Roman",32,Colors.Red,"RTF Ctrl+V");
+
+        // A real WPF copy advertises its native rich formats. Ordinary paste
+        // must retain those formats as well as the external RTF route.
+        var copiedRun=new Run("Copied rich text")
+        {
+            FontFamily=new FontFamily("Courier New"),FontSize=20,
+            FontWeight=FontWeights.Bold,FontStyle=FontStyles.Italic,
+            Foreground=Brushes.DarkRed,TextDecorations=TextDecorations.Underline
+        };
+        Editor.Document=new FlowDocument(new Paragraph(copiedRun));
+        Editor.Selection.Select(copiedRun.ContentStart,copiedRun.ContentEnd);
+        Editor.Copy();
+        PreparePlainPasteDocument("");
+        PressPasteKeyChord();
+        AssertRichPasteFormat("Copied rich text","Courier New",20,Colors.DarkRed,"WPF copy/Ctrl+V");
+
+        // Browsers commonly supply HTML plus plain text without RTF or WPF
+        // formats. Use an actual byte-offset CF_HTML header, not a rich-text
+        // surrogate, so this is checked through the normal paste command.
+        const string browserText="BROWSER SOURCE";
+        var browserHtml=CreatePlainPasteCfHtml("<p><a href=\"https://source.example/article\"><span style=\"font-family: Georgia; font-size: 18pt; color: #1E4D7B; font-weight: bold; font-style: italic; text-decoration: underline\">BROWSER SOURCE</span></a></p>");
+        var browser=new DataObject();
+        browser.SetData(DataFormats.UnicodeText,browserText,false);
+        browser.SetData(DataFormats.Html,browserHtml,false);
+        Clipboard.SetDataObject(browser,true);
+        PreparePlainPasteDocument("");
+        PressPasteKeyChord();
+        AssertRichPasteFormat(browserText,"Georgia",24,Color.FromRgb(0x1E,0x4D,0x7B),"browser HTML Ctrl+V");
+        var browserLinks=EnumeratePlainPasteLinks(Editor.Document).ToArray();
+        if(browserLinks.Length!=1 || browserLinks[0].NavigateUri?.AbsoluteUri!="https://source.example/article" ||
+           new TextRange(browserLinks[0].ContentStart,browserLinks[0].ContentEnd).Text!=browserText)
+            throw new InvalidOperationException("Ordinary browser paste lost the source hyperlink.");
+        AssertBrowserClipboardUnchanged(browserHtml,browserText);
+
+        PreparePlainPasteDocument("");
+        PressPasteKeyChord(unformatted:true);
+        if(PlainPasteDocumentText()!=browserText+"\n" || EnumeratePlainPasteLinks(Editor.Document).Any())
+            throw new InvalidOperationException("Ctrl+Shift+V imported browser HTML or hyperlink behaviour.");
+        AssertPlainPasteDestinationFormat();
+        AssertBrowserClipboardUnchanged(browserHtml,browserText);
 
         run=PreparePlainPasteDocument("Keep selected text");
         Editor.Selection.Select(run.ContentStart,run.ContentEnd);
@@ -164,6 +204,57 @@ public partial class MainWindow
 
     string PlainPasteDocumentText()
         =>new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Text.Replace("\r\n","\n");
+
+    static void PressPasteKeyChord(bool unformatted=false)
+    {
+        if(unformatted)
+            SendKeys(new[]{KeyInput(0x11),KeyInput(0x10),KeyInput(0x56),KeyInput(0x56,true),KeyInput(0x10,true),KeyInput(0x11,true)});
+        else
+            SendKeys(new[]{KeyInput(0x11),KeyInput(0x56),KeyInput(0x56,true),KeyInput(0x11,true)});
+    }
+
+    void AssertRichPasteFormat(string text,string font,double size,Color colour,string context)
+    {
+        var runs=EnumerateDocumentParagraphs().SelectMany(paragraph=>EnumeratePlainPasteRuns(paragraph.Inlines))
+            .Where(run=>run.Text.Length>0).ToArray();
+        if(PlainPasteDocumentText().TrimEnd('\n')!=text || runs.Length==0 ||
+           runs.Any(run=>run.FontWeight!=FontWeights.Bold || run.FontStyle!=FontStyles.Italic ||
+               Math.Abs(run.FontSize-size)>0.01 || !string.Equals(run.FontFamily.Source,font,StringComparison.OrdinalIgnoreCase) ||
+               (run.Foreground as SolidColorBrush)?.Color!=colour ||
+               !HasPlainPasteUnderline(run)))
+        {
+            var details=string.Join(" | ",runs.Select(run=>$"[{run.Text}] Font={run.FontFamily.Source}; Size={run.FontSize}; Weight={run.FontWeight}; Style={run.FontStyle}; Colour={run.Foreground}; Underline={HasPlainPasteUnderline(run)}"));
+            throw new InvalidOperationException($"{context} lost source text or formatting. Text=[{PlainPasteDocumentText()}]. Runs: {details}");
+        }
+    }
+
+    static bool HasPlainPasteUnderline(Run run)
+    {
+        // Underlining may be declared on a containing Span or Hyperlink; its
+        // presence on the visible run alone is not a reliable rendering check.
+        for(TextElement? element=run;element!=null;element=element.Parent as TextElement)
+            if(element is Inline inline && inline.TextDecorations?.Any(decoration=>decoration.Location==TextDecorationLocation.Underline)==true)
+                return true;
+        return false;
+    }
+
+    static void AssertBrowserClipboardUnchanged(string html,string text)
+    {
+        if(Clipboard.GetData(DataFormats.Html) as string!=html || Clipboard.GetText(TextDataFormat.UnicodeText)!=text)
+            throw new InvalidOperationException("Pasting browser HTML changed the global clipboard payload.");
+    }
+
+    static string CreatePlainPasteCfHtml(string fragment)
+    {
+        const string prefix="<html><head><meta charset=\"utf-8\"></head><body><!--StartFragment-->";
+        const string suffix="<!--EndFragment--></body></html>";
+        const string template="Version:1.0\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
+        var headerLength=System.Text.Encoding.UTF8.GetByteCount(string.Format(System.Globalization.CultureInfo.InvariantCulture,template,0,0,0,0));
+        var startFragment=headerLength+System.Text.Encoding.UTF8.GetByteCount(prefix);
+        var endFragment=startFragment+System.Text.Encoding.UTF8.GetByteCount(fragment);
+        var endHtml=endFragment+System.Text.Encoding.UTF8.GetByteCount(suffix);
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture,template,headerLength,endHtml,startFragment,endFragment)+prefix+fragment+suffix;
+    }
 
     void AssertPlainPasteDestinationFormat()
     {

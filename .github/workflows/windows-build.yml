@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -94,18 +94,18 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             throw "Custom styles and paragraph persistence failed with code $($t.ExitCode)"
           }
-      - name: Plain-text paste keyboard regression
+      - name: Rich and plain-text paste keyboard regression
         shell: pwsh
         run: |
           $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--plain-text-paste-test" -PassThru
           if (-not $t.WaitForExit(90000)) {
             Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
-            throw "Plain-text paste keyboard regression timed out."
+            throw "Rich and plain-text paste keyboard regression timed out."
           }
           if ($t.ExitCode -ne 0) {
             $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
             if (Test-Path $failure) { Get-Content $failure }
-            throw "Plain-text paste keyboard regression failed with code $($t.ExitCode)"
+            throw "Rich and plain-text paste keyboard regression failed with code $($t.ExitCode)"
           }
       - name: Read version
         id: version
@@ -145,4 +145,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 45 adds custom named styles and paragraph controls, stable style identities across native and DOCX documents, shared Return/macro following styles, suggested filenames on first save and Ctrl+Shift+V plain-text paste. It preserves the accepted Beta 44.5 menu responsiveness improvements."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 45.1 preserves browser and ChatGPT HTML formatting with normal Ctrl+V while Ctrl+Shift+V pastes unformatted text. Regression tests exercise both physical shortcuts with browser HTML, RTF and CtrlZed clipboard content, alongside the existing document, following-style and menu responsiveness checks. It builds forward from Beta 45."
