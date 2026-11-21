@@ -54,6 +54,8 @@ public partial class MainWindow
     {
         languageSettings.GrammarAndStyleSuggestions=true;
         SpellCheck.SetIsEnabled(Editor,false);
+        InitializeBeta46PagedEditing();
+        ApplyBeta35ViewMode(EditorViewMode.Paged,false);
         var document=new FlowDocument{PageWidth=pageWidth,PagePadding=pageMargins,ColumnWidth=double.PositiveInfinity};
         for(var i=0;i<600;i++)
         {
@@ -68,9 +70,11 @@ public partial class MainWindow
             });
         }
         Editor.Document=document;
+        ApplyPage();
         Editor.CaretPosition=document.ContentStart;
         Editor.Focus();
         PumpInput();
+        FreshPagedLayout();
         InitialiseBeta32GrammarReview();
         grammarReviewTimer?.Stop();
         RunLocalGrammarReview();
@@ -174,3 +178,4 @@ public partial class MainWindow
         }
     }
 }
+

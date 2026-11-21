@@ -310,3 +310,4 @@ public partial class MainWindow
         if(!condition)throw new InvalidOperationException(message);
     }
 }
+

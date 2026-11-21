@@ -91,3 +91,4 @@ public partial class MainWindow
         Status.Text="Language settings and personal dictionary restored from the imported profile.";
     }
 }
+

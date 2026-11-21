@@ -120,3 +120,4 @@ internal static class DocumentFileName
         return value[3] is >= '1' and <= '9' or '¹' or '²' or '³';
     }
 }
+

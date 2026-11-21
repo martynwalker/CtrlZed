@@ -143,6 +143,7 @@ public partial class MainWindow : Window
         };
 
         ApplyPage();
+        InitializeBeta46PagedEditing();
         RefreshHeaderFooter();
         suppressDirty = false;
         ApplyZoom();
@@ -793,6 +794,7 @@ public partial class MainWindow : Window
         var clone=new FlowDocument();
         new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
         DocxInterop.CopyDocumentStyles(Editor.Document,clone);
+        PaginationLayoutSnapshot.Capture(Editor.Document).Apply(clone);
         return clone;
     }
 
@@ -1359,6 +1361,7 @@ public partial class MainWindow : Window
         PageGuides.Expand=ExpandFields;
         PageGuides.ManualBreakY=GetManualBreakPositions();
         PageGuides.InvalidateVisual();
+        RefreshBeta46PagedEditingLayout();
     }
 
     IReadOnlyList<double> GetManualBreakPositions()
@@ -1612,7 +1615,7 @@ public partial class MainWindow : Window
         panel.Children.Add(keep);
         panel.Children.Add(new TextBlock
         {
-            Text="Keep-together is honoured by paginated preview/printing without changing recorded picture sizes or live editor paragraph positions. True paged editing remains on the Coming Soon list.",
+            Text="Keep-together is honoured by paginated preview/printing without changing recorded picture sizes or live editor paragraph positions. Further field/comment and publishing layout work remains on the Coming Soon list.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(20,0,0,18)
         });
         panel.Children.Add(new Separator());
@@ -1663,7 +1666,7 @@ public partial class MainWindow : Window
         {
             keepParagraphTogether=keep.IsChecked==true;
             SaveAppSettings();
-            Status.Text="Settings updated. Keep-together applies to page preview/print; true paged editing remains on the Coming Soon list.";
+            Status.Text="Settings updated. Keep-together applies to page preview/print; further field/comment and publishing layout work remains on the Coming Soon list.";
         };
         close.Click+=(_,__)=>w.Close();
         buttons.Children.Add(apply);buttons.Children.Add(close);panel.Children.Add(buttons);
@@ -1689,7 +1692,7 @@ public partial class MainWindow : Window
         });
         var items=new[]
         {
-            "True paged/WYSIWYG editing canvas with discrete page containers and margins.",
+            "Further page-editing fidelity for field-code/comment display, complex tables and oversized objects.",
             "AI Font Finder: natural-language search across properly licensed free-font catalogues such as Google Fonts.",
             "Font download and Windows installation workflow with licence information before installation.",
             "Requests such as ‘Space: 1999-like’, ‘a big bad font’ or ‘Arial Bold’.",
@@ -2987,6 +2990,7 @@ public partial class MainWindow : Window
             UpdatePageGuideState();
         }
         ScheduleBeta35PaginationMap();
+        RefreshBeta46PagedEditingLayout();
     }
 
     static Brush BrushFromHex(string value)
@@ -4758,3 +4762,4 @@ INSERT_FIELD date
         Branding.CreateAboutWindow(this,"0.30.0 beta 30").ShowDialog();
     }
 }
+

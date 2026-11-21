@@ -319,3 +319,4 @@ Only return an unsupported-capability explanation when the required capability i
         return text.Length<=max?text:text[..max]+"\n[document context truncated]";
     }
 }
+

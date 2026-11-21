@@ -213,3 +213,4 @@ public partial class MainWindow
     [DllImport("user32.dll",SetLastError=true)] static extern uint SendInput(uint count,NativeInput[] inputs,int size);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
 }
+

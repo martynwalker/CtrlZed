@@ -102,3 +102,4 @@ public sealed class GrammarSquiggleAdorner : Adorner
         return pen;
     }
 }
+

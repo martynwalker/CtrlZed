@@ -29,3 +29,4 @@ Licence: MIT
 Source and licence: https://github.com/zzzprojects/html-agility-pack
 
 Only the local clipboard HTML parser is used. The paste converter does not load web pages or external resources.
+

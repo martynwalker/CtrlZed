@@ -50,3 +50,4 @@ internal static class Beta33WordChoiceShortcutBootstrap
         window.Dispatcher.BeginInvoke(new Action(window.InstallBeta33WordChoiceShortcut),DispatcherPriority.ApplicationIdle);
     }
 }
+

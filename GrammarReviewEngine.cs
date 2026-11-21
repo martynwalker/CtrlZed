@@ -235,3 +235,4 @@ public static class GrammarReviewEngine
         WritingMode.FormalLetter or WritingMode.Business or WritingMode.Technical or WritingMode.Academic or
         WritingMode.Legal or WritingMode.Journalism or WritingMode.Article;
 }
+

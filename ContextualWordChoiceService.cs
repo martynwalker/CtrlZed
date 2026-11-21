@@ -229,3 +229,4 @@ STANZA
     static int? GetNullableInt(JsonElement element,string name)
         =>element.TryGetProperty(name,out var value) && value.ValueKind==JsonValueKind.Number && value.TryGetInt32(out var number) && number>0?number:null;
 }
+

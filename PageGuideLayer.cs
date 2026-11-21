@@ -168,3 +168,4 @@ public sealed class PageGuideLayer : FrameworkElement
         dc.DrawText(formatted,new Point(x,y));
     }
 }
+

@@ -41,3 +41,4 @@ public static class Beta32SelfTest
         }
     }
 }
+

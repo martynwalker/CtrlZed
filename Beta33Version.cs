@@ -56,3 +56,4 @@ internal static class Beta33VersionBootstrap
         window.Dispatcher.BeginInvoke(new Action(window.ApplyBeta33VersionIdentity),DispatcherPriority.ApplicationIdle);
     }
 }
+

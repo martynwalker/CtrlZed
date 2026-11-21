@@ -366,3 +366,4 @@ internal static class HtmlClipboardFormat
     static string Decode(string value)=>HtmlEntity.DeEntitize(value).Replace("\0","");
     static string Number(double value)=>value.ToString("0.###",CultureInfo.InvariantCulture);
 }
+

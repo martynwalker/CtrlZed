@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CtrlZed</AssemblyName>
-    <Version>0.45.1-beta.45.1</Version>
+    <Version>0.46.0-beta.46</Version>
       <ApplicationIcon>CtrlZed.generated.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -24,3 +24,4 @@
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\scripts\create-brand-icon.ps1&quot; -OutputPath &quot;$(MSBuildProjectDirectory)\CtrlZed.generated.ico&quot;" />
   </Target>
 </Project>
+

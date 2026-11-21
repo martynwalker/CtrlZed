@@ -238,3 +238,4 @@ Beta 32 adds the first grammar and style review system:
 - corrected single ampersands in dynamically generated menu captions.
 
 At the Beta 32 milestone, contextual thesaurus and poetry rhyme assistance were queued for the next language-intelligence release; they were subsequently delivered in Beta 33. Later language-intelligence improvements remain tracked in [issue #17](https://github.com/martynwalker/CtrlZed/issues/17).
+

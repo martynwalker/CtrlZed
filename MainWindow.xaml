@@ -60,14 +60,17 @@
 </TabControl>
 </Border>
 <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Background="#D7D7D7">
-<Border x:Name="PageBorder" Width="794" MinHeight="1123" Margin="30" Padding="72" Background="White" HorizontalAlignment="Center" VerticalAlignment="Top">
-<Grid>
+<Border x:Name="PageBorder" Width="794" Margin="30" Padding="0" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top">
+<local:PagedEditorHost x:Name="PagedEditor">
+<Grid x:Name="EditorSurfaceGrid">
 <Canvas x:Name="BehindTextCanvas" Panel.ZIndex="0" IsHitTestVisible="False"/>
 <RichTextBox x:Name="Editor" Panel.ZIndex="1" Background="Transparent" BorderThickness="0" AcceptsTab="True" SpellCheck.IsEnabled="True" FontFamily="Calibri" FontSize="16" VerticalScrollBarVisibility="Disabled" TextChanged="Editor_TextChanged"/>
 <Canvas x:Name="InFrontTextCanvas" Panel.ZIndex="2" IsHitTestVisible="False"/>
 <local:PageGuideLayer x:Name="PageGuides" IsHitTestVisible="False" Panel.ZIndex="10" Margin="-52,0,-52,0"/>
 </Grid>
+</local:PagedEditorHost>
 </Border>
 </ScrollViewer>
 </Grid>
 </DockPanel></Window>
+

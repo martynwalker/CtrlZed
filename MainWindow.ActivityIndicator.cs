@@ -98,3 +98,4 @@ internal static class ActivityIndicatorBootstrap
             new Action(window.InstallActivityIndicator),DispatcherPriority.ApplicationIdle);
     }
 }
+

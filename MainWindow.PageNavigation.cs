@@ -101,3 +101,4 @@ public partial class MainWindow
             NavigateToBeta35TextPointer(target);
     }
 }
+

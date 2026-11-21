@@ -16,3 +16,4 @@ public static class CtrlZedAi
         return AiDirectService.GetProfile(provider.Trim()).Model;
     }
 }
+

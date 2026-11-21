@@ -74,6 +74,7 @@ public partial class MainWindow
     internal void SetBeta35PageSurfaceVisibility()
     {
         if(beta35PageSurfaceLayer==null)return;
+        if(PagedEditor!=null){beta35PageSurfaceLayer.Visibility=Visibility.Collapsed;return;}
         beta35PageSurfaceLayer.Visibility=CurrentEditorViewMode==EditorViewMode.Paged
             ?Visibility.Visible
             :Visibility.Collapsed;
@@ -104,3 +105,4 @@ internal static class Beta35PageSurfaceBootstrap
             new Action(window.InstallBeta35PageSurfaceLayer),DispatcherPriority.ApplicationIdle);
     }
 }
+

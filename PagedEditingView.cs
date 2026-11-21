@@ -128,6 +128,7 @@ public partial class MainWindow
         PageGuides.InvalidateVisual();
         if(persist)EditorViewSettingsStore.Save(mode);
         OnBeta35ViewModeChanged();
+        RefreshBeta46PagedEditingLayout();
         if(IsLoaded)
             Status.Text=paged
                 ?"Paged Editing view selected."
@@ -158,3 +159,4 @@ internal static class Beta35ViewModeBootstrap
             new Action(window.InstallBeta35ViewMode),DispatcherPriority.ContextIdle);
     }
 }
+

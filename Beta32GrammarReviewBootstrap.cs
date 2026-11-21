@@ -19,3 +19,4 @@ internal static class Beta32GrammarReviewBootstrap
         if(sender is MainWindow window)window.InitialiseBeta32GrammarReview();
     }
 }
+

@@ -66,3 +66,4 @@ Notes:
 - AI_REWRITE and AI_INSERT may call the user's configured AI provider through CtrlZed's restricted AI service; the macro never receives the provider credential.
 - Maximum 200 executable commands per run.";
 }
+

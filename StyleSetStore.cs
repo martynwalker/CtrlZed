@@ -244,3 +244,4 @@ public static class StyleSetStore
     public static Dictionary<string,StyleSet> Defaults()
         =>new(StringComparer.OrdinalIgnoreCase){{"Default",new StyleSet{Name="Default",Styles=DefaultStyles()}}};
 }
+

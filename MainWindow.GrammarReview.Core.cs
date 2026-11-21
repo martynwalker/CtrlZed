@@ -336,3 +336,4 @@ public partial class MainWindow
         finally{EndActivity();}
     }
 }
+

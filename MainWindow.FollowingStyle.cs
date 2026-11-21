@@ -153,3 +153,4 @@ public partial class MainWindow
         return ((Span)inline).Inlines.All(IsEmptyFormattingInline);
     }
 }
+

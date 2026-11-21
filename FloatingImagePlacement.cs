@@ -605,3 +605,4 @@ internal static class FloatingImagePlacementBootstrap
             new Action(window.InstallFloatingImagePlacement),DispatcherPriority.ApplicationIdle);
     }
 }
+

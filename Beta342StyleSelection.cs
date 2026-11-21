@@ -80,3 +80,4 @@ internal static class Beta342StyleSelectionBootstrap
         if(sender is MainWindow window)window.InstallBeta342StyleSelection();
     }
 }
+

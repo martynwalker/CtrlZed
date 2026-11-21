@@ -225,3 +225,4 @@ public static class CompiledMacroHost
         return paths.Select(path=>(MetadataReference)MetadataReference.CreateFromFile(path)).ToList();
     }
 }
+

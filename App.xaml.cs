@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--paged-editing-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunPagedEditingSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--style45-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunRelease45StyleSelfTest());
@@ -76,3 +82,4 @@ public partial class App : Application
         new MainWindow().Show();
     }
 }
+
