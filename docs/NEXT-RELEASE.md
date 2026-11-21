@@ -1,12 +1,22 @@
-# CtrlZed — Beta 45 release record and remaining queue
+# CtrlZed — Beta 45.1 release record and remaining queue
 
-Updated 20 November 2026.
+Updated 21 November 2026.
 
 ## Baselines and acceptance
 
-Beta 45 (`0.45.0-beta.45`) is the current GitHub `main` baseline. Its [complete Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44839859965) on source commit `0b54b7ffe930d34dcb892c9f622a3d91b8871c35`. The release package was published from that commit; baseline promotion adds only this release documentation. User acceptance of Beta 45 is pending.
+Beta 45.1 (`0.45.1-beta.45.1`) is the current GitHub `main` baseline. Its [complete Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e`. The release package was published from that commit; baseline promotion adds only this release documentation. User acceptance of Beta 45.1 is pending.
 
-The previous user-accepted baseline remains Beta 44.5 (`0.44.5-beta.44.5`). Martyn accepted it on 20 November 2026 and confirmed that menu performance was back to normal. Beta 45 builds forward from that code and retains its menu, colour palette, navigation, document protection and macro functionality.
+The previous user-accepted baseline remains Beta 44.5 (`0.44.5-beta.44.5`). Martyn accepted it on 20 November 2026 and confirmed that menu performance was back to normal. Beta 45.1 builds forward from that code and retains its menu, colour palette, navigation, document protection and macro functionality.
+
+## Corrected in Beta 45.1
+
+On 21 November 2026, Martyn reported that normal Ctrl+V lost formatting when copying from a web page or ChatGPT. A [Windows reproduction run](https://github.com/martynwalker/CtrlZed/actions/runs/44888914303) confirmed that the HTML-plus-text clipboard case fell back to plain text; native RTF and CtrlZed/WPF paste retained their formatting.
+
+- [x] Convert HTML clipboard fragments for normal Paste when no native rich format is selected, preserving supported font/colour/emphasis, links, headings and paragraph/line breaks.
+- [x] Keep Ctrl+Shift+V as the plain-text command using destination formatting.
+- [x] Preserve only the selected CF_HTML fragment while retaining inherited inline formatting and handling UTF-8 byte offsets.
+- [x] Exercise both physical shortcuts with browser HTML, RTF and real CtrlZed copied content, checking actual formatting properties, selection replacement, Undo/Redo and the unchanged clipboard.
+- [x] Retain the existing document, following-style and menu-responsiveness release gates.
 
 ## Implemented in Beta 45
 
@@ -37,7 +47,7 @@ The previous user-accepted baseline remains Beta 44.5 (`0.44.5-beta.44.5`). Mart
 
 ## Verification and promotion
 
-The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence and plain-text-paste checks. The last complete run must pass before publishing the release or promoting the GitHub baseline.
+The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence and rich/plain-text-paste checks. The last complete run must pass before publishing the release or promoting the GitHub baseline.
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 

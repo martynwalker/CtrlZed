@@ -6,11 +6,18 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current GitHub `main` baseline is **[Beta 45 (0.45.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.0-beta.45)**. The complete [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44839859965) on source commit `0b54b7ffe930d34dcb892c9f622a3d91b8871c35` before publication and baseline promotion. **User acceptance of Beta 45 is pending.**
+The current GitHub `main` baseline is **[Beta 45.1 (0.45.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**. The complete [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e` before publication and baseline promotion. **User acceptance of Beta 45.1 is pending.**
 
-The previous user-accepted baseline is **[Beta 44.5](https://github.com/martynwalker/CtrlZed/releases/tag/v0.44.5-beta.44.5)**. Martyn confirmed it as a pass on 20 November 2026, with menu performance back to normal. Beta 45 builds forward from that version.
+The previous user-accepted baseline is **[Beta 44.5](https://github.com/martynwalker/CtrlZed/releases/tag/v0.44.5-beta.44.5)**. Martyn confirmed it as a pass on 20 November 2026, with menu performance back to normal. Beta 45.1 builds forward from that version.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1 work, verification and later ideas.
+
+### Beta 45.1 — formatted browser paste
+
+- Normal **Ctrl+V**, **Edit → Paste** and context-menu Paste now convert HTML clipboard content when WPF would otherwise select plain text. This covers the browser/ChatGPT case reported on 21 November 2026.
+- The converter retains supported fonts, size, colour, emphasis, links, headings and paragraph/line-break structure. CF_HTML byte offsets retain only the copied selection and its inherited inline formatting, including accented characters and emoji.
+- Native RTF and CtrlZed/WPF rich clipboard formats keep their existing paste path. **Ctrl+Shift+V** continues to paste unformatted text using the destination format.
+- Tests exercise the physical shortcuts with RTF, real CtrlZed copy/paste and browser HTML, including selection replacement, Undo/Redo and an unchanged global clipboard.
 
 ### Beta 45 — custom styles and everyday editing
 
@@ -97,7 +104,7 @@ A release must pass:
 4. `--following-style-test`, exercising actual keyboard input after headings, captions and quotes, repeated Return, soft breaks and Undo/Redo
 5. `--menu-performance-test`, exercising repeated menu opening on a 600-paragraph document, preserving commands and resuming deferred maintenance after edits
 6. `--style45-test`, covering legacy style data, custom style identities and aliases, paragraph controls, shared Return/macro behaviour and native/DOCX persistence
-7. `--plain-text-paste-test`, covering physical Ctrl+Shift+V, rich-source removal, destination formatting, line breaks, selection replacement, Undo and empty/image-only/read-only cases
+7. `--plain-text-paste-test`, covering physical Ctrl+V/Ctrl+Shift+V with RTF, CtrlZed/WPF and browser HTML; retained or removed source formatting; selected UTF-8 fragments and inherited styles; paragraphs/soft breaks; Undo/Redo; unchanged clipboard; and empty/image-only/read-only cases
 8. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation remain part of user acceptance. Automated verification is recorded separately from user acceptance.
