@@ -27,4 +27,3 @@ The same principle applies to names, acronyms, specialist terminology, invented 
 Writing modes tell later grammar, style, thesaurus and poetry services what kind of document is being written. They adjust the tolerance and priorities of suggestions; they do not force the text into a house style.
 
 British English is the default language profile.
-

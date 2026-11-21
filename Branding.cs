@@ -169,4 +169,3 @@ public static class Branding
         return window;
     }
 }
-

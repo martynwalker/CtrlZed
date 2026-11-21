@@ -103,4 +103,3 @@ public static class Beta341SelfTest
         }
     }
 }
-

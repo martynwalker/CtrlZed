@@ -65,4 +65,3 @@ internal static class Beta32UiPolishBootstrap
             DispatcherPriority.ApplicationIdle);
     }
 }
-

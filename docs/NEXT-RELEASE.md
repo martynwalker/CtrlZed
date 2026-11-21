@@ -58,4 +58,3 @@ Status: Windows build, all functional regressions, packaging and publication pas
 ## Remaining queue
 
 The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver true discrete-page WYSIWYG editing, the AI Font Finder/font installation workflow, experimental generated fonts, bitmap-to-vector signature tracing, Bitwarden integration or complete Word publishing fidelity.
-

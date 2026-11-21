@@ -125,4 +125,3 @@ public static class Beta35SelfTest
         return code;
     }
 }
-

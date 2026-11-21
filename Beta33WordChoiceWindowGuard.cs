@@ -54,4 +54,3 @@ internal static class Beta33WordChoiceWindowGuard
         if(owner.ActivateExistingWordChoiceWindow())e.Handled=true;
     }
 }
-

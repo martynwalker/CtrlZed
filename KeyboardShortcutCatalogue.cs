@@ -254,4 +254,3 @@ internal static class Beta34KeyboardCatalogueBootstrap
         window.Dispatcher.BeginInvoke(new Action(window.InstallBeta34KeyboardCatalogue),DispatcherPriority.ApplicationIdle);
     }
 }
-

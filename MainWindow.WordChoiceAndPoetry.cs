@@ -621,4 +621,3 @@ internal static class Beta33WordChoiceBootstrap
         window.Dispatcher.BeginInvoke(new Action(window.InitialiseBeta33WordChoice),DispatcherPriority.ApplicationIdle);
     }
 }
-

@@ -12,4 +12,3 @@ public partial class MainWindow
             MainMenu.Items.OfType<MenuItem>().Any(item=>item.IsSubmenuOpen)) ||
           Mouse.Captured is ContextMenu { IsOpen:true };
 }
-

@@ -83,4 +83,3 @@ public static class NativeIcon {
     $nodePen.Dispose(); $nodeBrush.Dispose(); $bg.Dispose()
     $g.Dispose(); $bmp.Dispose()
 }
-

@@ -196,4 +196,3 @@ public static class SentenceCompletionDetector
         return false;
     }
 }
-

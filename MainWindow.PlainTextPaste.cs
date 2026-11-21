@@ -216,4 +216,3 @@ public partial class MainWindow
         editor.Selection.Select(insertion.ContentStart,insertion.ContentEnd);
     }
 }
-

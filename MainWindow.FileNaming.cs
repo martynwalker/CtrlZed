@@ -18,4 +18,3 @@ public partial class MainWindow
         return DocumentFileName.WithExtension(DocumentFileName.Suggest(paragraphs),extension);
     }
 }
-

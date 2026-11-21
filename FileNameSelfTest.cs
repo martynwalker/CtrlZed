@@ -32,4 +32,3 @@ internal static class FileNameSelfTest
             throw new InvalidOperationException("A reserved-device prefix exceeded the filename length cap.");
     }
 }
-

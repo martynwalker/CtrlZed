@@ -200,4 +200,3 @@ public static class UserProfileService
         return JsonSerializer.Deserialize<T>(reader.ReadToEnd());
     }
 }
-

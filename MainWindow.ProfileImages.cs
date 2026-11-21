@@ -197,4 +197,3 @@ public partial class MainWindow
         Editor.Focus();
     }
 }
-

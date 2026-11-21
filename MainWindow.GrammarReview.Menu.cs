@@ -175,4 +175,3 @@ public partial class MainWindow
         menu.IsOpen=true;
     }
 }
-

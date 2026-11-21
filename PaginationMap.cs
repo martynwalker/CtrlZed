@@ -20,8 +20,8 @@ public sealed record PaginationMapResult(
     DateTime CreatedUtc)
 {
     public IReadOnlyList<BitmapSource?> Thumbnails { get; init; }=Array.Empty<BitmapSource?>();
-    // Paper coordinates of the first content rectangle on each page. The
-    // editor can retain leading and paragraph spacing when projecting a page.
+    // Safe paper-body origins. Precise glyph rectangles require a hosted WPF
+    // text view and must not be queried from an unhosted worker paginator.
     public IReadOnlyList<double> PageFirstContentY { get; init; }=Array.Empty<double>();
 }
 
@@ -118,7 +118,6 @@ public static class PaginationMapBuilder
                dynamicPaginator.GetPagePosition(page) is TextPointer pointer)
             {
                 offset=mapOffset?.Invoke(pointer)??document.ContentStart.GetOffsetToPosition(pointer);
-                firstContentY[pageNumber]=FirstContentTop(page,pointer,margins.Top);
             }
             if(offset<0)
                 offset=(int)Math.Round(totalOffset*pageNumber/(double)pageCount);
@@ -131,36 +130,6 @@ public static class PaginationMapBuilder
             Thumbnails=thumbnails,
             PageFirstContentY=Array.AsReadOnly(firstContentY)
         };
-    }
-
-    static double FirstContentTop(DocumentPage page,TextPointer start,double fallback)
-    {
-        // WPF's page and its page visual expose this public content-host
-        // interface even though their concrete classes are internal.
-        var host=page as IContentHost??page.Visual as IContentHost;
-        if(host==null)return fallback;
-        var position=start.GetInsertionPosition(LogicalDirection.Forward)??start;
-        for(var step=0;position!=null && step<64;step++,position=position.GetNextContextPosition(LogicalDirection.Forward))
-        {
-            ContentElement? element=position.GetPointerContext(LogicalDirection.Forward) switch
-            {
-                TextPointerContext.Text=>position.Parent as ContentElement,
-                TextPointerContext.EmbeddedElement=>position.Parent as ContentElement,
-                TextPointerContext.ElementStart when position.GetAdjacentElement(LogicalDirection.Forward) is InlineUIContainer container=>container,
-                _=>null
-            };
-            if(element==null)continue;
-            try
-            {
-                var rectangles=host.GetRectangles(element);
-                var first=rectangles.Where(rect=>!rect.IsEmpty && rect.Height>0 && double.IsFinite(rect.Top) && rect.Top>=0)
-                    .OrderBy(rect=>rect.Top).FirstOrDefault(Rect.Empty);
-                if(!first.IsEmpty && first.Top<page.Size.Height)return first.Top;
-            }
-            catch(ArgumentException){ }
-            catch(InvalidOperationException){ }
-        }
-        return fallback;
     }
 
     static BitmapSource CreateThumbnail(DocumentPage page)

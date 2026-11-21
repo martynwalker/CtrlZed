@@ -132,4 +132,3 @@ internal static class CzdProtection
         }
     }
 }
-

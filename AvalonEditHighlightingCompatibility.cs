@@ -21,4 +21,3 @@ public static class AvalonEditHighlightingCompatibility
             manager.RegisterHighlighting("VBNET",Array.Empty<string>(),visualBasic);
     }
 }
-

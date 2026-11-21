@@ -46,4 +46,3 @@ public static class PersistentFieldStore
         File.Move(tmp,path,true);
     }
 }
-

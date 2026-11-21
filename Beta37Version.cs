@@ -63,4 +63,3 @@ internal static class Beta37VersionBootstrap
             new Action(window.ApplyBeta37VersionIdentity),DispatcherPriority.ApplicationIdle);
     }
 }
-

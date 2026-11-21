@@ -102,4 +102,3 @@ public static class MacroIntellisense
             =>textArea.Document.Replace(completionSegment,suggestion.Text);
     }
 }
-

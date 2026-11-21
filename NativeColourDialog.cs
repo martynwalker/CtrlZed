@@ -113,4 +113,3 @@ internal static class NativeColourDialog
     [DllImport("comdlg32.dll",ExactSpelling=true)]
     static extern uint CommDlgExtendedError();
 }
-

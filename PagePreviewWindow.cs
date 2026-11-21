@@ -147,4 +147,3 @@ public sealed class PagePreviewWindow : Window
         pageHost.Background=new VisualBrush(page.Visual){Stretch=Stretch.Fill};
     }
 }
-

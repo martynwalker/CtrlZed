@@ -101,4 +101,3 @@ public sealed class RhymeSquiggleAdorner : Adorner
         return pen;
     }
 }
-

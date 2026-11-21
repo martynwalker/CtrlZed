@@ -200,4 +200,3 @@ public static class ProfileImageMacro
         window.InsertProfileImage(imageName, widthMillimetres, placement);
     }
 }
-

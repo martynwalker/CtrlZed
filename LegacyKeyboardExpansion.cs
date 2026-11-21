@@ -252,4 +252,3 @@ internal static class LegacyKeyboardExpansionBootstrap
         if(sender is MainWindow window)window.HandleBeta341LegacyKeyboard(sender,e);
     }
 }
-

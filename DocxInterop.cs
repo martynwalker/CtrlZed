@@ -1451,4 +1451,3 @@ public static class DocxInterop
         }
     }
 }
-

@@ -240,4 +240,3 @@ internal static class Beta33GrammarReviewRefinementBootstrap
         owner.EnhanceBeta33GrammarReviewWindow(window);
     }
 }
-

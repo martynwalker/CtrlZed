@@ -39,6 +39,7 @@ public partial class App : Application
 
         if(e.Args.Any(a=>a.Equals("--self-test",StringComparison.OrdinalIgnoreCase)))
         {
+            System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Beta35 pagination");
             var beta35=Beta35SelfTest.Run();
             if(beta35!=0)
             {
@@ -46,6 +47,7 @@ public partial class App : Application
                 return;
             }
 
+            System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Beta341");
             var beta341=Beta341SelfTest.Run();
             if(beta341!=0)
             {
@@ -53,6 +55,7 @@ public partial class App : Application
                 return;
             }
 
+            System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Beta34");
             var beta34=Beta34SelfTest.Run();
             if(beta34!=0)
             {
@@ -60,6 +63,7 @@ public partial class App : Application
                 return;
             }
 
+            System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Beta33");
             var beta33=Beta33SelfTest.Run();
             if(beta33!=0)
             {
@@ -67,6 +71,7 @@ public partial class App : Application
                 return;
             }
 
+            System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Beta32");
             var beta32=Beta32SelfTest.Run();
             if(beta32!=0)
             {
@@ -74,6 +79,7 @@ public partial class App : Application
                 return;
             }
 
+            System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core document tests");
             var code=SelfTest.Run();
             Shutdown(code);
             return;

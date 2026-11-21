@@ -103,4 +103,3 @@ public static class PersonalDictionaryStore
         File.Move(temporary,DictionaryPath,true);
     }
 }
-

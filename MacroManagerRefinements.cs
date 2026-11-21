@@ -207,4 +207,3 @@ internal static class MacroManagerRefinementBootstrap
         }
     }
 }
-

@@ -90,4 +90,3 @@ public sealed class HeaderFooterPaginator : DocumentPaginator
         dc.DrawText(formatted,new Point(x,y));
     }
 }
-

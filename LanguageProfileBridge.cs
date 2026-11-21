@@ -6,4 +6,3 @@ public static class LanguageProfileBridge
 
     public static void NotifyReloadRequested()=>ReloadRequested?.Invoke();
 }
-

@@ -149,4 +149,3 @@ public partial class MainWindow
         DocxInterop.SetDocumentStyles(Editor.Document,set);
     }
 }
-

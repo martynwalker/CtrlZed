@@ -327,4 +327,3 @@ public partial class MainWindow
 
     static Button StyleEditorButton(string text)=>new(){Content=text,MinWidth=96,Padding=new Thickness(9,4,9,4),Margin=new Thickness(3)};
 }
-
