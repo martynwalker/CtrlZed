@@ -111,6 +111,20 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             throw "Paged editing regression failed with code $($t.ExitCode)"
           }
+      - name: Capture synthetic paged-layout diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($name in @("CtrlZed46Layout.png", "CtrlZed46Page2.png")) {
+            $path = Join-Path $env:TEMP $name
+            if (Test-Path $path) {
+              $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
+              for ($offset = 0; $offset -lt $encoded.Length; $offset += 2000) {
+                $chunk = $encoded.Substring($offset, [Math]::Min(2000, $encoded.Length - $offset))
+                Write-Host "CZ46_IMAGE:$name`:$chunk"
+              }
+            }
+          }
       - name: Rich and plain-text paste keyboard regression
         shell: pwsh
         run: |

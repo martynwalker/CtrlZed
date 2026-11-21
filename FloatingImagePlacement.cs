@@ -24,6 +24,7 @@ public partial class MainWindow
     {
         public int ImageIndex { get; set; }=-1;
         public int AnchorOffset { get; set; }
+        public int PageOffset { get; set; }
         public double OffsetX { get; set; }
         public double OffsetY { get; set; }
         public double Width { get; set; }
@@ -44,9 +45,13 @@ public partial class MainWindow
     FloatingImagePlacementData? draggingFloatingImage;
     FloatingImagePlacementData? selectedFloatingImage;
     Point floatingDragStart;
+    Point floatingDragStartProjected;
     double floatingDragStartX,floatingDragStartY;
     double floatingDragStartWidth,floatingDragStartHeight;
     bool resizingFloatingImage;
+    bool floatingDragUsesPagedCoordinates;
+    int floatingDragAnchorPage;
+    int floatingDragStartPageOffset;
     bool floatingImagePlacementInstalled;
     DispatcherTimer? floatingImageRefreshTimer;
 
@@ -103,6 +108,7 @@ public partial class MainWindow
             {
                 ImageIndex=index,
                 AnchorOffset=placement.AnchorOffset,
+                PageOffset=placement.PageOffset,
                 OffsetX=placement.OffsetX,
                 OffsetY=placement.OffsetY,
                 Width=placement.Width,
@@ -131,6 +137,7 @@ public partial class MainWindow
                 {
                     ImageIndex=item.ImageIndex,
                     AnchorOffset=item.AnchorOffset,
+                    PageOffset=item.PageOffset,
                     OffsetX=item.OffsetX,
                     OffsetY=item.OffsetY,
                     Width=item.Width,
@@ -154,6 +161,7 @@ public partial class MainWindow
         floatingImageChrome.Clear();
         draggingFloatingImage=null;
         selectedFloatingImage=null;
+        RefreshBeta46PagedPictures();
     }
 
     PicturePlacementMode GetPicturePlacement(Image image)
@@ -244,7 +252,8 @@ public partial class MainWindow
 
     void RefreshFloatingImagePlacements()
     {
-        if(!IsLoaded||BehindTextCanvas==null||floatingImagePlacements.Count==0)return;
+        if(!IsLoaded||BehindTextCanvas==null)return;
+        if(floatingImagePlacements.Count==0){RefreshBeta46PagedPictures();return;}
         Editor.UpdateLayout();
 
         var images=EnumerateImageContainers(Editor.Document).ToList();
@@ -308,7 +317,7 @@ public partial class MainWindow
             if(rect.IsEmpty||!double.IsFinite(rect.Top)||!double.IsFinite(rect.Left))return;
             var origin=Editor.TranslatePoint(new Point(rect.Left,rect.Top),BehindTextCanvas);
             Canvas.SetLeft(overlay,origin.X+placement.OffsetX);
-            Canvas.SetTop(overlay,origin.Y+placement.OffsetY);
+            Canvas.SetTop(overlay,origin.Y+placement.OffsetY+FloatingPictureSourcePageShift(placement,container));
         }
         catch(InvalidOperationException){ }
     }
@@ -318,8 +327,9 @@ public partial class MainWindow
         foreach(var placement in floatingImagePlacements.AsEnumerable().Reverse())
         {
             if(placement.RuntimeImage==null||
-               !floatingImageOverlays.TryGetValue(placement,out var overlay))continue;
-            var rect=new Rect(
+               !floatingImageOverlays.TryGetValue(placement,out var overlay) ||
+               !Beta46PictureCanBeHit(placement,point))continue;
+            var rect=TryGetBeta46FloatingBounds(placement,out var projectedBounds)?projectedBounds:new Rect(
                 Canvas.GetLeft(overlay),Canvas.GetTop(overlay),
                 placement.Width,placement.Height);
             if(rect.Contains(point))
@@ -330,6 +340,7 @@ public partial class MainWindow
 
     Rect GetFloatingImageBounds(FloatingImagePlacementData placement)
     {
+        if(TryGetBeta46FloatingBounds(placement,out var projectedBounds))return projectedBounds;
         if(!floatingImageOverlays.TryGetValue(placement,out var overlay))return Rect.Empty;
         return new Rect(Canvas.GetLeft(overlay),Canvas.GetTop(overlay),placement.Width,placement.Height);
     }
@@ -344,6 +355,7 @@ public partial class MainWindow
     void UpdateFloatingImageChrome()
     {
         ClearFloatingImageChrome();
+        RefreshBeta46PagedPictures();
         if(selectedFloatingImage==null||!floatingImagePlacements.Contains(selectedFloatingImage))return;
         var bounds=GetFloatingImageBounds(selectedFloatingImage);
         if(bounds.IsEmpty)return;
@@ -401,7 +413,13 @@ public partial class MainWindow
         selectedFloatingImage=hit.Placement;
         UpdateFloatingImageChrome();
         draggingFloatingImage=hit.Placement;
-        floatingDragStart=point;
+        floatingDragUsesPagedCoordinates=Beta46PagedPicturesActive;
+        var projectedPoint=floatingDragUsesPagedCoordinates?e.GetPosition(PagedEditor):new Point();
+        floatingDragAnchorPage=floatingDragUsesPagedCoordinates && beta46PictureGeometry.TryGetValue(hit.Placement,out var geometry)
+            ?geometry.AnchorPage:0;
+        floatingDragStartPageOffset=hit.Placement.PageOffset;
+        floatingDragStartProjected=projectedPoint;
+        floatingDragStart=floatingDragUsesPagedCoordinates?PagedEditor.GetPageBodyPoint(projectedPoint):point;
         floatingDragStartX=hit.Placement.OffsetX;
         floatingDragStartY=hit.Placement.OffsetY;
         floatingDragStartWidth=hit.Placement.Width;
@@ -425,9 +443,18 @@ public partial class MainWindow
             return;
         }
         if(e.LeftButton!=MouseButtonState.Pressed)return;
-        var position=e.GetPosition(BehindTextCanvas);
-        var dx=position.X-floatingDragStart.X;
-        var dy=position.Y-floatingDragStart.Y;
+        // Paper-local movement is independent of the compressed native text
+        // range. Crossing a sheet changes the page offset, not its text anchor.
+        var projectedPoint=floatingDragUsesPagedCoordinates?e.GetPosition(PagedEditor):new Point();
+        var position=floatingDragUsesPagedCoordinates?PagedEditor.GetPageBodyPoint(projectedPoint):e.GetPosition(BehindTextCanvas);
+        var startPosition=floatingDragStart;
+        if(floatingDragUsesPagedCoordinates && resizingFloatingImage)
+        {
+            position=projectedPoint;
+            startPosition=floatingDragStartProjected;
+        }
+        var dx=position.X-startPosition.X;
+        var dy=position.Y-startPosition.Y;
 
         if(resizingFloatingImage)
         {
@@ -448,6 +475,11 @@ public partial class MainWindow
         {
             draggingFloatingImage.OffsetX=floatingDragStartX+dx;
             draggingFloatingImage.OffsetY=floatingDragStartY+dy;
+            if(floatingDragUsesPagedCoordinates)
+            {
+                draggingFloatingImage.PageOffset=PagedEditor.GetPageIndex(projectedPoint)-floatingDragAnchorPage;
+                ConstrainBeta46PictureDrag(draggingFloatingImage);
+            }
         }
 
         if(floatingImageOverlays.TryGetValue(draggingFloatingImage,out var overlay)&&
@@ -465,7 +497,8 @@ public partial class MainWindow
     void FloatingImage_PreviewMouseLeftButtonUp(object sender,MouseButtonEventArgs e)
     {
         if(draggingFloatingImage==null)return;
-        var changed=Math.Abs(draggingFloatingImage.OffsetX-floatingDragStartX)>0.5||
+        var changed=draggingFloatingImage.PageOffset!=floatingDragStartPageOffset||
+                    Math.Abs(draggingFloatingImage.OffsetX-floatingDragStartX)>0.5||
                     Math.Abs(draggingFloatingImage.OffsetY-floatingDragStartY)>0.5||
                     Math.Abs(draggingFloatingImage.Width-floatingDragStartWidth)>0.5||
                     Math.Abs(draggingFloatingImage.Height-floatingDragStartHeight)>0.5;
@@ -508,9 +541,11 @@ public partial class MainWindow
                 pageIndex=i;
             }
             pageIndex=Math.Clamp(pageIndex,0,map.PageCount-1);
+            var anchorPage=pageIndex;
+            pageIndex=FloatingPictureDisplayedPage(anchorPage,placement.PageOffset,map.PageCount);
             var rect=container.ContentStart.GetCharacterRect(LogicalDirection.Forward);
             if(rect.IsEmpty||!double.IsFinite(rect.Top)||!double.IsFinite(rect.Left))continue;
-            var pageTop=pageIndex<starts.Count?starts[pageIndex]:pageIndex*pageHeight;
+            var pageTop=anchorPage<starts.Count?starts[anchorPage]:anchorPage*pageHeight;
             var sx=targetPageSize.Width/Math.Max(1,pageWidth);
             var sy=targetPageSize.Height/Math.Max(1,pageHeight);
             var bounds=new Rect(

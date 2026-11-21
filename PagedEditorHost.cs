@@ -9,6 +9,8 @@ using System.Windows.Threading;
 
 namespace CtrlZed;
 
+public sealed record PagedFloatingPicture(ImageSource Source,Rect Bounds,PicturePlacementMode Mode,bool Selected=false);
+
 /// <summary>
 /// Projects one live editing surface onto separate paper sheets. The actual
 /// RichTextBox remains over the active sheet; the other sheets sample the same
@@ -43,10 +45,14 @@ public sealed class PagedEditorHost : Panel
     public int PageCount=>IsPaged?effectiveStarts.Count:1;
     public IReadOnlyList<double> SourcePageStarts=>effectiveStarts;
     public Func<int,int,(string Header,string Footer)>? HeaderFooterProvider {get;set;}
+    public Func<int,IReadOnlyList<PagedFloatingPicture>>? FloatingPicturesProvider {get;set;}
     public event EventHandler? ActivePageChanged;
     public event EventHandler<MouseButtonEventArgs>? ActivatedPageMouseDown;
 
     readonly NativeViewport viewport=new(){ClipToBounds=true};
+    readonly ProjectionLayer behindPictures;
+    readonly ProjectionLayer projectedText;
+    readonly ProjectionLayer frontPictures;
     readonly List<double> starts=new(){0};
     readonly List<double> effectiveStarts=new(){0};
     readonly Dictionary<int,VisualBrush> brushes=new();
@@ -62,7 +68,13 @@ public sealed class PagedEditorHost : Panel
 
     public PagedEditorHost()
     {
+        behindPictures=new ProjectionLayer(this,0);
+        projectedText=new ProjectionLayer(this,1);
+        frontPictures=new ProjectionLayer(this,2);
+        Children.Add(behindPictures);
+        Children.Add(projectedText);
         Children.Add(viewport);
+        Children.Add(frontPictures);
         Focusable=false;
         AddHandler(RequestBringIntoViewEvent,new RequestBringIntoViewEventHandler(BringIntoViewRequested),true);
         Loaded+=(_,__)=>
@@ -202,6 +214,8 @@ public sealed class PagedEditorHost : Panel
         RebuildEffectiveStarts(false);
         var height=IsPaged?PageCount*HeightOfPaper+(PageCount-1)*Gap:
             Math.Max(HeightOfPaper,NativeHeight+Margins.Top+Margins.Bottom);
+        var layerSize=new Size(WidthOfPaper,height);
+        behindPictures.Measure(layerSize);projectedText.Measure(layerSize);frontPictures.Measure(layerSize);
         return new Size(WidthOfPaper,height);
     }
 
@@ -214,6 +228,8 @@ public sealed class PagedEditorHost : Panel
         nativeBounds=new Rect(margins.Left,(IsPaged?page*(HeightOfPaper+Gap):0)+margins.Top,BodyWidth,height);
         viewport.SourceStartY=start;
         viewport.Arrange(nativeBounds);
+        var layerBounds=new Rect(finalSize);
+        behindPictures.Arrange(layerBounds);projectedText.Arrange(layerBounds);frontPictures.Arrange(layerBounds);
         return finalSize;
     }
 
@@ -248,6 +264,20 @@ public sealed class PagedEditorHost : Panel
     }
 
     int PageForProjectedY(double y)=>Math.Clamp((int)Math.Floor(Math.Max(0,y)/(HeightOfPaper+Gap)),0,PageCount-1);
+
+    public int GetPageIndex(Point projected)=>IsPaged?PageForProjectedY(projected.Y):0;
+
+    public Point GetPageBodyPoint(Point projected)
+    {
+        var page=GetPageIndex(projected);
+        return new Point(projected.X-Margins.Left,
+            projected.Y-(IsPaged?page*(HeightOfPaper+Gap):0)-Margins.Top);
+    }
+
+    public void InvalidateFloatingPictures()
+    {
+        behindPictures.InvalidateVisual();frontPictures.InvalidateVisual();
+    }
 
     public Point SourceToProjected(Point source)
     {
@@ -437,6 +467,15 @@ public sealed class PagedEditorHost : Panel
         base.OnRender(dc);
         if(ActualWidth<1 || ActualHeight<1)return;
         dc.DrawRectangle(IsPaged?BackgroundBrush:Brushes.Transparent,null,new Rect(RenderSize));
+        var range=VisiblePages();
+        for(var page=range.First;page<=range.Last;page++)DrawPage(dc,page);
+        // The native viewport is a later visual child. Keep the two picture
+        // planes and the inactive text plane independent of its text clip.
+        behindPictures.InvalidateVisual();projectedText.InvalidateVisual();frontPictures.InvalidateVisual();
+    }
+
+    (int First,int Last) VisiblePages()
+    {
         var first=0;var last=PageCount-1;
         var scroll=outerScroll??=FindOuterScroll();
         if(IsPaged && scroll!=null)
@@ -450,7 +489,7 @@ public sealed class PagedEditorHost : Panel
             }
             catch(InvalidOperationException){ }
         }
-        for(var page=first;page<=last;page++)DrawPage(dc,page);
+        return (first,last);
     }
 
     static readonly Brush BackgroundBrush=MakeBrush(Color.FromRgb(239,236,226));
@@ -462,8 +501,19 @@ public sealed class PagedEditorHost : Panel
     {
         var bounds=GetPageBounds(page);
         dc.DrawRectangle(Brushes.White,IsPaged?PaperPen:null,bounds);
+        if(HeaderFooterProvider is { } provider)
+        {
+            var labels=provider(page+1,PageCount);
+            DrawTriplet(dc,labels.Header,42,bounds.Top+18,WidthOfPaper-84);
+            DrawTriplet(dc,labels.Footer,42,bounds.Bottom-38,WidthOfPaper-84);
+        }
+    }
+
+    void DrawProjectedText(DrawingContext dc,int page)
+    {
         if(EditorSurface!=null && IsPaged && page!=activePage)
         {
+            var bounds=GetPageBounds(page);
             var height=SegmentHeight(page);
             if(height>0)
             {
@@ -473,12 +523,39 @@ public sealed class PagedEditorHost : Panel
                 dc.DrawRectangle(brush,null,new Rect(Margins.Left,bounds.Top+Margins.Top,BodyWidth,height));
             }
         }
-        if(HeaderFooterProvider is { } provider)
+    }
+
+    void DrawPicturePlane(DrawingContext dc,int page,bool front)
+    {
+        if(!IsPaged || FloatingPicturesProvider==null)return;
+        var bounds=GetPageBounds(page);
+        var origin=new Point(Margins.Left,bounds.Top+Margins.Top);
+        dc.PushClip(new RectangleGeometry(new Rect(origin,new Size(BodyWidth,BodyHeight))));
+        foreach(var picture in FloatingPicturesProvider(page))
         {
-            var labels=provider(page+1,PageCount);
-            DrawTriplet(dc,labels.Header,42,bounds.Top+18,WidthOfPaper-84);
-            DrawTriplet(dc,labels.Footer,42,bounds.Bottom-38,WidthOfPaper-84);
+            var local=picture.Bounds;
+            if(local.IsEmpty || !double.IsFinite(local.Left) || !double.IsFinite(local.Top) ||
+               !double.IsFinite(local.Width) || !double.IsFinite(local.Height) || local.Width<=0 || local.Height<=0)continue;
+            var target=new Rect(origin.X+local.Left,origin.Y+local.Top,local.Width,local.Height);
+            if(picture.Mode==(front?PicturePlacementMode.InFrontOfText:PicturePlacementMode.BehindText))
+                dc.DrawImage(picture.Source,target);
+            if(front && picture.Selected)
+            {
+                dc.DrawRectangle(null,SelectionPen,target);
+                dc.DrawRectangle(Brushes.White,SelectionPen,new Rect(target.Right-5,target.Bottom-5,10,10));
+            }
         }
+        dc.Pop();
+    }
+
+    static readonly Pen SelectionPen=MakePen(Color.FromRgb(70,130,180));
+
+    void DrawProjectionLayer(DrawingContext dc,int plane)
+    {
+        if(!IsPaged)return;
+        var range=VisiblePages();
+        for(var page=range.First;page<=range.Last;page++)
+            if(plane==1)DrawProjectedText(dc,page);else DrawPicturePlane(dc,page,plane==2);
     }
 
     static void DrawTriplet(DrawingContext dc,string? text,double x,double y,double width)
@@ -526,5 +603,16 @@ public sealed class PagedEditorHost : Panel
             AdornerLayer.Arrange(new Rect(finalSize));
             return finalSize;
         }
+    }
+
+    sealed class ProjectionLayer : FrameworkElement
+    {
+        readonly PagedEditorHost owner;
+        readonly int plane;
+        public ProjectionLayer(PagedEditorHost owner,int plane)
+        {
+            this.owner=owner;this.plane=plane;IsHitTestVisible=false;
+        }
+        protected override void OnRender(DrawingContext dc)=>owner.DrawProjectionLayer(dc,plane);
     }
 }

@@ -103,6 +103,7 @@ public partial class MainWindow
         EnsureBeta46AnchorDocument();
         PagedEditor.InvalidateVisual();
         if(geometryChanged)QueueBeta46PagedGeometry();
+        RefreshBeta46PagedPictures();
     }
 
     void EnsureBeta46AnchorDocument()
@@ -190,6 +191,7 @@ public partial class MainWindow
                 if(beta46PaginationPending)PagedEditor.ActivatePageForCaret();
                 else PagedEditor.SetActivePage(Beta46PageForPointer(Editor.CaretPosition));
             }
+            RefreshBeta46PagedPictures();
             beta46PagedGeometryDirty=false;
             if(beta46PaginationPending && PagedEditor.IsPaged)RequestBeta46BoundaryPagination();
         }

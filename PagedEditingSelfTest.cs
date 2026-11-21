@@ -81,15 +81,15 @@ public partial class MainWindow
         second.Inlines.Add(new Span(new Bold(new Run("SECOND PAGE"))));
         var anchorParagraph=Body("Picture anchor");
         var third=Body("THIRD PAGE",true);
-        var pixels=new byte[8*8*4];
+        var pixels=new byte[8*12*4];
         for(var index=0;index<pixels.Length;index+=4)
         {
             pixels[index]=90;pixels[index+1]=40;pixels[index+2]=180;pixels[index+3]=255;
         }
-        var bitmap=BitmapSource.Create(8,8,96,96,PixelFormats.Bgra32,null,pixels,32);
+        var bitmap=BitmapSource.Create(8,12,96,96,PixelFormats.Bgra32,null,pixels,32);
         bitmap.Freeze();
         var inlineImage=new Image{Source=bitmap,Width=24,Height=18};
-        var floatingImage=new Image{Source=bitmap,Width=40,Height=20};
+        var floatingImage=new Image{Source=bitmap,Width=80,Height=120};
         first.Inlines.Add(new Run(" "));
         first.Inlines.Add(new InlineUIContainer(inlineImage));
         anchorParagraph.Inlines.Add(new InlineUIContainer(floatingImage));
@@ -100,6 +100,10 @@ public partial class MainWindow
         Editor.Focus();PumpInput();
         FreshPagedLayout();
         SetPicturePlacement(floatingImage,PicturePlacementMode.InFrontOfText);
+        // Keep the portrait picture inside the page body, extending beyond
+        // the short text segment before the next explicit page break.
+        floatingImagePlacements.Single().OffsetX=20;
+        floatingImagePlacements.Single().OffsetY=8;
         RefreshFloatingImagePlacements();FreshPagedLayout();
         VerifyPagedGeometry("initial fixture");
         RequirePaged(Beta46DisplayedPageCount==3,"The three forced pages did not produce three editable pages.");
@@ -109,6 +113,9 @@ public partial class MainWindow
         var imagesBefore=CaptureFloatingImagePlacements();
         RequirePaged(imagesBefore.Count==1,"The floating-picture fixture was not registered.");
         report.AppendLine($"Fixture: {Beta46DisplayedPageCount} pages, inline and floating pictures, exact line height and explicit page breaks.");
+        VerifyFloatingPageOffset(floatingImage,report);
+        SavePagedLayoutDebugImage(report);
+        VerifyTallFloatingPicturePixels(floatingImage,report);
 
         // A view change must neither rewrite the body nor replace the public
         // RichTextBox/FlowDocument macro target or its existing Undo history.
@@ -229,6 +236,135 @@ public partial class MainWindow
         RequirePaged(PagedDocumentFingerprint()==beforeZoom,"Zoom changed the document or picture model.");
         VerifyPagedGeometry("zoomed paper");
         report.AppendLine("Paper size, margins and zoom preserved print-page agreement and document content.");
+    }
+
+    void VerifyFloatingPageOffset(Image image,StringBuilder report)
+    {
+        var placement=floatingImagePlacements.Single();
+        var original=Beta46FloatingPictureBounds(image);
+        var width=placement.Width;var height=placement.Height;
+        var x=placement.OffsetX;var y=placement.OffsetY;
+        RequirePaged(!original.IsEmpty,"The floating portrait has no initial provider bounds.");
+        try
+        {
+            placement.PageOffset=1;
+            RefreshBeta46PagedPictures();
+            var moved=Beta46FloatingPictureBounds(image);
+            var nextPaper=Beta46PageBounds(2);
+            var expectedShift=nextPaper.Top-Beta46PageBounds(1).Top;
+            var printed=CreateFloatingPageImages(new Size(pageWidth,pageHeight)).Single();
+            RequirePaged(!moved.IsEmpty && moved.Top>=nextPaper.Top && moved.Bottom<=nextPaper.Bottom &&
+                Math.Abs(moved.Top-original.Top-expectedShift)<1 && Math.Abs(moved.Left-original.Left)<1 &&
+                printed.PageNumber==2 && printed.Bounds.Size==original.Size,
+                "A floating picture's page offset did not move its provider and print placement to page three.");
+            RequirePaged(placement.Width==width && placement.Height==height && placement.OffsetX==x && placement.OffsetY==y,
+                "Changing a picture's page offset changed its stored size or body coordinates.");
+            var restored=JsonSerializer.Deserialize<CzdSettings>(JsonSerializer.Serialize(CaptureDocumentSettings()));
+            RequirePaged(restored?.FloatingImages.Count==1 && restored.FloatingImages[0].PageOffset==1,
+                "The floating picture's page offset was lost by native settings JSON round-trip.");
+        }
+        finally
+        {
+            placement.PageOffset=0;
+            RefreshBeta46PagedPictures();
+        }
+        RequirePaged(Beta46FloatingPictureBounds(image)==original,"Resetting a picture's page offset did not restore its original provider bounds.");
+        report.AppendLine("A persisted picture page offset moved the portrait to page three for both editing and printing without changing its size/body offsets.");
+    }
+
+    void VerifyTallFloatingPicturePixels(Image image,StringBuilder report)
+    {
+        RequirePaged(GetPicturePlacement(image)==PicturePlacementMode.InFrontOfText,"The portrait fixture lost its floating placement mode.");
+        var printed=CreateFloatingPageImages(new Size(pageWidth,pageHeight)).Single();
+        RequirePaged(printed.PageNumber==1 && printed.Bounds.Width==80 && printed.Bounds.Height==120,
+            "The floating portrait did not retain its full printed size on the anchor page.");
+        var paper=Beta46PageBounds(printed.PageNumber);
+        // Printing routes the image by its logical source anchor. A collapsed
+        // anchor's forward character rectangle can lie on the following line,
+        // so do not derive the expected page by geometric Y alone.
+        var expected=printed.Bounds;
+
+        // Sample the rendered papers rather than accepting the control's bounds:
+        // the old source-segment clip retained those bounds but cut the pixels.
+        var drawing=new DrawingVisual();
+        using(var dc=drawing.RenderOpen())
+        {
+            var brush=new VisualBrush(PagedEditor)
+            {
+                ViewboxUnits=BrushMappingMode.Absolute,Viewbox=paper,
+                Stretch=Stretch.Fill,AutoLayoutContent=false
+            };
+            dc.DrawRectangle(brush,null,new Rect(new Point(0,0),paper.Size));
+        }
+        var bitmap=RenderPagedDebugVisual(drawing,paper.Size);
+        SavePagedDebugBitmap(bitmap,"CtrlZed46Page2.png");
+        var preview=CreatePreviewPaginator();
+        var printedPage=preview.GetPage(1);
+        var printDrawing=new DrawingVisual();
+        using(var dc=printDrawing.RenderOpen())
+            dc.DrawRectangle(new VisualBrush(printedPage.Visual){Stretch=Stretch.Fill,AutoLayoutContent=false},null,
+                new Rect(new Point(0,0),paper.Size));
+        var printBitmap=RenderPagedDebugVisual(printDrawing,paper.Size);
+        var shownPixels=CountPagedPortraitPixels(bitmap,expected);
+        var printPixels=CountPagedPortraitPixels(printBitmap,printed.Bounds);
+        report.AppendLine($"Portrait pixels at {expected}: editable={shownPixels}, printed={printPixels}; expected height={expected.Height}.");
+        RequirePaged(shownPixels>=expected.Height-8 && printPixels>=expected.Height-8 && Math.Abs(shownPixels-printPixels)<=4,
+            $"The 120-DIP portrait was clipped by a text page break: editable purple height={shownPixels}, printed={printPixels}.");
+    }
+
+    static int CountPagedPortraitPixels(BitmapSource bitmap,Rect expected)
+    {
+        var stride=bitmap.PixelWidth*4;
+        var pixels=new byte[stride*bitmap.PixelHeight];
+        bitmap.CopyPixels(pixels,stride,0);
+        var x=Math.Clamp((int)Math.Round(expected.Left+expected.Width/2),0,bitmap.PixelWidth-1);
+        var first=Math.Clamp((int)Math.Ceiling(expected.Top)+2,0,bitmap.PixelHeight);
+        var end=Math.Clamp((int)Math.Floor(expected.Bottom)-2,0,bitmap.PixelHeight);
+        var count=0;
+        for(var y=first;y<end;y++)
+        {
+            var index=y*stride+x*4;
+            if(Math.Abs(pixels[index]-90)<=12 && Math.Abs(pixels[index+1]-40)<=12 &&
+               Math.Abs(pixels[index+2]-180)<=12 && pixels[index+3]>=220)count++;
+        }
+        return count;
+    }
+
+    void SavePagedLayoutDebugImage(StringBuilder report)
+    {
+        var oldZoom=zoomPercent;
+        var scroll=FindVisualAncestor<ScrollViewer>(PagedEditor);
+        var oldOffset=scroll?.VerticalOffset??0;
+        try
+        {
+            zoomPercent=50;ApplyZoom();RefreshBeta46PagedEditingLayout();UpdateLayout();PumpInput();
+            if(scroll!=null)
+            {
+                var top=PagedEditor.TranslatePoint(Beta46PageBounds(1).TopLeft,scroll);
+                scroll.ScrollToVerticalOffset(Math.Max(0,scroll.VerticalOffset+top.Y-8));
+                UpdateLayout();PumpInput();
+            }
+            SavePagedDebugBitmap(RenderPagedDebugVisual(this,new Size(ActualWidth,ActualHeight)),"CtrlZed46Layout.png");
+            report.AppendLine("Layout viewport saved at 50% zoom: "+Path.Combine(Path.GetTempPath(),"CtrlZed46Layout.png"));
+        }
+        finally
+        {
+            zoomPercent=oldZoom;ApplyZoom();RefreshBeta46PagedEditingLayout();UpdateLayout();
+            scroll?.ScrollToVerticalOffset(oldOffset);PumpInput();
+        }
+    }
+
+    static RenderTargetBitmap RenderPagedDebugVisual(Visual visual,Size size)
+    {
+        var bitmap=new RenderTargetBitmap(Math.Max(1,(int)Math.Ceiling(size.Width)),
+            Math.Max(1,(int)Math.Ceiling(size.Height)),96,96,PixelFormats.Pbgra32);
+        bitmap.Render(visual);bitmap.Freeze();return bitmap;
+    }
+
+    static void SavePagedDebugBitmap(BitmapSource bitmap,string name)
+    {
+        var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var output=File.Create(Path.Combine(Path.GetTempPath(),name));encoder.Save(output);
     }
 
     void FreshPagedLayout()
