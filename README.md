@@ -6,7 +6,7 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current GitHub `main` baseline is **[Beta 45.1 (0.45.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**. The complete [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e` before publication and baseline promotion. **User acceptance of Beta 45.1 is pending.**
+The current accepted GitHub `main` baseline is **[Beta 45.1 (0.45.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**. The complete [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e` before publication and baseline promotion. **Martyn accepted Beta 45.1 as a pass on 21 November 2026.**
 
 The previous user-accepted baseline is **[Beta 44.5](https://github.com/martynwalker/CtrlZed/releases/tag/v0.44.5-beta.44.5)**. Martyn confirmed it as a pass on 20 November 2026, with menu performance back to normal. Beta 45.1 builds forward from that version.
 
@@ -107,7 +107,7 @@ A release must pass:
 7. `--plain-text-paste-test`, covering physical Ctrl+V/Ctrl+Shift+V with RTF, CtrlZed/WPF and browser HTML; retained or removed source formatting; selected UTF-8 fragments and inherited styles; paragraphs/soft breaks; Undo/Redo; unchanged clipboard; and empty/image-only/read-only cases
 8. packaging and prerelease publication
 
-The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation remain part of user acceptance. Automated verification is recorded separately from user acceptance.
+The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 
 ## Macros
 

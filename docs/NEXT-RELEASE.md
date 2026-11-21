@@ -4,7 +4,7 @@ Updated 21 November 2026.
 
 ## Baselines and acceptance
 
-Beta 45.1 (`0.45.1-beta.45.1`) is the current GitHub `main` baseline. Its [complete Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e`. The release package was published from that commit; baseline promotion adds only this release documentation. User acceptance of Beta 45.1 is pending.
+Beta 45.1 (`0.45.1-beta.45.1`) is the current accepted GitHub `main` baseline. Its [complete Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e`. The release package was published from that commit; baseline promotion adds only this release documentation. Martyn accepted Beta 45.1 as a pass on 21 November 2026.
 
 The previous user-accepted baseline remains Beta 44.5 (`0.44.5-beta.44.5`). Martyn accepted it on 20 November 2026 and confirmed that menu performance was back to normal. Beta 45.1 builds forward from that code and retains its menu, colour palette, navigation, document protection and macro functionality.
 
@@ -51,9 +51,9 @@ The release gate includes the Windows build, self-contained publish, launch chec
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
-User acceptance should confirm the suggested name in the native Save dialogue, editing/cancelling it, the expanded Styles screen, typical document layouts and the paste workflow on Martyn's documents. Automated naming checks do not claim to have tested all native Save-dialogue interactions.
+Martyn accepted the release as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. User acceptance is pending.
+Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. User acceptance passed on 21 November 2026.
 
 ## Remaining queue
 
