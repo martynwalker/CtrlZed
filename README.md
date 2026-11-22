@@ -6,11 +6,21 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current development baseline is **[Beta 46.2 (0.46.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650` before publication and baseline promotion. **Martyn confirmed Beta 46.2 as a pass on 22 November 2026 after retesting the Return/navigation fix.** Martyn reported remaining Return/navigation defects in Beta 46.1 on 22 November 2026.
+The current development baseline is **[Beta 47 (0.47.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.47.0-beta.47)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45017558612) on source commit `71b1649c1ba40cf4830d5028714fb50e4c326a44` before publication and baseline promotion. **User acceptance of Beta 47 is pending.**
 
-**Beta 46.2 is the current user-accepted baseline.** It builds forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
+**[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) remains the latest user-accepted baseline**, passed by Martyn on 22 November 2026. It builds forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47 work, verification and later ideas.
+
+### Beta 47 — vector signatures
+
+- **Settings → Configure Signature** accepts outlined SVG signatures and can trace PNG/JPEG/BMP/GIF images. The review window shows original/result previews, ink threshold, light-ink mode, the Windows ink-colour palette and SVG export before saving.
+- **Tools → Profile Images** accepts SVG, can trace an uploaded/stored raster signature and can export SVG. Ordinary profile-image uploads retain their original raster data unless tracing is selected.
+- Existing safe `INSERT_PROFILE_IMAGE {signature} 40 IN_FRONT` and compiled `ProfileImageMacro.Insert` calls retain their interface, 40 mm sizing and inline/front/behind placement.
+- Native `.czd` documents and recovery records embed the SVG master and exact dimensions independently of the profile original. Portable profiles carry canonical SVG source bytes. Older bitmap-only documents and `LoadBitmap` macros remain compatible.
+- Inline and floating signatures use vector drawing sources in editing and printing. Native/RTF serialization and pagination snapshots use prepared bitmap fallbacks without altering the live vector master. Clipboard, current DOCX and RTF interchange retain the bitmap representation.
+- SVG import supports outlined paths, curves, basic shapes, groups/transforms, solid fills/strokes, opacity and viewBox alignment. Text, paint servers/effects, linked content, CSS and root transforms require conversion to supported paths before import.
+- Windows regressions check traced holes and colour, SVG rendering/fill rules, live preview readiness, insertion and Cut Undo/Redo, copy/paste pixels, macros, native/profile/recovery round trips, exact sizing and true vector print sources.
 
 ### Beta 46.2 — Return after page navigation
 
@@ -132,7 +142,8 @@ A release must pass:
 6. `--style45-test`, covering legacy style data, custom style identities and aliases, paragraph controls, shared Return/macro behaviour and native/DOCX persistence
 7. `--plain-text-paste-test`, covering physical Ctrl+V/Ctrl+Shift+V with RTF, CtrlZed/WPF and browser HTML; retained or removed source formatting; selected UTF-8 fragments and inherited styles; paragraphs/soft breaks; Undo/Redo; unchanged clipboard; and empty/image-only/read-only cases
 8. `--paged-editing-test`, covering distinct paper geometry, canonical document/Undo preservation, physical page clicks, cross-page keyboard input and caret visibility, macro insertion, image page offsets and pixel-checked picture/print agreement
-9. packaging and prerelease publication
+9. `--vector-signature-test`, covering tracing and SVG fidelity, live preview/threshold interaction, atomic Undo/Redo, named-image macros, native/profile/recovery persistence, compatibility fallbacks and vector print sources
+10. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 
@@ -220,7 +231,7 @@ MIT. See [LICENSE](LICENSE) and [third-party notices](docs/THIRD-PARTY-NOTICES.m
 
 Beta 26.1 adds **Ask AI to Modify…** for the selected macro. CtrlZed sends the current source and language to the existing AI Macro Assistant and loads the proposed revision into the editor for review; saving remains explicit.
 
-Beta 27 adds Ask AI to Modify for selected macros, keyboard-profile shortcut help, non-printing comments, reusable image signatures, named style sets and style-set portability in `.czprofile` archives. Automatic bitmap-to-vector signature tracing remains in Coming Soon.
+Beta 27 adds Ask AI to Modify for selected macros, keyboard-profile shortcut help, non-printing comments, reusable image signatures, named style sets and style-set portability in `.czprofile` archives. Signature tracing and SVG-native masters were subsequently delivered in Beta 47.
 
 ## Beta 28 highlights
 

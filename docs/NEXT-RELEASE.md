@@ -1,12 +1,26 @@
-# CtrlZed — Beta 46.2 release record and remaining queue
+# CtrlZed — Beta 47 release record and remaining queue
 
 Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 46.2 (`0.46.2-beta.46.2`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650`. The release ZIP comes from that source; baseline promotion adds release documentation. Martyn confirmed Beta 46.2 as a pass on 22 November 2026 after retesting the Return/navigation fix; it is now the accepted baseline. Beta 46.1 improved scrolling but was not accepted after Martyn reported remaining Return/navigation defects on 22 November 2026.
+Beta 47 (`0.47.0-beta.47`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45017558612) on source commit `71b1649c1ba40cf4830d5028714fb50e4c326a44`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 47 is pending.
+
+Beta 46.2 remains the latest accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 47 builds directly from that accepted source.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Implemented in Beta 47
+
+- [x] Import supported outlined SVG signatures and retain a canonical vector master with a readable bitmap fallback.
+- [x] Trace raster signatures to cropped, single-ink SVG contours with transparent backgrounds and preserved holes/dots.
+- [x] Review original/result previews; adjust threshold, light ink and colour; export SVG and prevent stale trace acceptance.
+- [x] Configure the named profile signature and retain existing safe/compiled macro interfaces and 40 mm placement.
+- [x] Embed vector masters and exact dimensions in native documents and recovery, independently of the profile original; preserve them in portable profiles.
+- [x] Use vector drawing sources for inline/floating editing and printing; retain RTF/current-DOCX bitmap compatibility.
+- [x] Gate the release on real preview interaction, insertion/Cut Undo/Redo, clipboard/DOCX fallback pixels, tracing/SVG pixel checks, macros, native/profile/recovery persistence and vector print sources, alongside all accepted editing checks.
+
+SVG scope: outlined paths/basic shapes/groups and solid paints are supported. Text, CSS, gradients/effects, linked/embedded content and SVG root transforms must be converted to supported paths. Clipboard, RTF and current-DOCX interchange use the bitmap fallback; native `.czd` and profiles retain the vector master.
 
 ## Corrected in Beta 46.2
 
@@ -80,14 +94,14 @@ On 21 November 2026, Martyn reported that normal Ctrl+V lost formatting when cop
 
 ## Verification and promotion
 
-The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
+The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest.
+Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Beta 47 user acceptance is pending.
 
 ## Remaining queue
 
-The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, the AI Font Finder/font installation workflow, experimental generated fonts, bitmap-to-vector signature tracing, Bitwarden integration or complete Word publishing fidelity.
+The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, the AI Font Finder/font installation workflow, experimental generated fonts, further SVG artwork support, Bitwarden integration or complete Word publishing fidelity.
