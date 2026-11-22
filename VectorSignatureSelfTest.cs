@@ -443,7 +443,10 @@ public partial class MainWindow
             var rtfPrefix=sequenceBefore!=sequenceAfter?rtfText[..Math.Min(1200,rtfText.Length)]:"(clipboard unchanged; content not logged)";
             report.AppendLine($"Clipboard {copyCase}: RTF bytes={rtf.Length}, pict={rtfText.Contains("\\pict",StringComparison.Ordinal)}, prefix=[{rtfPrefix}].");
             using(var input=new MemoryStream(rtf,false))new TextRange(fragment.ContentStart,fragment.ContentEnd).Load(input,DataFormats.Rtf);
-            var fallbackImages=EnumerateImageContainers(fragment).ToList();
+            // WPF represents a standalone RTF picture as a block object;
+            // pictures inside a document paragraph remain inline objects.
+            var fallbackImages=EnumerateImageContainers(fragment).Select(item=>item.Image)
+                .Concat(fragment.Blocks.OfType<BlockUIContainer>().Select(item=>item.Child).OfType<Image>()).ToList();
             if(fallbackImages.Count!=1 && sequenceBefore!=sequenceAfter)
             {
                 try
@@ -456,7 +459,7 @@ public partial class MainWindow
             var fallbackText=sequenceBefore!=sequenceAfter?new TextRange(fragment.ContentStart,fragment.ContentEnd).Text:"(clipboard unchanged)";
             RequireVector(fallbackImages.Count==1,
                 $"Clipboard {copyCase}: copied RTF produced {fallbackImages.Count} images; bytes={rtf.Length}; pict={rtfText.Contains("\\pict",StringComparison.Ordinal)}; text=[{fallbackText}].");
-            var fallback=fallbackImages[0].Image.Source as BitmapSource;
+            var fallback=fallbackImages[0].Source as BitmapSource;
             RequireVector(fallback!=null && CountSignatureInk(fallback)>20 &&
                 (vector?CountSignatureColour(fallback,20,44,136)>20:CountSignatureColour(fallback,0,0,0)>20),
                 "Copied RTF lost the signature's visible bitmap fallback.");
