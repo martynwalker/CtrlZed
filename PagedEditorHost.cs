@@ -359,6 +359,8 @@ public sealed class PagedEditorHost : Panel
             queuedCaret=null;
             if(!IsLoaded || Editor==null)return;
             ActivatePageForCaret();
+            if(IsPaged && Editor.IsKeyboardFocusWithin && Mouse.LeftButton!=MouseButtonState.Pressed)
+                ScrollCaretIntoView();
             InvalidateVisual();
         }));
     }

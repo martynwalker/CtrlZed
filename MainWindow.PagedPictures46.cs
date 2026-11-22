@@ -50,9 +50,7 @@ public partial class MainWindow
                 var rect=container.ContentStart.GetCharacterRect(LogicalDirection.Forward);
                 if(rect.IsEmpty || !double.IsFinite(rect.Top) || !double.IsFinite(rect.Left))continue;
                 var anchor=Editor.TranslatePoint(rect.TopLeft,EditorSurfaceGrid);
-                // A collapsed image can share the following visible line's
-                // rectangle. Its logical anchor determines the page, not Y.
-                var anchorPage=Math.Clamp(Beta46PageForPointer(container.ContentStart),0,Math.Max(0,starts.Count-1));
+                var anchorPage=Beta46FloatingAnchorPage(container,starts);
                 var displayedPage=FloatingPictureDisplayedPage(anchorPage,placement.PageOffset,PagedEditor.PageCount);
                 var anchorStart=anchorPage<starts.Count?starts[anchorPage]:0;
                 var targetStart=displayedPage<starts.Count?starts[displayedPage]:0;
@@ -72,6 +70,32 @@ public partial class MainWindow
 
     static int FloatingPictureDisplayedPage(int anchorPage,int pageOffset,int pageCount)
         =>(int)Math.Clamp((long)anchorPage+pageOffset,0,Math.Max(0,pageCount-1));
+
+    int Beta46FloatingAnchorPage(InlineUIContainer container,IReadOnlyList<double> starts)
+    {
+        var stablePage=Math.Clamp(Beta46PageForPointer(container.ContentStart),0,Math.Max(0,starts.Count-1));
+        if(!beta46PaginationPending || starts.Count<2)return stablePage;
+        try
+        {
+            // Live provisional pages can be inserted before this anchor while
+            // the idle paginator still has its previous page indexes. Classify
+            // against current source geometry until that new map is ready.
+            // Looking backward avoids borrowing the following visible line's
+            // rectangle when this image's inline container is collapsed.
+            var pointer=container.ElementStart.GetInsertionPosition(LogicalDirection.Backward)??container.ElementStart;
+            var rect=pointer.GetCharacterRect(LogicalDirection.Backward);
+            if(rect.IsEmpty || !double.IsFinite(rect.Top))return stablePage;
+            var y=Editor.TranslatePoint(rect.TopLeft,EditorSurfaceGrid).Y;
+            var page=0;
+            for(var index=1;index<starts.Count;index++)
+            {
+                if(y+0.1<starts[index])break;
+                page=index;
+            }
+            return page;
+        }
+        catch(InvalidOperationException){return stablePage;}
+    }
 
     bool Beta46PictureCanBeHit(FloatingImagePlacementData placement,Point canvasPoint)
     {
@@ -109,7 +133,7 @@ public partial class MainWindow
             if(rect.IsEmpty)return;
             var anchor=Editor.TranslatePoint(rect.TopLeft,EditorSurfaceGrid);
             var starts=PagedEditor.SourcePageStarts;
-            var anchorPage=Math.Clamp(Beta46PageForPointer(container.ContentStart),0,Math.Max(0,starts.Count-1));
+            var anchorPage=Beta46FloatingAnchorPage(container,starts);
             if(anchorPage>=starts.Count)return;
             var bodyWidth=Math.Max(80,PagedEditor.PaperSize.Width-PagedEditor.PageMargins.Left-PagedEditor.PageMargins.Right);
             var bodyHeight=Math.Max(80,PagedEditor.PaperSize.Height-PagedEditor.PageMargins.Top-PagedEditor.PageMargins.Bottom);

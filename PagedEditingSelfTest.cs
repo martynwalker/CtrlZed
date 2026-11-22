@@ -178,6 +178,15 @@ public partial class MainWindow
         Editor.CaretPosition=firstBody.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
         Editor.Focus();PagedEditor.ActivatePageForCaret();PagedEditor.ScrollCaretIntoView();PumpInput();
         SendKeys(new[]{KeyInput(0x10),KeyInput(0x27),KeyInput(0x27,true),KeyInput(0x27),KeyInput(0x27,true),KeyInput(0x10,true)});
+        // No explicit scrolling after the keys: keyboard movement itself must
+        // bring the projected caret on the next sheet into the outer viewport.
+        var caretRect=PagedEditor.GetProjectedCharacterRect(Editor.CaretPosition);
+        var caretInViewport=caretRect.IsEmpty?new Point(double.NaN,double.NaN):
+            PagedEditor.TranslatePoint(caretRect.TopLeft,scroll);
+        RequirePaged(!caretRect.IsEmpty && double.IsFinite(caretInViewport.Y) &&
+            caretInViewport.Y>=-2 && caretInViewport.Y+caretRect.Height<=scroll.ViewportHeight+2 &&
+            caretInViewport.X>=-2 && caretInViewport.X<=scroll.ViewportWidth+2,
+            $"Physical cross-page keyboard movement left the caret outside the viewport: caret={caretRect}, viewportPoint={caretInViewport}, viewport={scroll.ViewportWidth}x{scroll.ViewportHeight}.");
         RequirePaged(Editor.Selection.Text.Contains('\n') && Editor.Selection.Text.Contains('S'),
             "Physical Shift+Right did not select across the page boundary: ["+Editor.Selection.Text+"].");
         var beforeDelete=PagedDocumentText();
