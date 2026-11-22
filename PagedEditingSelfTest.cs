@@ -236,6 +236,8 @@ public partial class MainWindow
         RequirePaged(ReferenceEquals(document,Editor.Document),"Editing replaced the macro's canonical document.");
         report.AppendLine($"Inserted content moved the floating picture from page {pageBefore+1} to {pageAfter+1} without changing stored picture sizes/offsets; macro insertion retained its target.");
 
+        VerifyPagedBrowsingAndNavigation(floatingImage,report);
+
         // Width and margin changes must invalidate the displayed papers as
         // well as the preview paginator; zoom changes visual scale only.
         pageWidth=816;pageHeight=1056;pageMargins=new Thickness(60,54,66,54);
@@ -245,6 +247,220 @@ public partial class MainWindow
         RequirePaged(PagedDocumentFingerprint()==beforeZoom,"Zoom changed the document or picture model.");
         VerifyPagedGeometry("zoomed paper");
         report.AppendLine("Paper size, margins and zoom preserved print-page agreement and document content.");
+    }
+
+    void VerifyPagedBrowsingAndNavigation(Image floatingImage,StringBuilder report)
+    {
+        var scroll=FindVisualAncestor<ScrollViewer>(PagedEditor)
+            ??throw new InvalidOperationException("The browse fixture has no outer scroll viewer.");
+        RequirePaged(Beta46DisplayedPageCount>=4,"The browse fixture needs several text/picture pages.");
+        NavigationPane.Visibility=Visibility.Visible;
+        NavigationTabs.SelectedItem=NavigationPagesTab;
+        UpdatePageNavigationDemand();
+        WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady &&
+            PageNavigationList.Items.Count==Beta46DisplayedPageCount &&
+            PageNavigationList.Items.Cast<NavigationPage>().All(item=>item.Thumbnail!=null),
+            "Opening Pages did not produce current thumbnails.");
+        var beforeText=PagedNavigationFingerprint();
+
+        var first=FindPagedParagraph("FIRST PAGE");
+        Editor.CaretPosition=first.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+        Editor.Focus();PagedEditor.ActivatePageForCaret();PagedEditor.ScrollCaretIntoView();PumpInput();
+        TypeInput(" Browse refresh sentinel");
+        var sourceCaret=Editor.CaretPosition.GetOffsetToPosition(Editor.Document.ContentEnd);
+        var initialOffset=scroll.VerticalOffset;
+        // Use Windows mouse-wheel input over the editor while the changed
+        // document is still waiting for its normal idle pagination worker.
+        var wheelPoint=scroll.PointToScreen(new Point(scroll.ViewportWidth/2,Math.Min(200,scroll.ViewportHeight/2)));
+        SetPagedCursor((int)Math.Round(wheelPoint.X),(int)Math.Round(wheelPoint.Y));
+        SendKeys(new[]{new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput
+        {
+            Data=unchecked((uint)-2400),Flags=0x0800
+        }}}});
+        var wheelOffset=scroll.VerticalOffset;
+        RequirePaged(wheelOffset>initialOffset+40,
+            $"Mouse-wheel browsing did not leave the focused caret's viewport: before={initialOffset}, after={wheelOffset}.");
+        WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady &&
+            PagedNavigationFingerprint()!=beforeText,"Typing did not refresh the visible page thumbnails.");
+        for(var pass=0;pass<4;pass++)PumpInput();
+        RequirePaged(scroll.VerticalOffset>=wheelOffset-4 &&
+            Editor.CaretPosition.GetOffsetToPosition(Editor.Document.ContentEnd)==sourceCaret,
+            $"Idle pagination pulled wheel browsing back to the unchanged caret: wheel={wheelOffset}, settled={scroll.VerticalOffset}.");
+
+        // Dragging the outer scrollbar uses the same physical offset API. A
+        // later native bring-into-view request or geometry refresh must not
+        // turn a read-only browse into a jump back to the editing page.
+        var lastPaper=Beta46PageBounds(Beta46DisplayedPageCount-1);
+        var lastPoint=PagedEditor.TranslatePoint(lastPaper.TopLeft,scroll);
+        scroll.ScrollToVerticalOffset(Math.Max(0,scroll.VerticalOffset+lastPoint.Y-16));
+        UpdateLayout();PumpInput();
+        var scrollbarOffset=scroll.VerticalOffset;
+        RequirePaged(scrollbarOffset>wheelOffset+40,"The scrollbar fixture did not reach a later paper.");
+        Editor.BringIntoView();
+        FreshPagedLayout();
+        for(var pass=0;pass<4;pass++)PumpInput();
+        RequirePaged(Math.Abs(scroll.VerticalOffset-scrollbarOffset)<4 &&
+            Editor.CaretPosition.GetOffsetToPosition(Editor.Document.ContentEnd)==sourceCaret,
+            $"Layout/bring-into-view requests overrode scrollbar browsing: selected={scrollbarOffset}, actual={scroll.VerticalOffset}.");
+
+        var beforePicture=PagedNavigationFingerprint();
+        var placement=floatingImagePlacements.Single(item=>ReferenceEquals(item.RuntimeImage,floatingImage));
+        var originalX=placement.OffsetX;
+        try
+        {
+            placement.OffsetX=originalX+80;
+            RefreshFloatingImagePlacements();
+            WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady &&
+                PagedNavigationFingerprint()!=beforePicture,
+                "Moving a floating picture did not refresh its page thumbnail without a text edit.");
+            RequirePaged(Math.Abs(scroll.VerticalOffset-scrollbarOffset)<4,
+                "Refreshing a picture thumbnail pulled the document back to the caret page.");
+        }
+        finally
+        {
+            placement.OffsetX=originalX;
+            RefreshFloatingImagePlacements();
+        }
+        WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady &&
+            PagedNavigationFingerprint()==beforePicture,"Restoring the picture did not restore its thumbnail.");
+        VerifyPagedThumbnailPicture(floatingImage,"in front of text");
+        try
+        {
+            SetPicturePlacement(floatingImage,PicturePlacementMode.BehindText);
+            placement.OffsetX=originalX+40;
+            RefreshFloatingImagePlacements();
+            WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady &&
+                PagedNavigationFingerprint()!=beforePicture,"The behind-text picture thumbnail did not refresh.");
+            VerifyPagedThumbnailPicture(floatingImage,"behind text");
+        }
+        finally
+        {
+            SetPicturePlacement(floatingImage,PicturePlacementMode.InFrontOfText);
+            placement.OffsetX=originalX;
+            RefreshFloatingImagePlacements();
+        }
+        WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady &&
+            PagedNavigationFingerprint()==beforePicture,"Restoring the front picture did not restore its thumbnail.");
+
+        TypeInput(" Resume editing");
+        var resumedCaret=PagedEditor.GetProjectedCharacterRect(Editor.CaretPosition);
+        var resumedPoint=resumedCaret.IsEmpty?new Point(double.NaN,double.NaN):
+            PagedEditor.TranslatePoint(resumedCaret.TopLeft,scroll);
+        RequirePaged(PagedEditor.ActivePageIndex==0 && !resumedCaret.IsEmpty && resumedPoint.Y>=-2 &&
+            resumedPoint.Y+resumedCaret.Height<=scroll.ViewportHeight+2,
+            "Typing after browsing did not reveal the original insertion point again.");
+        WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady,
+            "Pagination did not settle after resuming typing.");
+
+        var last=PageNavigationList.Items.Cast<NavigationPage>().Last();
+        // A current thumbnail remains a navigation target while the next idle
+        // map is pending; stale content must not make the list unresponsive.
+        ScheduleBeta35PaginationMap(850);
+        RequirePaged(beta35PaginationDirty && PageNavigationList.IsEnabled,
+            "Scheduling an idle map disabled useful existing page thumbnails.");
+        PageNavigationList.ScrollIntoView(last);UpdateLayout();PumpInput();
+        var container=PageNavigationList.ItemContainerGenerator.ContainerFromItem(last) as ListBoxItem
+            ??throw new InvalidOperationException("The final page thumbnail has no visible item container.");
+        var thumbnailPoint=container.PointToScreen(new Point(container.ActualWidth/2,Math.Min(50,container.ActualHeight/2)));
+        SetPagedCursor((int)Math.Round(thumbnailPoint.X),(int)Math.Round(thumbnailPoint.Y));
+        SendKeys(new[]
+        {
+            new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput{Flags=2}}},
+            new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput{Flags=4}}}
+        });
+        for(var pass=0;pass<4;pass++)PumpInput();
+        var caret=PagedEditor.GetProjectedCharacterRect(Editor.CaretPosition);
+        var inViewport=caret.IsEmpty?new Point(double.NaN,double.NaN):PagedEditor.TranslatePoint(caret.TopLeft,scroll);
+        RequirePaged(PageNavigationList.SelectedItem is NavigationPage selected && selected.Number==last.Number &&
+            Beta46PageForPointer(Editor.CaretPosition)==last.Number-1 &&
+            PagedEditor.ActivePageIndex==last.Number-1 && !caret.IsEmpty &&
+            inViewport.Y>=-2 && inViewport.Y+caret.Height<=scroll.ViewportHeight+2,
+            $"Clicking the final thumbnail did not select and display that page: requested={last.Number}, active={PagedEditor.ActivePageIndex+1}, caret={inViewport}.");
+        WaitForPagedCondition(()=>PageNavigationList.IsEnabled && Beta46PaginationReady,
+            "The pending page map did not settle after thumbnail navigation.");
+        last=PageNavigationList.Items.Cast<NavigationPage>().Last();
+        PageNavigationList.ScrollIntoView(last);UpdateLayout();PumpInput();
+        scroll.ScrollToVerticalOffset(0);UpdateLayout();PumpInput();
+        container=PageNavigationList.ItemContainerGenerator.ContainerFromItem(last) as ListBoxItem
+            ??throw new InvalidOperationException("The selected thumbnail container was lost during its refresh.");
+        thumbnailPoint=container.PointToScreen(new Point(container.ActualWidth/2,Math.Min(50,container.ActualHeight/2)));
+        SetPagedCursor((int)Math.Round(thumbnailPoint.X),(int)Math.Round(thumbnailPoint.Y));
+        SendKeys(new[]
+        {
+            new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput{Flags=2}}},
+            new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput{Flags=4}}}
+        });
+        caret=PagedEditor.GetProjectedCharacterRect(Editor.CaretPosition);
+        inViewport=caret.IsEmpty?new Point(double.NaN,double.NaN):PagedEditor.TranslatePoint(caret.TopLeft,scroll);
+        RequirePaged(PageNavigationList.SelectedItem is NavigationPage repeated && repeated.Number==last.Number &&
+            !caret.IsEmpty && inViewport.Y>=-2 && inViewport.Y+caret.Height<=scroll.ViewportHeight+2,
+            "Clicking the already-selected thumbnail did not return to its page after manual browsing.");
+        report.AppendLine("Wheel/scrollbar browsing survived idle pagination and native layout requests; typing revealed its caret again. Text and both floating-picture layers refreshed thumbnails; pending and repeated physical thumbnail clicks navigated correctly.");
+        NavigationPane.Visibility=Visibility.Collapsed;
+        UpdatePageNavigationDemand();
+        FreshPagedLayout();
+    }
+
+    void VerifyPagedThumbnailPicture(Image image,string mode)
+    {
+        var picture=CreateFloatingPageImages(new Size(pageWidth,pageHeight)).Single();
+        var source=PageNavigationList.Items.Cast<NavigationPage>().Single(item=>item.Number==picture.PageNumber+1).Thumbnail
+            ??throw new InvalidOperationException("The picture page thumbnail is missing.");
+        var bitmap=source.Format==PixelFormats.Pbgra32?source:
+            new FormatConvertedBitmap(source,PixelFormats.Pbgra32,null,0);
+        var stride=bitmap.PixelWidth*4;
+        var pixels=new byte[stride*bitmap.PixelHeight];
+        bitmap.CopyPixels(pixels,stride,0);
+        var xScale=bitmap.PixelWidth/pageWidth;var yScale=bitmap.PixelHeight/pageHeight;
+        var left=Math.Clamp((int)Math.Ceiling(picture.Bounds.Left*xScale)+1,0,bitmap.PixelWidth);
+        var right=Math.Clamp((int)Math.Floor(picture.Bounds.Right*xScale)-1,0,bitmap.PixelWidth);
+        var top=Math.Clamp((int)Math.Ceiling(picture.Bounds.Top*yScale)+1,0,bitmap.PixelHeight);
+        var bottom=Math.Clamp((int)Math.Floor(picture.Bounds.Bottom*yScale)-1,0,bitmap.PixelHeight);
+        var colourCount=0;
+        for(var y=top;y<bottom;y++)
+            for(var x=left;x<right;x++)
+            {
+                var pixel=y*stride+x*4;
+                if(Math.Abs(pixels[pixel]-90)<=16 && Math.Abs(pixels[pixel+1]-40)<=16 &&
+                   Math.Abs(pixels[pixel+2]-180)<=16 && pixels[pixel+3]>=220)colourCount++;
+            }
+        RequirePaged(image.Source!=null && colourCount>=8,
+            $"The {mode} floating picture is absent from its page thumbnail: coloured pixels={colourCount}.");
+    }
+
+    string PagedNavigationFingerprint()
+    {
+        using var bytes=new MemoryStream();
+        using var writer=new BinaryWriter(bytes,Encoding.UTF8,true);
+        foreach(var item in PageNavigationList.Items.Cast<NavigationPage>())
+        {
+            writer.Write(item.Number);
+            if(item.Thumbnail is not BitmapSource source){writer.Write(0);continue;}
+            var bitmap=source.Format==PixelFormats.Pbgra32?source:
+                new FormatConvertedBitmap(source,PixelFormats.Pbgra32,null,0);
+            writer.Write(bitmap.PixelWidth);writer.Write(bitmap.PixelHeight);
+            var stride=bitmap.PixelWidth*4;
+            var pixels=new byte[stride*bitmap.PixelHeight];
+            bitmap.CopyPixels(pixels,stride,0);writer.Write(pixels);
+        }
+        writer.Flush();
+        return Convert.ToHexString(SHA256.HashData(bytes.ToArray()));
+    }
+
+    static void WaitForPagedCondition(Func<bool> condition,string message)
+    {
+        var watch=Stopwatch.StartNew();
+        while(!condition())
+        {
+            if(watch.Elapsed>TimeSpan.FromSeconds(20))throw new InvalidOperationException(message);
+            PumpInput();
+        }
+    }
+
+    static void SetPagedCursor(int x,int y)
+    {
+        if(!SetPagedCursorPosition(x,y))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(),"Could not position test mouse input.");
     }
 
     void VerifyFloatingPageOffset(Image image,StringBuilder report)

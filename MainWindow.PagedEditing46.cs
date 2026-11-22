@@ -192,6 +192,7 @@ public partial class MainWindow
                 else PagedEditor.SetActivePage(Beta46PageForPointer(Editor.CaretPosition));
             }
             RefreshBeta46PagedPictures();
+            QueuePageNavigationRefresh();
             beta46PagedGeometryDirty=false;
             if(beta46PaginationPending && PagedEditor.IsPaged)RequestBeta46BoundaryPagination();
         }
@@ -247,6 +248,43 @@ public partial class MainWindow
         if(point.Y<0)scroll.ScrollToVerticalOffset(Math.Max(0,scroll.VerticalOffset+point.Y-12));
         else if(lower>scroll.ViewportHeight)
             scroll.ScrollToVerticalOffset(Math.Max(0,scroll.VerticalOffset+lower-scroll.ViewportHeight+12));
+        return true;
+    }
+
+    internal bool NavigateBeta46Page(int zeroBasedPage,TextPointer? anchor)
+    {
+        if(!beta46PagedEditingInstalled || !PagedEditor.IsPaged)return false;
+        EnsureBeta46AnchorDocument();
+        if(anchor!=null)
+        {
+            var target=anchor.GetInsertionPosition(LogicalDirection.Forward)??anchor;
+            Editor.Focus();
+            Editor.Selection.Select(target,target);
+        }
+        var document=Editor.Document;
+        beta35PendingNavigationScroll?.Abort();
+        beta35PendingNavigationScroll=Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(()=>
+        {
+            beta35PendingNavigationScroll=null;
+            if(!ReferenceEquals(document,Editor.Document))return;
+            if(beta46PagedGeometryDirty)UpdateBeta46PagedGeometry();
+            var page=Math.Clamp(zeroBasedPage,0,Math.Max(0,PagedEditor.PageCount-1));
+            // An old thumbnail remains usable during edits. Its live anchor
+            // may already have moved to a different provisional page; keep
+            // that content and the chosen viewport together until it refreshes.
+            if(beta46PaginationPending && anchor!=null)
+            {
+                var rect=PagedEditor.GetProjectedCharacterRect(anchor);
+                if(!rect.IsEmpty)page=PagedEditor.GetPageIndex(rect.TopLeft);
+            }
+            PagedEditor.SetActivePage(page);
+            PagedEditor.UpdateLayout();
+            var bounds=PagedEditor.GetPageBounds(page);
+            var scroll=FindVisualAncestor<ScrollViewer>(PageBorder);
+            if(scroll==null || bounds.IsEmpty)return;
+            var top=PagedEditor.TranslatePoint(bounds.TopLeft,scroll);
+            scroll.ScrollToVerticalOffset(Math.Max(0,scroll.VerticalOffset+top.Y));
+        }));
         return true;
     }
 

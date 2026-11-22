@@ -1351,6 +1351,7 @@ public partial class MainWindow : Window
     void RefreshHeaderFooter()
     {
         UpdatePageGuideState();
+        QueuePageNavigationRefresh();
     }
 
     void UpdatePageGuideState()
@@ -2840,6 +2841,7 @@ public partial class MainWindow : Window
                 InsertBlockAfterParagraph(cap,paragraph);
             }
             MarkDirty("Picture properties updated.");
+            ScheduleBeta35PaginationMap();
             w.DialogResult=true;
         };
         w.Content=g;

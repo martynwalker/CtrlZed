@@ -108,6 +108,7 @@ public static class PaginationMapBuilder
 
         layout?.Apply(document);
         var mapOffset=layout?.CreatePageOffsetMapper(document);
+        if(includeThumbnails)document.Background=Brushes.Transparent;
 
         document.PageWidth=Math.Max(240,pageWidth);
         document.PageHeight=Math.Max(320,pageHeight);
@@ -174,7 +175,9 @@ public static class PaginationMapBuilder
         var area=new Rect(0,0,width,height);
         using(var dc=visual.RenderOpen())
         {
-            dc.DrawRectangle(Brushes.White,null,area);
+            // Leave the text layer transparent so the navigation pane can
+            // composite current floating pictures behind it on the UI thread.
+            // Frozen bitmaps remain the only visuals crossing the worker STA.
             var brush=new VisualBrush(page.Visual)
             {
                 ViewboxUnits=BrushMappingMode.Absolute,
@@ -242,7 +245,9 @@ public partial class MainWindow
 
         Editor.TextChanged+=(_,__)=>ScheduleBeta35PaginationMap();
         Editor.SelectionChanged+=(_,__)=>QueueBeta35PageStatusUpdate();
-        PageBorder.SizeChanged+=(_,__)=>ScheduleBeta35PaginationMap();
+        // ApplyPage and TextChanged already invalidate real pagination inputs.
+        // The projected host changes the border's height as it applies a map;
+        // treating that output as an input repeatedly dirtied fresh thumbnails.
         Closed+=(_,__)=>
         {
             beta35PaginationTimer.Stop();

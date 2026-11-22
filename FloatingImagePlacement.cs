@@ -199,7 +199,7 @@ public partial class MainWindow
             image.IsHitTestVisible=false;
             image.Focusable=false;
             RefreshFloatingImagePlacements();
-            if(changed)MarkDirty("Picture placement updated.");
+            if(changed){MarkDirty("Picture placement updated.");ScheduleBeta35PaginationMap();}
             return;
         }
 
@@ -237,7 +237,7 @@ public partial class MainWindow
         image.Visibility=Visibility.Collapsed;
         selectedFloatingImage=existing;
         RefreshFloatingImagePlacements();
-        if(changed)MarkDirty("Picture placement updated.");
+        if(changed){MarkDirty("Picture placement updated.");ScheduleBeta35PaginationMap();}
     }
 
     void RemoveFloatingOverlay(FloatingImagePlacementData placement)
@@ -253,7 +253,7 @@ public partial class MainWindow
     void RefreshFloatingImagePlacements()
     {
         if(!IsLoaded||BehindTextCanvas==null)return;
-        if(floatingImagePlacements.Count==0){RefreshBeta46PagedPictures();return;}
+        if(floatingImagePlacements.Count==0){RefreshBeta46PagedPictures();QueuePageNavigationRefresh();return;}
         Editor.UpdateLayout();
 
         var images=EnumerateImageContainers(Editor.Document).ToList();
@@ -306,6 +306,7 @@ public partial class MainWindow
         foreach(var stale in floatingImageOverlays.Keys.Where(x=>!floatingImagePlacements.Contains(x)).ToList())
             RemoveFloatingOverlay(stale);
         UpdateFloatingImageChrome();
+        QueuePageNavigationRefresh();
     }
 
     void PositionFloatingImage(
@@ -506,7 +507,7 @@ public partial class MainWindow
         resizingFloatingImage=false;
         Editor.Cursor=null;
         if(Editor.IsMouseCaptured)Editor.ReleaseMouseCapture();
-        if(changed)MarkDirty("Picture position or size updated.");
+        if(changed){MarkDirty("Picture position or size updated.");ScheduleBeta35PaginationMap();}
         UpdateFloatingImageChrome();
         e.Handled=true;
     }

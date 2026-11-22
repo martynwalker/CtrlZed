@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Markup;
@@ -59,6 +60,7 @@ public sealed class PagedEditorHost : Panel
     readonly Dictionary<double,double> measuredLineSplits=new();
     ScrollViewer? outerScroll;
     DispatcherOperation? queuedCaret;
+    bool revealCaretPending;
     int activePage;
     bool changingGeometry;
     bool manualDrag;
@@ -79,15 +81,20 @@ public sealed class PagedEditorHost : Panel
         AddHandler(RequestBringIntoViewEvent,new RequestBringIntoViewEventHandler(BringIntoViewRequested),true);
         Loaded+=(_,__)=>
         {
-            if(outerScroll!=null)outerScroll.ScrollChanged-=OuterScrollChanged;
+            DetachOuterScroll();
             outerScroll=FindOuterScroll();
-            if(outerScroll!=null)outerScroll.ScrollChanged+=OuterScrollChanged;
+            if(outerScroll!=null)
+            {
+                outerScroll.ScrollChanged+=OuterScrollChanged;
+                outerScroll.PreviewMouseWheel+=OuterScrollPreviewMouseWheel;
+                outerScroll.PreviewMouseDown+=OuterScrollPreviewMouseDown;
+            }
             QueueCaretRefresh();
         };
         Unloaded+=(_,__)=>
         {
-            queuedCaret?.Abort();queuedCaret=null;EndManualDrag();
-            if(outerScroll!=null)outerScroll.ScrollChanged-=OuterScrollChanged;
+            queuedCaret?.Abort();queuedCaret=null;revealCaretPending=false;EndManualDrag();
+            DetachOuterScroll();
             outerScroll=null;
         };
     }
@@ -110,11 +117,13 @@ public sealed class PagedEditorHost : Panel
         {
             old.TextChanged-=host.EditorTextChanged;
             old.SelectionChanged-=host.EditorSelectionChanged;
+            old.PreviewKeyDown-=host.EditorPreviewKeyDown;
         }
         if(e.NewValue is RichTextBox editor)
         {
             editor.TextChanged+=host.EditorTextChanged;
             editor.SelectionChanged+=host.EditorSelectionChanged;
+            editor.PreviewKeyDown+=host.EditorPreviewKeyDown;
         }
         host.QueueCaretRefresh();
     }
@@ -346,20 +355,32 @@ public sealed class PagedEditorHost : Panel
     void EditorTextChanged(object sender,TextChangedEventArgs e)
     {
         measuredLineSplits.Clear();
-        InvalidateMeasure();InvalidateVisual();QueueCaretRefresh();
+        InvalidateMeasure();InvalidateVisual();QueueCaretRefresh(true);
     }
 
-    void EditorSelectionChanged(object sender,RoutedEventArgs e)=>QueueCaretRefresh();
+    void EditorSelectionChanged(object sender,RoutedEventArgs e)=>QueueCaretRefresh(true);
 
-    void QueueCaretRefresh()
+    void EditorPreviewKeyDown(object sender,KeyEventArgs e)
     {
+        // A navigation key at the document edge can leave the selection
+        // unchanged. It must still return to the caret after manual browsing.
+        if(e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or
+           Key.PageUp or Key.PageDown or Key.Back or Key.Delete or Key.Enter or Key.Tab)
+            QueueCaretRefresh(true);
+    }
+
+    void QueueCaretRefresh(bool revealCaret=false)
+    {
+        revealCaretPending|=revealCaret;
         if(queuedCaret is {Status:DispatcherOperationStatus.Pending})return;
         queuedCaret=Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(()=>
         {
             queuedCaret=null;
+            var reveal=revealCaretPending;
+            revealCaretPending=false;
             if(!IsLoaded || Editor==null)return;
             ActivatePageForCaret();
-            if(IsPaged && Editor.IsKeyboardFocusWithin && Mouse.LeftButton!=MouseButtonState.Pressed)
+            if(reveal && IsPaged && Editor.IsKeyboardFocusWithin && Mouse.LeftButton!=MouseButtonState.Pressed)
                 ScrollCaretIntoView();
             InvalidateVisual();
         }));
@@ -368,12 +389,10 @@ public sealed class PagedEditorHost : Panel
     void BringIntoViewRequested(object sender,RequestBringIntoViewEventArgs e)
     {
         if(!IsPaged || Editor==null)return;
+        // WPF also raises this when layout or scrolling moves the live
+        // RichTextBox viewport. Those requests must not override browsing.
+        // Text, selection and keyboard events explicitly request caret reveal.
         e.Handled=true;
-        QueueCaretRefresh();
-        Dispatcher.BeginInvoke(DispatcherPriority.Background,new Action(()=>
-        {
-            if(Editor.IsKeyboardFocusWithin)ScrollCaretIntoView();
-        }));
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -457,6 +476,41 @@ public sealed class PagedEditorHost : Panel
         for(DependencyObject? parent=VisualTreeHelper.GetParent(this);parent!=null;parent=VisualTreeHelper.GetParent(parent))
             if(parent is ScrollViewer scroll)return scroll;
         return null;
+    }
+
+    void DetachOuterScroll()
+    {
+        if(outerScroll==null)return;
+        outerScroll.ScrollChanged-=OuterScrollChanged;
+        outerScroll.PreviewMouseWheel-=OuterScrollPreviewMouseWheel;
+        outerScroll.PreviewMouseDown-=OuterScrollPreviewMouseDown;
+    }
+
+    void OuterScrollPreviewMouseWheel(object sender,MouseWheelEventArgs e)
+    {
+        revealCaretPending=false;
+        if(!IsPaged || e.Handled || outerScroll==null ||
+           (Keyboard.Modifiers&(ModifierKeys.Control|ModifierKeys.Shift))!=0)return;
+        // The bottomless RichTextBox still has an internal ScrollViewer even
+        // with its scrollbars disabled. Forward the unmodified wheel directly
+        // to the outer viewer before that child can consume it. Its normal
+        // wheel handling honours Windows' line count and page-scroll setting.
+        // Raise only the bubbling event, so this preview handler runs once.
+        e.Handled=true;
+        outerScroll.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice,e.Timestamp,e.Delta)
+        {
+            RoutedEvent=Mouse.MouseWheelEvent,
+            Source=outerScroll
+        });
+    }
+
+    void OuterScrollPreviewMouseDown(object sender,MouseButtonEventArgs e)
+    {
+        // Scrollbar input is outside this panel's own routed-event path.
+        // Cancel a pending edit reveal when the user chooses to browse first.
+        for(var source=e.OriginalSource as DependencyObject;source!=null && source!=outerScroll;
+            source=source is Visual or System.Windows.Media.Media3D.Visual3D?VisualTreeHelper.GetParent(source):null)
+            if(source is ScrollBar){revealCaretPending=false;break;}
     }
 
     void OuterScrollChanged(object sender,ScrollChangedEventArgs e)
@@ -618,3 +672,4 @@ public sealed class PagedEditorHost : Panel
         protected override void OnRender(DrawingContext dc)=>owner.DrawProjectionLayer(dc,plane);
     }
 }
+
