@@ -1,12 +1,25 @@
-# CtrlZed — Beta 45.1 release record and remaining queue
+# CtrlZed — Beta 46 release record and remaining queue
 
-Updated 21 November 2026.
+Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 45.1 (`0.45.1-beta.45.1`) is the current accepted GitHub `main` baseline. Its [complete Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e`. The release package was published from that commit; baseline promotion adds only this release documentation. Martyn accepted Beta 45.1 as a pass on 21 November 2026.
+Beta 46 (`0.46.0-beta.46`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44965063786) on source commit `f719208dd66e86e3c843ca9688684d43c6e2026c`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 46 is pending.
 
-The previous user-accepted baseline remains Beta 44.5 (`0.44.5-beta.44.5`). Martyn accepted it on 20 November 2026 and confirmed that menu performance was back to normal. Beta 45.1 builds forward from that code and retains its menu, colour palette, navigation, document protection and macro functionality.
+Beta 45.1 (`0.45.1-beta.45.1`) remains the latest user-accepted release, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source.
+
+## Implemented in Beta 46
+
+- [x] Separate paper pages, margins and gaps with click-to-edit positioning in Paged Editing.
+- [x] One canonical RichTextBox/document for typing, selection, clipboard commands, Undo/Redo and existing macros.
+- [x] Live provisional page boundaries and automatic caret scrolling while background pagination waits for idle.
+- [x] Preserve paragraph layout omitted by RTF and map worker positions back to canonical text offsets.
+- [x] Render floating pictures independently of short text slices, preserving full-height signatures and anchor-page positioning.
+- [x] Persist an optional picture page offset and apply it in editing, continuous view and printing.
+- [x] Gate the release on physical page input, cross-page selection/Undo, visible caret movement, view/document fidelity, macro insertion, picture reflow and tall-image pixel agreement with print preview.
+- [x] Retain the 600-paragraph menu-responsiveness check in Paged mode and all existing functional/style/clipboard checks.
+
+Scope: this is the first stage of page-by-page editing. Field-code and non-printing-comment representations can differ from printed output, and advanced tables/oversized objects still need further layout work. Full Word publishing fidelity is not claimed.
 
 ## Corrected in Beta 45.1
 
@@ -47,14 +60,14 @@ On 21 November 2026, Martyn reported that normal Ctrl+V lost formatting when cop
 
 ## Verification and promotion
 
-The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence and rich/plain-text-paste checks. The last complete run must pass before publishing the release or promoting the GitHub baseline.
+The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
 Martyn accepted the release as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. User acceptance passed on 21 November 2026.
+Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 45.1 user acceptance passed on 21 November 2026; Beta 46 acceptance is pending.
 
 ## Remaining queue
 
-The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver true discrete-page WYSIWYG editing, the AI Font Finder/font installation workflow, experimental generated fonts, bitmap-to-vector signature tracing, Bitwarden integration or complete Word publishing fidelity.
+The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, the AI Font Finder/font installation workflow, experimental generated fonts, bitmap-to-vector signature tracing, Bitwarden integration or complete Word publishing fidelity.

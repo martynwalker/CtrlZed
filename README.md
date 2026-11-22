@@ -6,11 +6,21 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current accepted GitHub `main` baseline is **[Beta 45.1 (0.45.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**. The complete [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44889975241) on source commit `a7df5c6127cdcfb8cf94c34d9bf0e9a39d6dd58e` before publication and baseline promotion. **Martyn accepted Beta 45.1 as a pass on 21 November 2026.**
+The current development baseline is **[Beta 46 (0.46.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.0-beta.46)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44965063786) on source commit `f719208dd66e86e3c843ca9688684d43c6e2026c` before publication and baseline promotion. **User acceptance of Beta 46 is pending.**
 
-The previous user-accepted baseline is **[Beta 44.5](https://github.com/martynwalker/CtrlZed/releases/tag/v0.44.5-beta.44.5)**. Martyn confirmed it as a pass on 20 November 2026, with menu performance back to normal. Beta 45.1 builds forward from that version.
+The latest user-accepted release is **[Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46 work, verification and later ideas.
+
+### Beta 46 — first stage of page-by-page editing
+
+- Paged Editing displays distinct paper pages, margins and page gaps. Click a page to edit it; typing, selection and Undo use one canonical document and the existing RichTextBox macro target.
+- The live page view follows cached print pagination while provisional boundaries keep the caret visible during sustained typing. Heading/page navigation and keyboard movement use the projected page coordinates.
+- Pagination snapshots preserve paragraph spacing, exact line height, keep/page-break settings and canonical text offsets through the RTF copy.
+- Floating pictures render across the full body of their anchor page, including blank space below short text. An optional native-file page offset retains placement when a picture is dragged to another page.
+- Windows regressions exercise actual page clicks, cross-page keyboard selection, Delete/Undo/Redo, caret visibility, macro insertion, document/view-switch fidelity, picture reflow, saveable page offsets and a tall portrait pixel comparison against print preview. The 600-paragraph menu gate runs in Paged mode.
+
+This is the first stage. Field-code display and non-printing inline comments can differ from their printed representation; complex table/oversized-object layout and complete Word publishing fidelity remain later work. Continuous Editing remains available.
 
 ### Beta 45.1 — formatted browser paste
 
@@ -105,7 +115,8 @@ A release must pass:
 5. `--menu-performance-test`, exercising repeated menu opening on a 600-paragraph document, preserving commands and resuming deferred maintenance after edits
 6. `--style45-test`, covering legacy style data, custom style identities and aliases, paragraph controls, shared Return/macro behaviour and native/DOCX persistence
 7. `--plain-text-paste-test`, covering physical Ctrl+V/Ctrl+Shift+V with RTF, CtrlZed/WPF and browser HTML; retained or removed source formatting; selected UTF-8 fragments and inherited styles; paragraphs/soft breaks; Undo/Redo; unchanged clipboard; and empty/image-only/read-only cases
-8. packaging and prerelease publication
+8. `--paged-editing-test`, covering distinct paper geometry, canonical document/Undo preservation, physical page clicks, cross-page keyboard input and caret visibility, macro insertion, image page offsets and pixel-checked picture/print agreement
+9. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 
