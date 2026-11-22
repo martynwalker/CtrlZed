@@ -56,8 +56,28 @@ public partial class MainWindow
             window.languageSettings.PoetryRhymeSuggestions=false;
             window.languageSettings.AllowAiLanguageServices=true;
             SpellCheck.SetIsEnabled(window.Editor,false);
-            window.VerifySentenceCompletionTargets(report);
-            window.VerifySentenceCompletionWindow(report);
+            var phaseFailures=new List<Exception>();
+            try
+            {
+                window.VerifySentenceCompletionTargets(report);
+                report.AppendLine("PASS: editor target phase.");
+            }
+            catch(Exception error)
+            {
+                report.AppendLine("FAIL: editor target phase: "+error);
+                phaseFailures.Add(new InvalidOperationException("The editor target phase failed.",error));
+            }
+            try
+            {
+                window.VerifySentenceCompletionWindow(report);
+                report.AppendLine("PASS: real review-window phase.");
+            }
+            catch(Exception error)
+            {
+                report.AppendLine("FAIL: real review-window phase: "+error);
+                phaseFailures.Add(new InvalidOperationException("The real review-window phase failed.",error));
+            }
+            if(phaseFailures.Count>0)throw new AggregateException("Sentence-completion regression phases failed.",phaseFailures);
             report.AppendLine("PASS: strict three-candidate contract, private preferences, complete document context, cache/cancellation, rich range fidelity, stale protection, both views and the real Finish Sentence window.");
             report.AppendLine("Provider: deterministic in-process test transport only; no live requests or prose-quality claims.");
             return 0;
@@ -272,6 +292,9 @@ public partial class MainWindow
             Editor.CaretPosition=lead.ContentEnd;
             Editor.Focus();PumpInput();
             if(mode==EditorViewMode.Paged)FreshPagedLayout();
+            var caretContext=$"CaretDirection={Editor.CaretPosition.LogicalDirection}; CaretParent={Editor.CaretPosition.Parent?.GetType().Name}; CaretRun=[{(Editor.CaretPosition.Parent as Run)?.Text}]; "+
+                $"SelectionWeight={Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty)}; SelectionForeground={Editor.Selection.GetPropertyValue(TextElement.ForegroundProperty)}; "+
+                $"LeadWeight={lead.FontWeight}; LeadForeground={lead.Foreground}";
             var target=CaptureSentenceCompletionTarget();
             RequireSentence(!target.IsReplacement && target.Prefix.EndsWith("The committee ",StringComparison.Ordinal) &&
                 target.Suffix.StartsWith(", as predicted.",StringComparison.Ordinal),"Caret capture lost its prefix or right context in "+mode+".");
@@ -282,9 +305,16 @@ public partial class MainWindow
             RequireSentence(PagedDocumentText()==after && EnumerateImageContainers(Editor.Document).Count()==1,
                 "Insertion changed adjacent prose, paragraphs or an inline picture in "+mode+".");
             var inserted=SentenceFindText(paragraph,"approved the proposal");
-            RequireSentence(Equals(inserted.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold) &&
-                inserted.GetPropertyValue(TextElement.ForegroundProperty) is SolidColorBrush ink && ink.Color==Colors.Navy,
-                "Inserted words did not inherit the destination run's formatting in "+mode+".");
+            var insertedWeight=inserted.GetPropertyValue(TextElement.FontWeightProperty);
+            var insertedForeground=inserted.GetPropertyValue(TextElement.ForegroundProperty);
+            var capturedFormatting=string.Join(", ",target.Formatting.Where(item=>item.Property==TextElement.FontWeightProperty ||
+                item.Property==TextElement.ForegroundProperty).Select(item=>item.Property.Name+"="+item.Value));
+            var actualRuns=string.Join(" | ",EnumeratePlainPasteRuns(paragraph.Inlines).Select(run=>
+                $"[{run.Text}] Weight={run.FontWeight}, Foreground={run.Foreground}"));
+            RequireSentence(Equals(insertedWeight,FontWeights.Bold) &&
+                insertedForeground is SolidColorBrush ink && ink.Color==Colors.Navy,
+                $"Inserted words did not inherit the destination run's formatting in {mode}. ActualWeight={insertedWeight}; ActualForeground={insertedForeground}; "+
+                $"MeasuredRange=[{inserted.Text}]; RangeParents={inserted.Start.Parent?.GetType().Name}/{inserted.End.Parent?.GetType().Name}; CapturedFormatting={capturedFormatting}; {caretContext}; Runs={actualRuns}");
             RequireSentence(Equals(SentenceFindText(paragraph,", as predicted.").GetPropertyValue(TextElement.FontStyleProperty),FontStyles.Italic),
                 "Insertion changed the formatting of untouched right-hand text in "+mode+".");
             RequireSentence(Editor.CanUndo,"Insertion created no Undo operation in "+mode+".");
