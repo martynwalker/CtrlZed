@@ -1,63 +1,39 @@
-name: Diagnose native document gate and verify Return fix
+name: Verify detached DOCX picture stability
 on:
   push:
     branches: [ beta462-diagnostics ]
 permissions:
   contents: read
 jobs:
-  diagnose:
+  verify:
     runs-on: windows-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
-      - name: Publish unchanged candidate
+      - name: Publish fixed candidate
         run: dotnet publish CtrlZed.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o artifacts/CtrlZed
-      - name: Prepare Microsoft crash diagnostics
+      - name: Repeat document and detached picture checks
         shell: pwsh
         run: |
-          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile artifacts/procdump.zip
-          Expand-Archive artifacts/procdump.zip artifacts/procdump
-          New-Item -ItemType Directory artifacts/dumps -Force | Out-Null
-          dotnet tool install dotnet-dump --tool-path artifacts/tools
-          if ($LASTEXITCODE -ne 0) { throw "Could not install .NET crash analysis tools." }
-      - name: Capture native document failure
-        shell: pwsh
-        run: |
-          for ($attempt = 1; $attempt -le 8; $attempt++) {
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
             Remove-Item "$env:TEMP/CtrlZedSelfTestFailure.txt" -ErrorAction SilentlyContinue
             $app = Start-Process artifacts/CtrlZed/CtrlZed.exe -ArgumentList "--self-test" -PassThru
-            $watch = Start-Process artifacts/procdump/procdump64.exe -ArgumentList @("-accepteula","-ma","-e","1","-f","C0000005","-n","4","$($app.Id)","artifacts/dumps") -PassThru -RedirectStandardOutput "artifacts/procdump-$attempt.log" -RedirectStandardError "artifacts/procdump-$attempt.err"
             if (-not $app.WaitForExit(60000)) {
               Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
-              throw "Document diagnostics timed out."
+              throw "Document stability check timed out."
             }
             $app.Refresh()
-            if (-not $watch.WaitForExit(15000)) { Stop-Process -Id $watch.Id -Force -ErrorAction SilentlyContinue }
-            Write-Host "CZ462_DIAG: attempt=$attempt exit=$($app.ExitCode)"
+            Write-Host "CZ462_STABILITY: attempt=$attempt exit=$($app.ExitCode)"
             $progress = Join-Path $env:TEMP "CtrlZedSelfTestProgress.txt"
             if (Test-Path $progress) { Get-Content $progress }
             $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
             if (Test-Path $failure) { Get-Content $failure }
-            if ($app.ExitCode -eq 0) {
-              Get-ChildItem artifacts/dumps/*.dmp -ErrorAction SilentlyContinue | ForEach-Object {
-                Write-Host "CZ462_HANDLED_DUMP: $($_.Name)"
-                & artifacts/tools/dotnet-dump.exe analyze $_.FullName -c "threads" -c "clrstack -all" -c "dumpstack" -c "exit"
-                Remove-Item $_.FullName
-              }
-            } else { throw "Captured document failure on attempt $attempt, exit $($app.ExitCode)" }
+            if ($app.ExitCode -ne 0) { throw "Document stability failed on attempt $attempt, exit $($app.ExitCode)" }
           }
-      - name: Analyze captured CLR stacks
-        if: always()
-        shell: pwsh
-        run: |
-          Get-ChildItem artifacts/dumps/*.dmp -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "CZ462_DUMP: $($_.Name)"
-            & artifacts/tools/dotnet-dump.exe analyze $_.FullName -c "threads" -c "clrstack -all" -c "dumpstack" -c "exit"
-          }
-      - name: Verify Return and page regressions independently
+      - name: Verify Return and page regressions
         if: always()
         shell: pwsh
         run: |
@@ -73,9 +49,3 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             throw "Return/navigation test failed with code $($t.ExitCode)"
           }
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: native-document-diagnostics
-          if-no-files-found: ignore
-          path: artifacts/dumps/*.dmp

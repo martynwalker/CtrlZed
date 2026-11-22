@@ -157,6 +157,13 @@ public static class Beta34SelfTest
             if(reopenedPicture.Width!=120 || reopenedPicture.Height!=90 ||
                reopenedPicture.ToolTip?.ToString()!="Round-trip picture")
                 throw new InvalidOperationException("The picture size or description changed on round trip.");
+            if(reopenedPicture.Source is not BitmapSource loadedBitmap ||
+               loadedBitmap.IsDownloading || !loadedBitmap.IsFrozen)
+                throw new InvalidOperationException("The DOCX picture still depends on an asynchronous archive stream after import.");
+            var loadedPixels=new byte[4];
+            new FormatConvertedBitmap(loadedBitmap,PixelFormats.Bgra32,null,0).CopyPixels(loadedPixels,4,0);
+            if(loadedPixels[0]!=0 || loadedPixels[1]!=0 || loadedPixels[2]!=255 || loadedPixels[3]!=255)
+                throw new InvalidOperationException("The detached DOCX picture pixels did not survive archive closure.");
 
             return 0;
         }
