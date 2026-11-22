@@ -292,6 +292,11 @@ public partial class MainWindow
             Editor.CaretPosition=lead.ContentEnd;
             Editor.Focus();PumpInput();
             if(mode==EditorViewMode.Paged)FreshPagedLayout();
+            // WPF resolves a forward caret at this run boundary into the
+            // following run. Match the active typing style shown by the editor,
+            // independently of the completion target's captured properties.
+            var expectedWeight=Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty);
+            var expectedForeground=Editor.Selection.GetPropertyValue(TextElement.ForegroundProperty);
             var caretContext=$"CaretDirection={Editor.CaretPosition.LogicalDirection}; CaretParent={Editor.CaretPosition.Parent?.GetType().Name}; CaretRun=[{(Editor.CaretPosition.Parent as Run)?.Text}]; "+
                 $"SelectionWeight={Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty)}; SelectionForeground={Editor.Selection.GetPropertyValue(TextElement.ForegroundProperty)}; "+
                 $"LeadWeight={lead.FontWeight}; LeadForeground={lead.Foreground}";
@@ -311,10 +316,14 @@ public partial class MainWindow
                 item.Property==TextElement.ForegroundProperty).Select(item=>item.Property.Name+"="+item.Value));
             var actualRuns=string.Join(" | ",EnumeratePlainPasteRuns(paragraph.Inlines).Select(run=>
                 $"[{run.Text}] Weight={run.FontWeight}, Foreground={run.Foreground}"));
-            RequireSentence(Equals(insertedWeight,FontWeights.Bold) &&
-                insertedForeground is SolidColorBrush ink && ink.Color==Colors.Navy,
-                $"Inserted words did not inherit the destination run's formatting in {mode}. ActualWeight={insertedWeight}; ActualForeground={insertedForeground}; "+
+            RequireSentence(Equals(insertedWeight,expectedWeight) && expectedForeground is SolidColorBrush expectedInk &&
+                insertedForeground is SolidColorBrush ink && ink.Color==expectedInk.Color,
+                $"Inserted words did not retain the editor's active typing format in {mode}. ExpectedWeight={expectedWeight}; ExpectedForeground={expectedForeground}; ActualWeight={insertedWeight}; ActualForeground={insertedForeground}; "+
                 $"MeasuredRange=[{inserted.Text}]; RangeParents={inserted.Start.Parent?.GetType().Name}/{inserted.End.Parent?.GetType().Name}; CapturedFormatting={capturedFormatting}; {caretContext}; Runs={actualRuns}");
+            var preservedLead=SentenceFindText(paragraph,"The committee ");
+            RequireSentence(Equals(preservedLead.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold) &&
+                preservedLead.GetPropertyValue(TextElement.ForegroundProperty) is SolidColorBrush leadInk && leadInk.Color==Colors.Navy,
+                "Insertion changed the untouched bold navy leading run in "+mode+".");
             RequireSentence(Equals(SentenceFindText(paragraph,", as predicted.").GetPropertyValue(TextElement.FontStyleProperty),FontStyles.Italic),
                 "Insertion changed the formatting of untouched right-hand text in "+mode+".");
             RequireSentence(Editor.CanUndo,"Insertion created no Undo operation in "+mode+".");
@@ -324,6 +333,32 @@ public partial class MainWindow
             Editor.Redo();PumpInput();
             RequireSentence(PagedDocumentText()==after && EnumerateImageContainers(Editor.Document).Count()==1,
                 "One Redo did not restore the insertion and preserve its adjacent picture in "+mode+".");
+
+            var ordinaryLead=new Run("The committee ");
+            var italicTail=new Run(", as predicted."){FontStyle=FontStyles.Italic};
+            paragraph=new Paragraph(ordinaryLead);paragraph.Inlines.Add(italicTail);
+            SentenceSetDocument(new FlowDocument(paragraph),mode);
+            Editor.CaretPosition=ordinaryLead.ContentEnd;
+            Editor.Selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
+            Editor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.Navy);
+            RequireSentence(Equals(Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold) &&
+                Editor.Selection.GetPropertyValue(TextElement.ForegroundProperty) is SolidColorBrush explicitInk && explicitInk.Color==Colors.Navy,
+                "The explicit bold navy typing-style fixture was not active in "+mode+".");
+            target=CaptureSentenceCompletionTarget();
+            before=PagedDocumentText();ResetSentenceUndo();
+            ApplySentenceCompletionSuggestion(target,"approved the proposal");
+            after=before.Replace("The committee , as predicted.","The committee approved the proposal, as predicted.",StringComparison.Ordinal);
+            inserted=SentenceFindText(paragraph,"approved the proposal");
+            RequireSentence(PagedDocumentText()==after &&
+                Equals(inserted.GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Bold) &&
+                inserted.GetPropertyValue(TextElement.ForegroundProperty) is SolidColorBrush explicitResultInk && explicitResultInk.Color==Colors.Navy &&
+                Equals(SentenceFindText(paragraph,", as predicted.").GetPropertyValue(TextElement.FontStyleProperty),FontStyles.Italic),
+                "Completion ignored an explicit bold navy typing-style override or altered untouched right-hand formatting in "+mode+".");
+            Editor.Undo();PumpInput();
+            RequireSentence(PagedDocumentText()==before && Editor.CanRedo,
+                "One Undo did not restore the explicit typing-style insertion in "+mode+".");
+            Editor.Redo();PumpInput();
+            RequireSentence(PagedDocumentText()==after,"One Redo did not restore the explicit typing-style insertion in "+mode+".");
 
             paragraph=new Paragraph(new Run("The plan looked odd until dawn."));
             document=new FlowDocument(paragraph);document.Blocks.Add(new Paragraph(new Run("FOLLOWING TEXT IS NOT SELECTED.")));
@@ -426,14 +461,36 @@ public partial class MainWindow
         Editor.CaretPosition=SentenceTextPointer(anchor,4);
         ExpectSentenceRejection(()=>CaptureSentenceCompletionTarget(),"A caret splitting a word was accepted without a word selection.");
         var displayed=new Run("Displayed field"){Tag=FieldTagPrefix+"REGRESSION_FIELD"};
-        var protectedParagraph=new Paragraph(new Run("Before "));
-        protectedParagraph.Inlines.Add(displayed);protectedParagraph.Inlines.Add(new Run(" after."));
+        var protectedParagraph=new Paragraph(displayed);
         SentenceSetDocument(new FlowDocument(protectedParagraph),EditorViewMode.Continuous);
-        foreach(var boundary in new[]{displayed.ContentStart,displayed.ContentEnd})
+        // This position is strictly inside the tagged run, between complete
+        // words, so field protection is the reason capture must be refused.
+        Editor.CaretPosition=displayed.ContentStart.GetPositionAtOffset("Displayed ".Length,LogicalDirection.Forward)!;
+        RequireSentence(ReferenceEquals(Editor.CaretPosition.Parent,displayed),
+            "The displayed-field interior fixture did not resolve into its tagged run.");
+        ExpectSentenceRejection(()=>CaptureSentenceCompletionTarget(),"A caret inside a displayed field accepted ordinary prose insertion.");
+        foreach(var boundary in new[]{displayed.ContentStart.GetPositionAtOffset(0,LogicalDirection.Forward)!,
+            displayed.ContentEnd.GetPositionAtOffset(0,LogicalDirection.Backward)!})
         {
             Editor.CaretPosition=boundary;
-            ExpectSentenceRejection(()=>CaptureSentenceCompletionTarget(),"A displayed-field endpoint accepted ordinary prose insertion.");
+            var actual=Editor.CaretPosition;
+            var ownsField=ReferenceEquals(actual.Parent,displayed) ||
+                actual.CompareTo(displayed.ContentStart)>0 && actual.CompareTo(displayed.ContentEnd)<0;
+            if(ownsField)
+                ExpectSentenceRejection(()=>CaptureSentenceCompletionTarget(),"An actual displayed-field endpoint accepted ordinary prose insertion.");
+            else
+                RequireSentence(!CaptureSentenceCompletionTarget().IsReplacement,
+                    "A caret which WPF placed outside the displayed field was incorrectly blocked.");
         }
+        displayed=new Run("Displayed field"){Tag=FieldTagPrefix+"REGRESSION_FIELD"};
+        var adjacentFieldText=new Run(" after.");
+        protectedParagraph=new Paragraph(displayed);protectedParagraph.Inlines.Add(adjacentFieldText);
+        SentenceSetDocument(new FlowDocument(protectedParagraph),EditorViewMode.Continuous);
+        Editor.CaretPosition=adjacentFieldText.ContentStart.GetPositionAtOffset(0,LogicalDirection.Forward)!;
+        RequireSentence(ReferenceEquals(Editor.CaretPosition.Parent,adjacentFieldText),
+            "The ordinary text adjacent to a displayed field did not own the test caret.");
+        RequireSentence(!CaptureSentenceCompletionTarget().IsReplacement,
+            "Ordinary text outside, and adjacent to, a displayed field was incorrectly blocked.");
         protectedParagraph=new Paragraph(new Run("Before {field:NAME} after."));
         SentenceSetDocument(new FlowDocument(protectedParagraph),EditorViewMode.Continuous);
         Editor.CaretPosition=SentenceTextPointer(protectedParagraph,"Before {field:".Length);

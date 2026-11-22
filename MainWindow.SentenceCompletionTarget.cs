@@ -118,15 +118,16 @@ public partial class MainWindow
         var (sentenceStart,sentenceEnd)=SentenceCompletionSentenceBounds(paragraphText,startOffset,endOffset);
         return new SentenceCompletionTarget(Editor.Document,paragraph,start,end,selected,
             paragraphText[sentenceStart..startOffset],paragraphText[endOffset..sentenceEnd],paragraphText,
-            startOffset,endOffset,states,CaptureSentenceCompletionFormatting(originalStart,originalEnd,replacement),replacement);
+            startOffset,endOffset,states,replacement?CaptureSentenceCompletionReplacementFormatting(originalStart,originalEnd):
+                CapturePlainPasteFormatting(Editor),replacement);
     }
 
-    IReadOnlyList<(DependencyProperty Property,object Value)> CaptureSentenceCompletionFormatting(
-        TextPointer start,TextPointer end,bool replacement)
+    static IReadOnlyList<(DependencyProperty Property,object Value)> CaptureSentenceCompletionReplacementFormatting(
+        TextPointer start,TextPointer end)
     {
-        // An empty TextSelection at Run.ContentEnd can report the following
-        // run's formatting. Read the actual destination run instead: completing
-        // a bold/navy lead must not borrow an italic right-hand continuation.
+        // A mixed selection has no single range value. Use its first covered
+        // text run for those properties. Caret insertion separately uses the
+        // active selection/typing format, including deliberate user overrides.
         Run? RunInDirection(TextPointer pointer,LogicalDirection direction)
         {
             var paragraph=FindContainingParagraph(pointer);
@@ -142,13 +143,7 @@ public partial class MainWindow
             return null;
         }
 
-        Run? source;
-        if(replacement)source=RunInDirection(start,LogicalDirection.Forward);
-        else if(start.Parent is Run direct && !string.IsNullOrEmpty(direct.Text) &&
-            (start.CompareTo(direct.ContentStart)>0 || start.LogicalDirection==LogicalDirection.Forward))source=direct;
-        else source=RunInDirection(start,start.LogicalDirection)
-            ??RunInDirection(start,start.LogicalDirection==LogicalDirection.Forward?LogicalDirection.Backward:LogicalDirection.Forward);
-
+        var source=RunInDirection(start,LogicalDirection.Forward);
         var original=new TextRange(start,end);
         var result=new System.Collections.Generic.List<(DependencyProperty,object)>();
         foreach(var property in new[]
@@ -158,8 +153,7 @@ public partial class MainWindow
             TextElement.BackgroundProperty,Inline.TextDecorationsProperty,Inline.BaselineAlignmentProperty
         })
         {
-            var value=replacement?original.GetPropertyValue(property):
-                source!=null?source.GetValue(property):original.GetPropertyValue(property);
+            var value=original.GetPropertyValue(property);
             if(value==DependencyProperty.UnsetValue && source!=null)value=source.GetValue(property);
             if(value!=DependencyProperty.UnsetValue)result.Add((property,value));
         }
