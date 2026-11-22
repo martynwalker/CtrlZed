@@ -359,12 +359,68 @@ public partial class MainWindow
             if(EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)!=originalPageBreaks)
                 failures.Add($"{name}: Undo did not restore the original deliberate page-break count.");
             FreshPagedLayout();
+            if(forcedBreaks)VerifyManualPageBreakCommandPaths(report);
             report.AppendLine($"Return navigation {name}: initial={initialPages}, maximumPending={maximumPending}, finalPrint={expectedPages}, finalDisplayed={settledCount}; five physical Returns and navigation preserved canonical paragraph insertion/Undo.");
         }
         NavigationPane.Visibility=Visibility.Collapsed;
         UpdatePageNavigationDemand();
         RequirePaged(failures.Count==0,string.Join(Environment.NewLine,failures));
         report.AppendLine("Five physical Returns after thumbnail navigation produced no phantom pages; live, settled, thumbnail and print counts remained consistent, and Undo restored the original text.");
+    }
+
+    void VerifyManualPageBreakCommandPaths(StringBuilder report)
+    {
+        foreach(var path in new[]{"WPF paragraph command","safe macro"})
+        {
+            var original=FindPagedParagraph("Return navigation row 025");
+            var before=PagedDocumentText();
+            var paragraphs=EnumerateDocumentParagraphs().Count();
+            var breaks=EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore);
+            Editor.CaretPosition=original.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+            Editor.Focus();PumpInput();
+            if(path=="safe macro")AwaitPagedTask(RunSafeMacroAsync("NEW_PARAGRAPH"));
+            else EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+            RequirePaged(EnumerateDocumentParagraphs().Count()==paragraphs+1 &&
+                EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)==breaks,
+                $"The {path} path duplicated a manual page boundary when inserting a paragraph.");
+            for(var undo=0;undo<5 && PagedDocumentText()!=before && Editor.CanUndo;undo++)Editor.Undo();
+            RequirePaged(PagedDocumentText()==before &&
+                EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)==breaks,
+                $"Undo did not restore the manual boundary after the {path} path.");
+        }
+
+        var set=ActiveParagraphStyleSet;
+        var name="Return break rule "+Guid.NewGuid().ToString("N");
+        var style=StyleSetStore.CreateStyle(name,ResolveStyle("Normal"));
+        style.BreakPageBefore=true;style.FollowingStyle=name;
+        set.Styles.Add(name,style);
+        var paragraph=FindPagedParagraph("Return navigation row 025");
+        var tag=paragraph.Tag;
+        var source=PagedDocumentText();
+        var beforeBreaks=EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore);
+        try
+        {
+            paragraph.Tag=ParagraphStyleTag(name,style);
+            Editor.CaretPosition=paragraph.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+            Editor.Focus();PumpInput();
+            EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+            var content=Editor.CaretPosition.Paragraph;
+            RequirePaged(ResolveStyle(name)?.BreakPageBefore==true && content?.BreakPageBefore==true &&
+                content.PreviousBlock is Paragraph {BreakPageBefore:true} &&
+                EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)==beforeBreaks+1,
+                "An intentional page-break-before style lost its repeatable boundary rule.");
+        }
+        finally
+        {
+            for(var undo=0;undo<5 && PagedDocumentText()!=source && Editor.CanUndo;undo++)Editor.Undo();
+            FindPagedParagraph("Return navigation row 025").Tag=tag;
+            set.Styles.Remove(name);
+        }
+        RequirePaged(PagedDocumentText()==source &&
+            EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)==beforeBreaks,
+            "Undo did not restore the paragraph after checking the intentional page-break style.");
+        FreshPagedLayout();
+        report.AppendLine("WPF paragraph commands and safe macros preserved a single manual boundary; intentional page-break styles retained their repeatable rule, with Undo restoring each source.");
     }
 
     void ClickReturnNavigationThumbnail(int pageNumber)

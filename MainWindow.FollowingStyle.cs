@@ -13,8 +13,9 @@ public partial class MainWindow
 
     void Editor_FollowingStylePreviewExecuted(object sender,ExecutedRoutedEventArgs e)
     {
-        if(enteringFollowingParagraph || e.Command!=EditingCommands.EnterParagraphBreak || Editor.IsReadOnly ||
-           ParagraphEndingAtSelection(Editor) is not Paragraph paragraph)return;
+        if(enteringFollowingParagraph || e.Command!=EditingCommands.EnterParagraphBreak || Editor.IsReadOnly)return;
+        if(InsertBeforeManualPageBreakParagraph()) {e.Handled=true;return;}
+        if(ParagraphEndingAtSelection(Editor) is not Paragraph paragraph)return;
         var role=InferParagraphStyle(paragraph,styleSets.Values)??"Normal";
         var following=StyleSetStore.NormalizeFollowingStyle(ResolveStyle(role)?.FollowingStyle,ActiveParagraphStyleSet);
         if(string.Equals(role,following,StringComparison.OrdinalIgnoreCase))return;
@@ -27,6 +28,7 @@ public partial class MainWindow
         if(e.Handled || e.Key!=Key.Enter || Keyboard.Modifiers!=ModifierKeys.None ||
            Editor.IsReadOnly || !Editor.IsKeyboardFocused)return;
 
+        if(InsertBeforeManualPageBreakParagraph()) {e.Handled=true;return;}
         if(ParagraphEndingAtSelection(Editor)==null ||
            !EditingCommands.EnterParagraphBreak.CanExecute(null,Editor))return;
         var role=InferParagraphStyle(Editor.CaretPosition.Paragraph!,styleSets.Values)??"Normal";
@@ -40,6 +42,7 @@ public partial class MainWindow
     internal void InsertParagraphWithFollowingStyle()
     {
         if(Editor.IsReadOnly || !EditingCommands.EnterParagraphBreak.CanExecute(null,Editor))return;
+        if(InsertBeforeManualPageBreakParagraph())return;
         Editor.Focus();
         var paragraph=ParagraphEndingAtSelection(Editor);
         if(paragraph==null)
@@ -78,6 +81,40 @@ public partial class MainWindow
             RefreshParagraphStyleBox();
             RefreshFontBox();
         }
+    }
+
+    bool InsertBeforeManualPageBreakParagraph()
+    {
+        if(enteringFollowingParagraph || Editor.IsReadOnly || !Editor.Selection.IsEmpty ||
+           Editor.CaretPosition.Paragraph is not Paragraph original || !original.BreakPageBefore ||
+           ParagraphEndingAtSelection(Editor)!=null ||
+           !EditingCommands.EnterParagraphBreak.CanExecute(null,Editor))return false;
+        var first=original.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+        var caret=Editor.CaretPosition.GetInsertionPosition(LogicalDirection.Forward);
+        if(first==null || caret==null || first.CompareTo(caret)!=0)return false;
+        var role=InferParagraphStyle(original,styleSets.Values)??"Normal";
+        // A named style can deliberately start every paragraph on a new page.
+        // A direct/manual break is one boundary, not a repeatable style rule.
+        if(ResolveStyle(role)?.BreakPageBefore==true)return false;
+        var tag=original.Tag;
+        Editor.Focus();
+        Editor.BeginChange();
+        enteringFollowingParagraph=true;
+        try
+        {
+            EditingCommands.EnterParagraphBreak.Execute(null,Editor);
+            if(Editor.CaretPosition.Paragraph is Paragraph content &&
+               content.PreviousBlock is Paragraph blank)
+            {
+                // Native Return clones the paragraph's local page break into
+                // the empty paragraph before it. Retain that first boundary
+                // and stop the content paragraph creating another blank page.
+                content.BreakPageBefore=false;
+                if(tag is string identity){blank.Tag=identity;content.Tag=identity;}
+            }
+        }
+        finally {enteringFollowingParagraph=false;Editor.EndChange();}
+        return true;
     }
 
     internal static Paragraph? ParagraphEndingAtSelection(RichTextBox editor)
