@@ -486,7 +486,9 @@ public partial class MainWindow
         var adjacentFieldText=new Run(" after.");
         protectedParagraph=new Paragraph(displayed);protectedParagraph.Inlines.Add(adjacentFieldText);
         SentenceSetDocument(new FlowDocument(protectedParagraph),EditorViewMode.Continuous);
-        Editor.CaretPosition=adjacentFieldText.ContentStart.GetPositionAtOffset(0,LogicalDirection.Forward)!;
+        // Use the word boundary just after its leading space. The shared
+        // structural boundary can legitimately normalise into the field run.
+        Editor.CaretPosition=adjacentFieldText.ContentStart.GetPositionAtOffset(1,LogicalDirection.Forward)!;
         RequireSentence(ReferenceEquals(Editor.CaretPosition.Parent,adjacentFieldText),
             "The ordinary text adjacent to a displayed field did not own the test caret.");
         RequireSentence(!CaptureSentenceCompletionTarget().IsReplacement,
