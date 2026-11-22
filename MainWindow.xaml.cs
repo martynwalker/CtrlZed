@@ -108,6 +108,7 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
         InitializeRichTextPaste();
+        InstallVectorClipboard();
         Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
         Editor.AddHandler(CommandManager.PreviewExecutedEvent,new ExecutedRoutedEventHandler(Editor_FollowingStylePreviewExecuted));
         Editor.PreviewMouseLeftButtonDown += Editor_PreviewMouseLeftButtonDown;
@@ -1190,6 +1191,7 @@ public partial class MainWindow : Window
         if(visible==fieldValuesVisible)return true;
 
         var snapshot=SnapshotEditorRtf();
+        var vectorSnapshot=VectorImageSupport.Capture(Editor.Document);
         var oldSuppress=suppressDirty;
         var oldDirty=dirty;
         suppressDirty=true;
@@ -1225,7 +1227,12 @@ public partial class MainWindow : Window
         }
         catch(Exception ex)
         {
-            try{RestoreEditorRtf(snapshot);}catch{}
+            try
+            {
+                RestoreEditorRtf(snapshot);
+                VectorImageSupport.Restore(Editor.Document,vectorSnapshot);
+            }
+            catch{}
             fieldValuesVisible=false;
             if(FieldDisplayToggle!=null)
             {

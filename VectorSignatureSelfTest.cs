@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -18,6 +19,7 @@ public partial class MainWindow
     internal static int RunVectorSignatureSelfTest()
     {
         MainWindow? window=null;
+        IDataObject? previousClipboard=null;
         var report=new StringBuilder();
         var temporary=Path.Combine(Path.GetTempPath(),"CtrlZed47Vector_"+Guid.NewGuid().ToString("N"));
         var profileRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
@@ -35,6 +37,7 @@ public partial class MainWindow
         }
         try
         {
+            previousClipboard=Clipboard.GetDataObject();
             var raster=CreateSignatureRaster();
             var png=EncodeSignaturePng(raster);
             VerifySignatureSvgAndTrace(raster,png,report);
@@ -61,6 +64,12 @@ public partial class MainWindow
         }
         finally
         {
+            try
+            {
+                if(previousClipboard!=null)Clipboard.SetDataObject(previousClipboard,true);
+                else Clipboard.Clear();
+            }
+            catch{}
             if(window!=null)
             {
                 window.closingApproved=true;
@@ -228,6 +237,8 @@ public partial class MainWindow
             "A rejected SVG replaced a stored raster image.");
         RequireVector(ProfileImageStore.ReadBytes(pngName).SequenceEqual(png),"Failed import damaged the existing profile image.");
 
+        VerifyVectorClipboard(svgName,pngName,report);
+
         ClearFloatingImagePlacements();
         pageWidth=794;pageHeight=1123;pageMargins=new Thickness(72);zoomPercent=100;ApplyZoom();
         Editor.Document=new FlowDocument(new Paragraph(new Run("Vector signatures ")));
@@ -292,6 +303,16 @@ public partial class MainWindow
             "Raster compatibility or inline/front/behind signature placement changed.");
         var master=VectorImageSupport.TryGetSvg(images[0],out var storedSvg)?storedSvg:"";
         var placements=CaptureFloatingImagePlacements();
+        var docxPath=Path.Combine(temporary,"vector-fallbacks.docx");
+        var liveSources=images.Select(image=>image.Source).ToArray();
+        DocxInterop.Save(docxPath,Editor.Document);
+        var docx=DocxInterop.LoadWithLayout(docxPath).Document;
+        var docxImages=EnumerateImageContainers(docx).Select(item=>item.Image).ToList();
+        RequireVector(docxImages.Count==4 && docxImages.All(image=>image.Source is BitmapSource) &&
+            docxImages.Take(3).All(image=>CountSignatureColour((BitmapSource)image.Source,20,44,136)>20),
+            "DOCX interchange omitted a vector signature's bitmap fallback or its visible ink.");
+        RequireVector(images.Select(image=>image.Source).SequenceEqual(liveSources) && images.Take(3).All(image=>image.Source is DrawingImage),
+            "DOCX fallback export mutated the live signature drawing sources.");
         var path=Path.Combine(temporary,"vectors.czd");
         SaveCzd(path);
         RequireVector(ReferenceEquals(document,Editor.Document) && VectorImageSupport.TryGetSvg(images[0],out _),
@@ -370,6 +391,91 @@ public partial class MainWindow
             EnumerateImageContainers(CloneDocument(forPrint:true)).Single().Image.Source is BitmapSource,
             "An older bitmap-only document requires vector metadata or acquired an unrelated master.");
         report.AppendLine("Recovery preserved SVG masters; portable profile import retained exact source bytes; older bitmap-only document settings remained compatible.");
+    }
+
+    void VerifyVectorClipboard(string svgName,string pngName,StringBuilder report)
+    {
+        Image PrepareClipboardSignature(string name,PicturePlacementMode mode=PicturePlacementMode.Inline)
+        {
+            ClearFloatingImagePlacements();
+            Editor.Document=new FlowDocument(new Paragraph(new Run("Clipboard signature ")));
+            ApplyPage();
+            Editor.CaretPosition=Editor.Document.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+            Editor.Focus();PumpInput();
+            InsertProfileImage(name,40,mode);
+            var item=EnumerateImageContainers(Editor.Document).Single();
+            Editor.Selection.Select(item.Container.ElementStart,item.Container.ElementEnd);
+            Editor.Focus();return item.Image;
+        }
+
+        foreach(var copyCase in new[]{
+            (Vector:true,Mode:PicturePlacementMode.Inline),
+            (Vector:true,Mode:PicturePlacementMode.InFrontOfText),
+            (Vector:true,Mode:PicturePlacementMode.BehindText),
+            (Vector:false,Mode:PicturePlacementMode.Inline)})
+        {
+            var vector=copyCase.Vector;
+            var original=PrepareClipboardSignature(vector?svgName:pngName,copyCase.Mode);
+            var source=original.Source;
+            var visibility=original.Visibility;
+            var document=Editor.Document;
+            var svg=VectorImageSupport.TryGetSvg(original,out var master)?master:null;
+            ApplicationCommands.Copy.Execute(null,Editor);PumpInput();PumpInput();
+            RequireVector(ReferenceEquals(document,Editor.Document) && ReferenceEquals(original.Source,source) && original.Visibility==visibility &&
+                (!vector || original.Source is DrawingImage && VectorImageSupport.TryGetSvg(original,out var copiedMaster) && copiedMaster==svg),
+                "Copy changed the live signature source or its SVG master.");
+            var copied=Clipboard.GetDataObject()?.GetData(DataFormats.Rtf,true);
+            var rtf=copied switch
+            {
+                string text=>Encoding.UTF8.GetBytes(text),
+                byte[] bytes=>bytes,
+                MemoryStream memory=>memory.ToArray(),
+                _=>throw new InvalidOperationException("Copy did not advertise a readable RTF image fallback.")
+            };
+            var fragment=new FlowDocument();
+            using(var input=new MemoryStream(rtf,false))new TextRange(fragment.ContentStart,fragment.ContentEnd).Load(input,DataFormats.Rtf);
+            var fallback=EnumerateImageContainers(fragment).Single().Image.Source as BitmapSource;
+            RequireVector(fallback!=null && CountSignatureInk(fallback)>20 &&
+                (vector?CountSignatureColour(fallback,20,44,136)>20:CountSignatureColour(fallback,0,0,0)>20),
+                "Copied RTF lost the signature's visible bitmap fallback.");
+            ClearFloatingImagePlacements();
+            Editor.Document=new FlowDocument(new Paragraph(new Run("Paste target ")));
+            ApplyPage();Editor.CaretPosition=Editor.Document.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+            Editor.Focus();ApplicationCommands.Paste.Execute(null,Editor);PumpInput();PumpInput();
+            var pasted=EnumerateImageContainers(Editor.Document).ToList();
+            RequireVector(pasted.Count==1 && pasted[0].Image.Source is BitmapSource && pasted[0].Image.Visibility==Visibility.Visible &&
+                CountSignatureInk((BitmapSource)pasted[0].Image.Source)>20 &&
+                (vector?CountSignatureColour((BitmapSource)pasted[0].Image.Source,20,44,136)>20:
+                    CountSignatureColour((BitmapSource)pasted[0].Image.Source,0,0,0)>20),
+                $"Copy/Paste did not preserve the visible {copyCase.Mode} signature image fallback.");
+        }
+
+        var cutImage=PrepareClipboardSignature(svgName);
+        var cutSource=cutImage.Source;
+        var beforeCut=PagedDocumentText();
+        DataObjectCopyingEventHandler cancelCopy=(_,e)=>e.CancelCommand();
+        DataObject.AddCopyingHandler(Editor,cancelCopy);
+        try
+        {
+            ApplicationCommands.Cut.Execute(null,Editor);PumpInput();PumpInput();
+            RequireVector(EnumerateImageContainers(Editor.Document).Count()==1 && PagedDocumentText()==beforeCut &&
+                ReferenceEquals(cutImage.Source,cutSource) && VectorImageSupport.TryGetSvg(cutImage,out _),
+                "A cancelled copy deleted the cut signature or damaged its vector master.");
+        }
+        finally{DataObject.RemoveCopyingHandler(Editor,cancelCopy);}
+        var cutContainer=EnumerateImageContainers(Editor.Document).Single().Container;
+        Editor.Selection.Select(cutContainer.ElementStart,cutContainer.ElementEnd);Editor.Focus();
+        ApplicationCommands.Cut.Execute(null,Editor);PumpInput();PumpInput();
+        RequireVector(!EnumerateImageContainers(Editor.Document).Any() && Editor.CanUndo,
+            "Cut did not remove the vector signature as an undoable operation.");
+        Editor.Undo();PumpInput();PumpInput();
+        var restored=EnumerateImageContainers(Editor.Document).ToList();
+        RequireVector(restored.Count==1 && restored[0].Image.Source is DrawingImage &&
+            VectorImageSupport.TryGetSvg(restored[0].Image,out _) && Editor.CanRedo,
+            "Cut Undo restored only a bitmap or lost the scalable SVG master.");
+        Editor.Redo();PumpInput();PumpInput();
+        RequireVector(!EnumerateImageContainers(Editor.Document).Any(),"Cut Redo did not remove the signature again.");
+        report.AppendLine("Real Copy/Paste retained SVG and PNG bitmap interchange fallbacks without changing live vectors; cancelled Cut preserved its source, and Cut Undo/Redo retained the scalable master.");
     }
 
     static BitmapSource CreateSignatureRaster()

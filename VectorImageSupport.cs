@@ -16,6 +16,8 @@ public sealed class VectorImageData
 {
     public int ImageIndex { get; set; }
     public string Svg { get; set; }="";
+    public double Width {get;set;}
+    public double Height {get;set;}
 }
 
 public static class VectorImageSupport
@@ -161,7 +163,12 @@ public static class VectorImageSupport
         var index=0;
         foreach(var item in MainWindow.EnumerateImageContainers(document))
         {
-            if(TryGetSvg(item.Image,out var svg))result.Add(new VectorImageData{ImageIndex=index,Svg=svg});
+            if(TryGetSvg(item.Image,out var svg))result.Add(new VectorImageData
+            {
+                ImageIndex=index,Svg=svg,
+                Width=double.IsFinite(item.Image.Width)?item.Image.Width:0,
+                Height=double.IsFinite(item.Image.Height)?item.Image.Height:0
+            });
             index++;
         }
         return result;
@@ -178,6 +185,8 @@ public static class VectorImageSupport
             if(!assets.TryGetValue(value.Svg,out var asset))
                 assets[value.Svg]=asset=SignatureImages.FromSvg(value.Svg);
             SetAsset(images[value.ImageIndex],asset);
+            if(double.IsFinite(value.Width)&&value.Width>0)images[value.ImageIndex].Width=value.Width;
+            if(double.IsFinite(value.Height)&&value.Height>0)images[value.ImageIndex].Height=value.Height;
         }
     }
 
@@ -189,6 +198,8 @@ public static class VectorImageSupport
         {
             if(Find(originals[index]) is not { } master)continue;
             copies[index].Source=forPrint?master.Asset.Vector:master.Asset.Bitmap;
+            copies[index].Width=originals[index].Width;
+            copies[index].Height=originals[index].Height;
             Attach(copies[index],master.Asset,master.Placement);
         }
     }
