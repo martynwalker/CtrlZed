@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Controls;
@@ -53,6 +54,9 @@ public partial class MainWindow
     int floatingDragAnchorPage;
     int floatingDragStartPageOffset;
     bool floatingImagePlacementInstalled;
+    // Undo can temporarily remove the last floating vector. Keep refreshes
+    // enabled for this document so Redo can recover its placement marker.
+    bool hasVectorFloatingHistory;
     DispatcherTimer? floatingImageRefreshTimer;
 
     internal void InstallFloatingImagePlacement()
@@ -72,7 +76,7 @@ public partial class MainWindow
 
     void ScheduleFloatingImageRefresh()
     {
-        if(floatingImagePlacements.Count==0)return;
+        if(floatingImagePlacements.Count==0&&!hasVectorFloatingHistory)return;
         if(floatingImageRefreshTimer==null)
         {
             floatingImageRefreshTimer=new DispatcherTimer(DispatcherPriority.Background)
@@ -121,6 +125,7 @@ public partial class MainWindow
 
     void RestoreFloatingImagePlacements(List<FloatingImagePlacementData>? placements)
     {
+        hasVectorFloatingHistory=false;
         floatingImagePlacements.Clear();
         floatingImageOverlays.Clear();
         BehindTextCanvas.Children.Clear();
@@ -151,6 +156,7 @@ public partial class MainWindow
     void ClearFloatingImagePlacements()
     {
         floatingImageRefreshTimer?.Stop();
+        hasVectorFloatingHistory=false;
         foreach(var placement in floatingImagePlacements)
             if(placement.RuntimeImage!=null)
                 placement.RuntimeImage.Visibility=Visibility.Visible;
@@ -182,6 +188,7 @@ public partial class MainWindow
 
         if(mode==PicturePlacementMode.Inline)
         {
+            VectorImageSupport.SetPlacementData(image,null);
             if(existing!=null)
             {
                 floatingImagePlacements.Remove(existing);
@@ -232,6 +239,7 @@ public partial class MainWindow
             floatingImagePlacements.Add(existing);
         }
         existing.Mode=mode;
+        if(VectorImageSupport.TryGetSvg(image,out _))hasVectorFloatingHistory=true;
         existing.Width=width;
         existing.Height=height;
         image.Visibility=Visibility.Collapsed;
@@ -253,10 +261,11 @@ public partial class MainWindow
     void RefreshFloatingImagePlacements()
     {
         if(!IsLoaded||BehindTextCanvas==null)return;
+        var images=EnumerateImageContainers(Editor.Document).ToList();
+        RestoreVectorFloatingImageMarkers(images);
         if(floatingImagePlacements.Count==0){RefreshBeta46PagedPictures();QueuePageNavigationRefresh();return;}
         Editor.UpdateLayout();
 
-        var images=EnumerateImageContainers(Editor.Document).ToList();
         foreach(var placement in floatingImagePlacements.ToList())
         {
             if(placement.RuntimeImage==null)
@@ -309,6 +318,30 @@ public partial class MainWindow
         QueuePageNavigationRefresh();
     }
 
+    void RestoreVectorFloatingImageMarkers(List<(InlineUIContainer Container,Image Image)> images)
+    {
+        for(var index=0;index<images.Count;index++)
+        {
+            var image=images[index].Image;
+            if(floatingImagePlacements.Any(item=>ReferenceEquals(item.RuntimeImage,image)) ||
+               !VectorImageSupport.TryGetPlacementData(image,out var json))continue;
+            try
+            {
+                var placement=JsonSerializer.Deserialize<FloatingImagePlacementData>(json);
+                if(placement==null || placement.Mode is not PicturePlacementMode.BehindText and not PicturePlacementMode.InFrontOfText ||
+                   !double.IsFinite(placement.OffsetX) || !double.IsFinite(placement.OffsetY) ||
+                   !double.IsFinite(placement.Width) || !double.IsFinite(placement.Height) ||
+                   placement.Width<=0 || placement.Height<=0)continue;
+                placement.ImageIndex=index;
+                placement.AnchorOffset=Editor.Document.ContentStart.GetOffsetToPosition(images[index].Container.ContentStart);
+                placement.RuntimeImage=image;
+                floatingImagePlacements.Add(placement);
+                hasVectorFloatingHistory=true;
+            }
+            catch(JsonException) { }
+        }
+    }
+
     void PositionFloatingImage(
         FloatingImagePlacementData placement,InlineUIContainer container,Image overlay)
     {
@@ -356,6 +389,12 @@ public partial class MainWindow
     void UpdateFloatingImageChrome()
     {
         ClearFloatingImageChrome();
+        foreach(var placement in floatingImagePlacements)
+            if(placement.RuntimeImage is Image image && VectorImageSupport.TryGetSvg(image,out _))
+            {
+                hasVectorFloatingHistory=true;
+                VectorImageSupport.SetPlacementData(image,JsonSerializer.Serialize(placement));
+            }
         RefreshBeta46PagedPictures();
         if(selectedFloatingImage==null||!floatingImagePlacements.Contains(selectedFloatingImage))return;
         var bounds=GetFloatingImageBounds(selectedFloatingImage);

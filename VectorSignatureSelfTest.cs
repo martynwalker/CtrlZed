@@ -234,26 +234,43 @@ public partial class MainWindow
         ApplyPage();ApplyBeta35ViewMode(EditorViewMode.Paged,false);
         Editor.CaretPosition=Editor.Document.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
         Editor.Focus();PumpInput();
-        var document=Editor.Document;
         string SignatureUndoState()
             =>$"images={EnumerateImageContainers(Editor.Document).Count()}, inlineUI={EnumerateDocumentParagraphs().Sum(paragraph=>paragraph.Inlines.OfType<InlineUIContainer>().Count())}, text=[{PagedDocumentText().Replace("\r","\\r").Replace("\n","\\n")}], CanUndo={Editor.CanUndo}, CanRedo={Editor.CanRedo}";
+        foreach(var mode in new[]{PicturePlacementMode.Inline,PicturePlacementMode.InFrontOfText,PicturePlacementMode.BehindText})
+        {
+            ClearFloatingImagePlacements();
+            Editor.Document=new FlowDocument(new Paragraph(new Run("Vector Undo ")));
+            ApplyPage();
+            Editor.CaretPosition=Editor.Document.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+            Editor.Focus();PumpInput();
+            ProfileImageMacro.Insert(Editor,svgName,40,mode);
+            RequireVector(EnumerateImageContainers(Editor.Document).Count()==1,
+                $"The initial {mode} vector insertion did not create one image: "+SignatureUndoState());
+            RequireVector(Editor.CanUndo,$"Inserting a {mode} vector signature did not create an Undo operation: "+SignatureUndoState());
+            Editor.Undo();
+            var canRedoBeforePump=Editor.CanRedo;
+            PumpInput();
+            RequireVector(!EnumerateImageContainers(Editor.Document).Any(),
+                $"One Undo did not remove the inserted {mode} vector signature: "+SignatureUndoState());
+            RequireVector(Editor.CanRedo,
+                $"Undo lost the {mode} vector insertion's Redo operation (before dispatcher={canRedoBeforePump}): "+SignatureUndoState());
+            Editor.Redo();PumpInput();
+            var redoneImages=EnumerateImageContainers(Editor.Document).ToList();
+            RequireVector(redoneImages.Count==1,$"One Redo did not restore the {mode} vector signature: "+SignatureUndoState());
+            FreshPagedLayout();
+            var redone=EnumerateImageContainers(Editor.Document).Single().Image;
+            RequireVector(VectorImageSupport.TryGetSvg(redone,out _) && VectorImageSupport.GetDisplaySource(redone) is DrawingImage &&
+                GetPicturePlacement(redone)==mode,
+                $"Redo lost the {mode} signature's SVG master or restored the wrong picture layer: actual={GetPicturePlacement(redone)}; "+SignatureUndoState());
+        }
+        report.AppendLine("A single Undo/Redo preserved the scalable master and inline/front/behind placement for all three vector insertion modes.");
+        ClearFloatingImagePlacements();
+        Editor.Document=new FlowDocument(new Paragraph(new Run("Vector signatures ")));
+        ApplyPage();
+        Editor.CaretPosition=Editor.Document.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+        Editor.Focus();PumpInput();
+        var document=Editor.Document;
         ProfileImageMacro.Insert(Editor,svgName,40,PicturePlacementMode.Inline);
-        RequireVector(EnumerateImageContainers(Editor.Document).Count()==1,
-            "The initial vector insertion did not create one image: "+SignatureUndoState());
-        RequireVector(Editor.CanUndo,"Inserting a vector signature did not create an Undo operation: "+SignatureUndoState());
-        Editor.Undo();
-        var canRedoBeforePump=Editor.CanRedo;
-        PumpInput();
-        RequireVector(!EnumerateImageContainers(Editor.Document).Any(),
-            "One Undo did not remove the inserted vector signature: "+SignatureUndoState());
-        RequireVector(Editor.CanRedo,
-            $"Undo lost the vector insertion's Redo operation (before dispatcher={canRedoBeforePump}): "+SignatureUndoState());
-        Editor.Redo();PumpInput();
-        var redoneImages=EnumerateImageContainers(Editor.Document).ToList();
-        RequireVector(redoneImages.Count==1,"One Redo did not restore the vector signature: "+SignatureUndoState());
-        var redone=redoneImages[0].Image;
-        RequireVector(VectorImageSupport.TryGetSvg(redone,out _) && VectorImageSupport.GetDisplaySource(redone) is DrawingImage,
-            "Redo restored only the vector signature's bitmap and lost its SVG master.");
         AwaitPagedTask(RunSafeMacroAsync("INSERT_PROFILE_IMAGE {"+svgName+"} 40 IN_FRONT"));
         ProfileImageMacro.Insert(Editor,svgName,40,PicturePlacementMode.BehindText);
         InsertProfileImage(pngName,40,PicturePlacementMode.Inline);
