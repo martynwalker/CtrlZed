@@ -6,11 +6,19 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current development baseline is **[Beta 46 (0.46.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.0-beta.46)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44965063786) on source commit `f719208dd66e86e3c843ca9688684d43c6e2026c` before publication and baseline promotion. **User acceptance of Beta 46 is pending.**
+The current development baseline is **[Beta 46.1 (0.46.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.1-beta.46.1)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45006493620) on source commit `00d1f5411cb4c2092a2a519e5e42cc88b0574a15` before publication and baseline promotion. **User acceptance of Beta 46.1 is pending.** Beta 46's page scrolling/navigation defects were reported by Martyn on 22 November 2026 and corrected in this patch.
 
 The latest user-accepted release is **[Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1 work, verification and later ideas.
+
+### Beta 46.1 — scrolling and page thumbnails
+
+- Manual wheel and scrollbar browsing stays where the user chooses; pagination and native layout requests no longer return the view to the caret. Typing and keyboard movement still reveal the insertion point.
+- Page thumbnail navigation remains available while the next map updates. Live anchors follow edits, and internal list refreshes preserve selection without initiating navigation.
+- Applying a page map no longer invalidates that same map through changes to the displayed page height.
+- Page thumbnails refresh after text and picture changes and include floating pictures behind/in front of text, headers and footers.
+- Windows regressions exercise actual wheel input, retained browse offsets, typing after browsing, text/picture thumbnail pixels, pending-map clicks and repeat clicks on the selected thumbnail.
 
 ### Beta 46 — first stage of page-by-page editing
 

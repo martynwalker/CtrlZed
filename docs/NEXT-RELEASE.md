@@ -1,12 +1,21 @@
-# CtrlZed — Beta 46 release record and remaining queue
+# CtrlZed — Beta 46.1 release record and remaining queue
 
 Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 46 (`0.46.0-beta.46`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/44965063786) on source commit `f719208dd66e86e3c843ca9688684d43c6e2026c`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 46 is pending.
+Beta 46.1 (`0.46.1-beta.46.1`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45006493620) on source commit `00d1f5411cb4c2092a2a519e5e42cc88b0574a15`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 46.1 is pending. Beta 46 was not accepted after Martyn reported scrolling and page-thumbnail defects on 22 November 2026.
 
 Beta 45.1 (`0.45.1-beta.45.1`) remains the latest user-accepted release, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source.
+
+## Corrected in Beta 46.1
+
+- [x] Preserve manual wheel/scrollbar browsing through pagination and native bring-into-view requests while retaining caret reveal during editing and keyboard movement.
+- [x] Route ordinary paged wheel input to the outer document viewer, respecting Windows wheel settings.
+- [x] Remove pagination invalidation caused by applying a map changing the projected page height.
+- [x] Keep existing page thumbnails interactive while a new map is pending; follow live anchors and suppress navigation from internal selection restoration.
+- [x] Refresh thumbnails after text/picture changes, including both floating-image layers and header/footer text.
+- [x] Gate the patch on physical wheel input, retained browse offsets, typing after browsing, thumbnail pixel changes, pending navigation and repeat-click navigation.
 
 ## Implemented in Beta 46
 
