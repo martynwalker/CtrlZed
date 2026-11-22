@@ -31,6 +31,13 @@ public partial class MainWindow
     {
         inflection=(inflection??"").Trim();
         if(inflection.Length>=2 && inflection[0]=='"' && inflection[^1]=='"')inflection=inflection[1..^1].Trim();
+        if(inflection.Length>0 && !inflection.Equals("Custom",StringComparison.OrdinalIgnoreCase))
+        {
+            var choices=SentenceCompletionService.BuiltIns.Concat(SentenceCompletionPreferencesStore.Load().CustomInflections);
+            var selected=choices.FirstOrDefault(item=>item.Name.Equals(inflection,StringComparison.OrdinalIgnoreCase));
+            if(selected==null)throw new InvalidOperationException($"No built-in or saved custom inflection is named ‘{inflection}’.");
+            inflection=selected.Name;
+        }
         sentenceCompletionMacroGeneration++;
         ShowSentenceCompletion(inflection.Length==0?null:inflection);
     }

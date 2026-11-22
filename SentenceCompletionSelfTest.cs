@@ -195,9 +195,10 @@ public partial class MainWindow
         foreach(var prompt in summaryPrompts)
         {
             const string separator="INPUT DATA (JSON)\n";
-            var index=prompt.IndexOf(separator,StringComparison.Ordinal);
+            var normalisedPrompt=prompt.Replace("\r\n","\n");
+            var index=normalisedPrompt.IndexOf(separator,StringComparison.Ordinal);
             RequireSentence(index>=0,"A summary request did not expose its bounded source data.");
-            using var data=JsonDocument.Parse(prompt[(index+separator.Length)..]);
+            using var data=JsonDocument.Parse(normalisedPrompt[(index+separator.Length)..]);
             if(data.RootElement.GetProperty("coverage").GetString()!.StartsWith("Source chunk ",StringComparison.Ordinal))
                 foreach(var part in data.RootElement.GetProperty("orderedParts").EnumerateArray())reconstructed.Append(part.GetString());
         }
@@ -605,6 +606,7 @@ public partial class MainWindow
             "The explicit AI-language-service setting did not gate generation with an actionable explanation.");
         disabled.Close();languageSettings.AllowAiLanguageServices=true;PumpInput();
         VerifySentenceCompletionStaleUi(report);
+        VerifySentenceCompletionModeChanges(report);
 
         customParagraph=new Paragraph(new Run("Macro preview source "));
         SentenceSetDocument(new FlowDocument(customParagraph),EditorViewMode.Continuous);
@@ -698,6 +700,69 @@ public partial class MainWindow
             }
         }
         report.AppendLine("Inflection changes, source edits and window closure cancelled pending requests. A deliberately non-cooperative provider's late results were discarded without candidates, insertion or source changes.");
+    }
+
+    void VerifySentenceCompletionModeChanges(StringBuilder report)
+    {
+        var originalMode=languageSettings.WritingMode;
+        try
+        {
+            var paragraph=new Paragraph(new Run("The committee , as predicted."));
+            SentenceSetDocument(new FlowDocument(paragraph),EditorViewMode.Continuous);
+            Editor.CaretPosition=SentenceTextPointer(paragraph,"The committee ".Length);
+            var response=new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var started=false;var returned=false;
+            SentenceCompletionService.GeneratorOverride=async (_,__)=>
+            {
+                started=true;
+                var value=await response.Task; // Intentionally returns after a mode change, regardless of cancellation.
+                returned=true;return value;
+            };
+            ShowSentenceCompletion("Cynical");
+            var dialog=sentenceCompletionWindow!;
+            var suggestions=SentenceControl<ListBox>(dialog,"CompletionSuggestions");
+            SentenceControl<Button>(dialog,"CompletionGenerate").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitSentence(()=>started,"The mode-change test request did not begin.");
+            var before=PagedDocumentText();
+            languageSettings.WritingMode=originalMode==WritingMode.Fiction?WritingMode.Business:WritingMode.Fiction;
+            dialog.Activate();PumpInput();
+            response.SetResult(SentenceFixtureJson(" STALE_MODE"));
+            WaitSentence(()=>returned,"The deliberately non-cooperative mode-change provider did not return.");
+            PumpInput();
+            RequireSentence(suggestions.Items.Count==0 && PagedDocumentText()==before &&
+                !SentenceControl<Button>(dialog,"CompletionInsert").IsEnabled,
+                "A late result generated for an earlier writing mode remained selectable or changed the document.");
+            dialog.Close();PumpInput();
+
+            languageSettings.WritingMode=originalMode;
+            SentenceCompletionService.GeneratorOverride=(_,token)=>
+            {
+                token.ThrowIfCancellationRequested();return Task.FromResult(SentenceFixtureJson());
+            };
+            Editor.CaretPosition=SentenceTextPointer(paragraph,"The committee ".Length);
+            ShowSentenceCompletion("Cynical");
+            dialog=sentenceCompletionWindow!;
+            suggestions=SentenceControl<ListBox>(dialog,"CompletionSuggestions");
+            SentenceControl<Button>(dialog,"CompletionGenerate").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            WaitSentence(()=>suggestions.Items.Count==3 && SentenceControl<Button>(dialog,"CompletionInsert").IsEnabled,
+                "The ready mode-change test did not receive selectable candidates.");
+            before=PagedDocumentText();
+            languageSettings.WritingMode=originalMode==WritingMode.Business?WritingMode.Fiction:WritingMode.Business;
+            // No activation or settings event occurs here: Insert must independently
+            // compare its captured generation configuration with the current mode.
+            SentenceControl<Button>(dialog,"CompletionInsert").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            PumpInput();
+            RequireSentence(PagedDocumentText()==before && suggestions.Items.Count==0 &&
+                !SentenceControl<Button>(dialog,"CompletionInsert").IsEnabled,
+                "Insert applied a ready candidate after the writing mode changed without an activation event.");
+            dialog.Close();PumpInput();
+            report.AppendLine("Changing writing mode discarded a pending non-cooperative provider result. Insert independently rejected ready candidates after a direct mode change, without relying on a window-activation or settings event.");
+        }
+        finally
+        {
+            sentenceCompletionWindow?.Close();
+            languageSettings.WritingMode=originalMode;
+        }
     }
 
     static T SentenceControl<T>(Window window,string name) where T:FrameworkElement

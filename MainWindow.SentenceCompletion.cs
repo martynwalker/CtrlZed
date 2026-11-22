@@ -186,13 +186,16 @@ public partial class MainWindow
 
         string ConfigurationSignature()
         {
-            if(SentenceCompletionService.GeneratorOverride!=null)return "Test provider";
+            var languageTag=languageSettings.LanguageTag??"";
+            var customProfile=languageSettings.CustomProfileName??"";
+            var languageConfiguration=$"{(int)languageSettings.WritingMode}|{languageTag.Length}:{languageTag}|{customProfile.Length}:{customProfile}";
+            if(SentenceCompletionService.GeneratorOverride!=null)return "Test provider|"+languageConfiguration;
             try
             {
                 var profile=AiDirectService.GetProfile(provider);
-                return provider+"|"+profile.Model+"|"+profile.HasKey;
+                return provider+"|"+profile.Model+"|"+profile.HasKey+"|"+languageConfiguration;
             }
-            catch{return provider+"|Unavailable";}
+            catch{return provider+"|Unavailable|"+languageConfiguration;}
         }
         var providerConfiguration=ConfigurationSignature();
 
@@ -430,6 +433,10 @@ public partial class MainWindow
             if(closed || busy || !validSuggestions || target==null || string.IsNullOrWhiteSpace(edit.Text))return;
             var unavailable=UnavailableReason();cachedAvailability=unavailable;
             if(unavailable!=null){Invalidate(unavailable);return;}
+            if(ConfigurationSignature()!=providerConfiguration)
+            {
+                Invalidate("The AI or language settings changed. Generate fresh suggestions before inserting.");return;
+            }
             if(!IsSentenceCompletionTargetCurrent(target)){Invalidate("The document changed. Generate fresh suggestions before inserting.");return;}
             var wording=edit.Text;
             try
