@@ -1,0 +1,32 @@
+name: Reproduce page navigation Return regression
+on:
+  push:
+    branches: [ beta462-repro ]
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish baseline with new regression
+        run: dotnet publish CtrlZed.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o artifacts/CtrlZed
+      - name: Reproduce five Returns after page navigation
+        shell: pwsh
+        run: |
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--paged-editing-test" -PassThru
+          if (-not $t.WaitForExit(120000)) {
+            Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
+            throw "Return navigation regression timed out."
+          }
+          $report = Join-Path $env:TEMP "CtrlZed46PagedEditing.txt"
+          if (Test-Path $report) { Get-Content $report }
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "Baseline page navigation Return regression failed with code $($t.ExitCode)"
+          }
