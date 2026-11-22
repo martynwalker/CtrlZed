@@ -301,6 +301,7 @@ public partial class MainWindow
             var initialPages=Beta46DisplayedPageCount;
             var originalText=PagedDocumentText();
             var originalParagraphs=EnumerateDocumentParagraphs().Count();
+            var originalPageBreaks=EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore);
             ClickReturnNavigationThumbnail(2);
             RequirePaged(Editor.CaretPosition.Paragraph!=rows[0],"The Return fixture did not navigate away from its first page.");
 
@@ -326,11 +327,14 @@ public partial class MainWindow
             var preview=CreatePreviewPaginator();preview.ComputePageCount();
             var expectedPages=preview.PageCount;
             var insertedParagraphs=EnumerateDocumentParagraphs().Count()-originalParagraphs;
+            var actualPageBreaks=EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore);
             if(insertedParagraphs!=5)
                 failures.Add($"{name}: five Returns inserted {insertedParagraphs} paragraphs.");
+            if(actualPageBreaks!=originalPageBreaks)
+                failures.Add($"{name}: five ordinary Returns duplicated deliberate page breaks: {originalPageBreaks} before, {actualPageBreaks} after.");
             if(maximumPending>Math.Max(initialPages,expectedPages))
                 failures.Add($"{name}: five Returns temporarily displayed {maximumPending} pages, but the actual document has {expectedPages} (initially {initialPages}).");
-            if(!forcedBreaks && expectedPages!=initialPages)
+            if(expectedPages!=initialPages)
                 failures.Add($"{name}: five short paragraph breaks unexpectedly changed print pages from {initialPages} to {expectedPages} despite spare page space.");
 
             // Let the normal worker publish its current map and thumbnails.
@@ -352,6 +356,8 @@ public partial class MainWindow
             for(var undo=0;undo<10 && PagedDocumentText()!=originalText && Editor.CanUndo;undo++)Editor.Undo();
             if(PagedDocumentText()!=originalText)
                 failures.Add($"{name}: five Returns could not be undone exactly after page navigation.");
+            if(EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)!=originalPageBreaks)
+                failures.Add($"{name}: Undo did not restore the original deliberate page-break count.");
             FreshPagedLayout();
             report.AppendLine($"Return navigation {name}: initial={initialPages}, maximumPending={maximumPending}, finalPrint={expectedPages}, finalDisplayed={settledCount}; five physical Returns and navigation preserved canonical paragraph insertion/Undo.");
         }
