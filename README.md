@@ -6,11 +6,22 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current development baseline is **[Beta 47 (0.47.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.47.0-beta.47)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45017558612) on source commit `71b1649c1ba40cf4830d5028714fb50e4c326a44` before publication and baseline promotion. **User acceptance of Beta 47 is pending.**
+The current development baseline is **[Beta 48 (0.48.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc` before publication and baseline promotion. **User acceptance of Beta 48 is pending.**
 
 **[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) remains the latest user-accepted baseline**, passed by Martyn on 22 November 2026. It builds forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48 work, verification and later ideas.
+
+### Beta 48 — Finish Sentence
+
+- **Review → Finish Sentence…** and the editor right-click menu open a modeless preview. Choose Comedic, Prophetic, Awkward, Sharp, Cynical, Neutral or a named custom inflection, alongside Subtle/Balanced/Bold strength and an optional meaning hint.
+- The current Writing Mode supplies purpose and voice conventions. Three alternatives show their proposed words highlighted within the sentence; edit a completion and explicitly Insert it. A selected short phrase is replaced precisely; an empty selection inserts at the captured caret without overwriting following text.
+- Automatic context supplies nearby prose, selected headings and relevant earlier excerpts. Paragraph, Section and Whole document choices are explicit. Larger contexts are processed completely in ordered chunks and combined into continuity/voice notes, cached temporarily in memory.
+- Requests run only on Generate through the configured direct AI provider, with AI language services explicitly enabled. Closing, changing options, editing the source or changing mode/provider invalidates old results. Insertion preserves destination formatting and is one Undo operation.
+- Custom inflections and last choices are stored in local user settings. Meaning hints and document prose are not persisted in that preferences file; these new preferences are not yet included in portable profile archives.
+- Safe macros use `FINISH_SENTENCE Cynical`; trusted compiled macros use `SentenceCompletionMacro.Show(Editor, "Cynical")`. Both open the preview without generating, inserting or dirtying an unchanged document.
+- The [usage guide](docs/SENTENCE-COMPLETION.md) explains context, custom inflections, AI setup and macros. Windows tests use a deterministic transport for context/schema, real-window asynchronous behaviour, stale guards, formatting, Undo and both editor views; live model quality is a manual acceptance check.
+- The low-priority [Page Editing floating-picture display issue #30](https://github.com/martynwalker/CtrlZed/issues/30) remains deferred as requested.
 
 ### Beta 47 — vector signatures
 
@@ -142,8 +153,9 @@ A release must pass:
 6. `--style45-test`, covering legacy style data, custom style identities and aliases, paragraph controls, shared Return/macro behaviour and native/DOCX persistence
 7. `--plain-text-paste-test`, covering physical Ctrl+V/Ctrl+Shift+V with RTF, CtrlZed/WPF and browser HTML; retained or removed source formatting; selected UTF-8 fragments and inherited styles; paragraphs/soft breaks; Undo/Redo; unchanged clipboard; and empty/image-only/read-only cases
 8. `--paged-editing-test`, covering distinct paper geometry, canonical document/Undo preservation, physical page clicks, cross-page keyboard input and caret visibility, macro insertion, image page offsets and pixel-checked picture/print agreement
-9. `--vector-signature-test`, covering tracing and SVG fidelity, live preview/threshold interaction, atomic Undo/Redo, named-image macros, native/profile/recovery persistence, compatibility fallbacks and vector print sources
-10. packaging and prerelease publication
+9. `--sentence-completion-test`, covering response/context contracts, complete-source summaries, preferences, real asynchronous previews, precise rich insertion/Undo, stale mode/source results and macro preview access with a deterministic provider
+10. `--vector-signature-test`, covering tracing and SVG fidelity, live preview/threshold interaction, atomic Undo/Redo, named-image macros, native/profile/recovery persistence, compatibility fallbacks and vector print sources
+11. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 

@@ -1,14 +1,29 @@
-# CtrlZed — Beta 47 release record and remaining queue
+# CtrlZed — Beta 48 release record and remaining queue
 
 Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 47 (`0.47.0-beta.47`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45017558612) on source commit `71b1649c1ba40cf4830d5028714fb50e4c326a44`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 47 is pending.
+Beta 48 (`0.48.0-beta.48`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 48 is pending.
 
-Beta 46.2 remains the latest accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 47 builds directly from that accepted source.
+Beta 47 was the preceding development release. Its vector creation was reported working, with a separate low-priority Page Editing display report tracked as [issue #30](https://github.com/martynwalker/CtrlZed/issues/30); overall acceptance was not recorded.
+
+Beta 46.2 remains the latest accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Implemented in Beta 48
+
+- [x] Finish Sentence in Review and text context menus, using the current Writing Mode and selected inflection.
+- [x] Six built-ins, custom named inflections, three strength levels and an optional meaning hint.
+- [x] Three sentence previews with highlighted proposed words, editable wording and explicit insertion.
+- [x] Accurate caret insertion or short phrase replacement, retained destination formatting and single-operation Undo.
+- [x] Automatic, Paragraph, Section and Whole document context; complete-source ordered summarisation for larger contexts and bounded memory-only cache.
+- [x] Explicit AI opt-in and configured provider, cancellation and stale-source/mode/provider protection.
+- [x] Safe and compiled macro preview access without automatic generation or document changes; compatibility with older safe-macro starter references.
+- [x] Windows deterministic-provider gates for strict responses, context coverage, preferences, cancellation/cache, real UI, rich range fidelity, both views and macro wrappers.
+
+The [usage guide](SENTENCE-COMPLETION.md) records the supported workflow and limits. Live model quality and real-provider configuration remain manual acceptance checks. Custom inflections/last choices persist locally; portable profile-archive inclusion is later work. The previously reported [Page Editing floating-picture issue #30](https://github.com/martynwalker/CtrlZed/issues/30) is explicitly deferred at low priority.
 
 ## Implemented in Beta 47
 
@@ -94,13 +109,13 @@ On 21 November 2026, Martyn reported that normal Ctrl+V lost formatting when cop
 
 ## Verification and promotion
 
-The release gate includes the Windows build, self-contained publish, launch check, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
+The release gate includes the Windows build, self-contained publish, launch check, deterministic-provider sentence-completion regressions, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Beta 47 user acceptance is pending.
+Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Beta 48 user acceptance is pending.
 
 ## Remaining queue
 
