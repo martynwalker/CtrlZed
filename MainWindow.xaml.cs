@@ -108,6 +108,7 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(ApplicationCommands.Save,new KeyGesture(Key.S,ModifierKeys.Control)));
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
         InitializeRichTextPaste();
+        InstallSentenceCompletion();
         InstallVectorClipboard();
         Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
         Editor.AddHandler(CommandManager.PreviewExecutedEvent,new ExecutedRoutedEventHandler(Editor_FollowingStylePreviewExecuted));
@@ -2432,6 +2433,7 @@ public partial class MainWindow : Window
 
     void AddMacroSubmenu(ContextMenu menu)
     {
+        AddSentenceCompletionContextMenu(menu);
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta!=null && string.IsNullOrWhiteSpace(x.Meta.Path))
@@ -4034,10 +4036,25 @@ INSERT_FIELD date
         {
             if(!compiledMacrosEnabled)
                 throw new InvalidOperationException("Compiled VB/C# macros are disabled. Enable them in Macro Manager first.");
-            await CompiledMacroHost.RunAsync(source,ext,Editor,this);
-            MarkDirty("Compiled macro completed.");
-            UpdateDocumentStats();
-            Editor.Focus();
+            var previewGeneration=sentenceCompletionMacroGeneration;
+            var originalDocument=Editor.Document;
+            var originalPictures=CaptureCompletionMacroPictures();
+            var originalLayout=CaptureCompletionMacroLayout();
+            var textChanged=false;
+            TextChangedEventHandler trackChanges=(_,__)=>textChanged=true;
+            Editor.TextChanged+=trackChanges;
+            try {await CompiledMacroHost.RunAsync(source,ext,Editor,this);}
+            finally {Editor.TextChanged-=trackChanges;}
+            var previewOnly=sentenceCompletionMacroGeneration!=previewGeneration &&
+                !textChanged && ReferenceEquals(Editor.Document,originalDocument) &&
+                CaptureCompletionMacroLayout().Equals(originalLayout) &&
+                CaptureCompletionMacroPictures().SequenceEqual(originalPictures);
+            if(!previewOnly)
+            {
+                MarkDirty("Compiled macro completed.");
+                UpdateDocumentStats();
+            }
+            if(sentenceCompletionMacroGeneration==previewGeneration)Editor.Focus();
             return;
         }
 
@@ -4048,6 +4065,8 @@ INSERT_FIELD date
     {
         var lines=SafeMacroLanguage.WithoutLegacyStarterReference(source).Split('\n');
         var executed=0;
+        var performedCommand=false;
+        var completionPreview=false;
         var variables=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
         string ExpandMacroVariables(string value)
         {
@@ -4066,6 +4085,14 @@ INSERT_FIELD date
             var command=(split<0?line:line[..split]).Trim().ToUpperInvariant();
             var argument=split<0?"":line[(split+1)..];
             argument=ExpandMacroVariables(argument);
+
+            if(command=="FINISH_SENTENCE")
+            {
+                OpenSentenceCompletionFromMacro(argument);
+                completionPreview=true;
+                continue;
+            }
+            performedCommand=true;
 
             switch(command)
             {
@@ -4216,7 +4243,8 @@ INSERT_FIELD date
                     throw new InvalidOperationException($"Unsupported safe macro command: {command}");
             }
         }
-        MarkDirty();UpdateDocumentStats();Editor.Focus();
+        if(performedCommand){MarkDirty();UpdateDocumentStats();}
+        if(!completionPreview)Editor.Focus();
     }
 
     void ShowMacroError(string macroName,string source,Exception ex)

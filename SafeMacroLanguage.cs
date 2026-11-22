@@ -5,8 +5,12 @@ public static class SafeMacroLanguage
     internal static string WithoutLegacyStarterReference(string source)
     {
         var normalised = source.Replace("\r\n", "\n");
-        var legacyReference = "# Supported commands:\n" + Reference.Replace("\r\n", "\n") + "\n";
-        return normalised.Replace(legacyReference, "", System.StringComparison.Ordinal);
+        foreach(var reference in new[]{Reference,LegacyReference47})
+        {
+            var starterReference="# Supported commands:\n"+reference.Replace("\r\n","\n")+"\n";
+            normalised=normalised.Replace(starterReference,"",System.StringComparison.Ordinal);
+        }
+        return normalised;
     }
 
     public const string ExtendedReference =
@@ -26,6 +30,16 @@ INSERT_QR {LINK}
 " + Reference;
 
     public const string Reference =
+@"FINISH_SENTENCE optional-inflection-or-saved-custom-name
+
+FINISH_SENTENCE opens the Finish Sentence preview at the caret or for the selected phrase. It never generates or inserts text automatically. Omit the argument to use the saved preference, or use a built-in inflection (Comedic, Prophetic, Awkward, Sharp, Cynical, Neutral) or a saved custom name. Multiword names may be quoted.
+Example: FINISH_SENTENCE Cynical
+Trusted compiled macros can call SentenceCompletionMacro.Show(Editor, ""Cynical"").
+
+" + LegacyReference47;
+
+    // Preserve exact stripping of starter help embedded by older releases.
+    const string LegacyReference47 =
 @"INSERT_TEXT text
 INSERT_FIELD name
 NEW_PARAGRAPH

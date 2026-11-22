@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451, beta46, beta461, beta462, beta47 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451, beta46, beta461, beta462, beta47, beta48 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -97,6 +97,21 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             throw "Custom styles and paragraph persistence failed with code $($t.ExitCode)"
           }
+      - name: Sentence completion context and editing regression
+        shell: pwsh
+        run: |
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--sentence-completion-test" -PassThru
+          if (-not $t.WaitForExit(150000)) {
+            Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
+            throw "Sentence completion regression timed out."
+          }
+          $report = Join-Path $env:TEMP "CtrlZed48SentenceCompletion.txt"
+          if (Test-Path $report) { Get-Content $report }
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "Sentence completion regression failed with code $($t.ExitCode)"
+          }
       - name: Vector signature tracing and persistence
         shell: pwsh
         run: |
@@ -131,7 +146,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          foreach ($name in @("CtrlZed46Layout.png", "CtrlZed46Page2.png", "CtrlZed47SignaturePreview.png")) {
+          foreach ($name in @("CtrlZed46Layout.png", "CtrlZed46Page2.png", "CtrlZed47SignaturePreview.png", "CtrlZed48SentenceCompletion.png")) {
             $path = Join-Path $env:TEMP $name
             if (Test-Path $path) {
               $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
@@ -192,5 +207,5 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 47 adds SVG signatures and PNG/JPEG signature tracing, with original/result previews, ink controls and SVG export. Existing named-image macros remain compatible at 40 mm. Native CZD documents, recovery and portable profiles retain vector masters; editing and printing use vector drawings, while clipboard, RTF and current DOCX interchange retain readable bitmap fallbacks. Windows gates cover tracing, SVG fidelity, profile/native persistence, macros, printing, preview interaction, Undo/Redo and all accepted editing/scrolling/clipboard regressions."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 48 adds Finish Sentence under Review and right-click: stylistic inflections, strength, meaning hints and paragraph/section/document context, with three editable suggestions and explicit insertion. Custom inflections and last choices are saved; safe and compiled macros can open the same preview. Direct AI uses your configured provider and requires AI language services enabled. Windows regressions use a deterministic provider to check asynchronous previews, stale results, context, precise formatting-preserving insertion and Undo alongside existing document, menu, clipboard, vector and page checks. Live model quality remains a manual acceptance check. The low-priority Page Editing floating-picture display issue #30 remains deferred."
 
