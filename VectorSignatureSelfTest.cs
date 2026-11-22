@@ -249,12 +249,12 @@ public partial class MainWindow
             RequireVector(Editor.CanUndo,$"Inserting a {mode} vector signature did not create an Undo operation: "+SignatureUndoState());
             Editor.Undo();
             var canRedoBeforePump=Editor.CanRedo;
-            PumpInput();
+            PumpInput();PumpInput();
             RequireVector(!EnumerateImageContainers(Editor.Document).Any(),
                 $"One Undo did not remove the inserted {mode} vector signature: "+SignatureUndoState());
             RequireVector(Editor.CanRedo,
                 $"Undo lost the {mode} vector insertion's Redo operation (before dispatcher={canRedoBeforePump}): "+SignatureUndoState());
-            Editor.Redo();PumpInput();
+            Editor.Redo();PumpInput();PumpInput();
             var redoneImages=EnumerateImageContainers(Editor.Document).ToList();
             RequireVector(redoneImages.Count==1,$"One Redo did not restore the {mode} vector signature: "+SignatureUndoState());
             FreshPagedLayout();
@@ -279,7 +279,9 @@ public partial class MainWindow
         RequireVector(images.Count==4 && ReferenceEquals(document,Editor.Document),"Profile macros replaced the canonical document or missed an image.");
         var expectedWidth=40*96/25.4;
         foreach(var image in images.Take(3))
-            RequireVector(image.Source is BitmapSource && VectorImageSupport.TryGetSvg(image,out _) &&
+            RequireVector(image.Source is DrawingImage {IsFrozen:true} &&
+                VectorImageSupport.GetBitmapSource(image) is BitmapSource {IsFrozen:true} &&
+                VectorImageSupport.TryGetSvg(image,out _) &&
                 VectorImageSupport.GetDisplaySource(image) is DrawingImage && Math.Abs(image.Width-expectedWidth)<0.01 &&
                 Math.Abs(image.Width/image.Height-4)<0.001,
                 "A 40 mm vector macro lost its master, fallback or aspect ratio.");
@@ -309,12 +311,17 @@ public partial class MainWindow
         RequireVector(!ProfileImageStore.Contains(svgName),"The self-contained native fixture still has its original profile asset.");
         CzdPackage package;
         using(var input=File.OpenRead(path))package=ReadCzdArchive(input);
+        var archivedImages=EnumerateImageContainers(package.Document).Select(item=>item.Image).ToList();
+        RequireVector(archivedImages.Count==4 && archivedImages.All(image=>image.Source is BitmapSource) &&
+            CountSignatureColour((BitmapSource)archivedImages[0].Source,20,44,136)>20,
+            "The native RTF fallback did not retain readable signature pixels independently of SVG metadata.");
         ClearFloatingImagePlacements();Editor.Document=package.Document;
         ApplyRecoveredSettings(package.Settings??throw new InvalidOperationException("Native vector settings were omitted."));
         WirePictureHandlers();RefreshFloatingImagePlacements();FreshPagedLayout();
         images=EnumerateImageContainers(Editor.Document).Select(item=>item.Image).ToList();
         RequireVector(images.Count==4 && images.Take(3).All(image=>VectorImageSupport.TryGetSvg(image,out var svg)&&svg==master) &&
-            images.All(image=>image.Source is BitmapSource),
+            images.Take(3).All(image=>image.Source is DrawingImage && VectorImageSupport.GetBitmapSource(image) is BitmapSource) &&
+            images[3].Source is BitmapSource,
             "The native file depended on a profile asset or lost its compatibility bitmap/vector masters.");
         RequireVector(CaptureFloatingImagePlacements().Select(item=>(item.Mode,item.Width,item.Height,item.PageOffset))
             .SequenceEqual(placements.Select(item=>(item.Mode,item.Width,item.Height,item.PageOffset))),
@@ -411,6 +418,7 @@ public partial class MainWindow
 
     static (byte B,byte G,byte R,byte A) SignaturePixel(BitmapSource image,int x,int y)
     {
+        if(image.Format!=PixelFormats.Pbgra32)image=new FormatConvertedBitmap(image,PixelFormats.Pbgra32,null,0);
         var bytes=new byte[4];image.CopyPixels(new Int32Rect(x,y,1,1),bytes,4,0);return(bytes[0],bytes[1],bytes[2],bytes[3]);
     }
 
@@ -421,6 +429,7 @@ public partial class MainWindow
 
     static int CountSignaturePixels(BitmapSource image,Func<byte,byte,byte,byte,bool> match)
     {
+        if(image.Format!=PixelFormats.Pbgra32)image=new FormatConvertedBitmap(image,PixelFormats.Pbgra32,null,0);
         var pixels=new byte[image.PixelWidth*image.PixelHeight*4];image.CopyPixels(pixels,image.PixelWidth*4,0);
         var count=0;for(var pixel=0;pixel<pixels.Length;pixel+=4)if(match(pixels[pixel],pixels[pixel+1],pixels[pixel+2],pixels[pixel+3]))count++;
         return count;

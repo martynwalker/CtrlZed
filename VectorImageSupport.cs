@@ -4,8 +4,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Controls;
+using System.Windows.Automation;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace CtrlZed;
 
@@ -31,7 +33,18 @@ public static class VectorImageSupport
 
     public static void SetAsset(Image image,SignatureAsset asset)
     {
-        image.Source=asset.Vector!=null?VectorBitmapCache.GetBitmap(asset):asset.Bitmap;
+        // Built-in drawing objects survive WPF's restrictive Undo reader.
+        // URI-backed in-memory pictures are rejected by that reader.
+        if(asset.Vector!=null && !string.IsNullOrEmpty(asset.Svg))
+        {
+            var drawing=asset.Vector.CloneCurrentValue();
+            // A built-in attached string survives restrictive XAML cloning
+            // and proves that this source still belongs to the SVG marker.
+            AutomationProperties.SetHelpText(drawing,Key(asset.Svg));
+            drawing.Freeze();
+            image.Source=drawing;
+        }
+        else image.Source=asset.Bitmap;
         Attach(image,asset);
     }
 
@@ -62,8 +75,8 @@ public static class VectorImageSupport
         try
         {
             var marker=JsonSerializer.Deserialize<Marker>(tag[MarkerPrefix.Length..]);
-            if(marker!=null && !string.IsNullOrEmpty(marker.Svg) &&
-               VectorBitmapCache.IsBitmapForSvg(image.Source,marker.Svg))
+            if(marker!=null && !string.IsNullOrEmpty(marker.Svg) && image.Source is DrawingImage drawing &&
+               AutomationProperties.GetHelpText(drawing)==Key(marker.Svg))
             {
                 var key=Key(marker.Svg);
                 if(!Assets.TryGetValue(key,out var weak) || !weak.TryGetTarget(out var asset))
@@ -106,6 +119,39 @@ public static class VectorImageSupport
     public static ImageSource? GetDisplaySource(Image image)
         =>Find(image)?.Asset.Vector??image.Source;
 
+    public static BitmapSource? GetBitmapSource(Image image)
+        =>Find(image)?.Asset.Bitmap??image.Source as BitmapSource;
+
+    // RTF's automatic DrawingImage conversion renders the live visual, which
+    // can be collapsed for a floating picture. Supply its prepared bitmap
+    // directly, then restore the live vector without changing document text
+    // or the native Undo stack. No decoded image needs a file or package URI.
+    public static void WithBitmapFallback(FlowDocument document,Action write)
+    {
+        var replaced=new List<(Image Image,ImageSource? Source,Master Master)>();
+        try
+        {
+            foreach(var item in MainWindow.EnumerateImageContainers(document))
+            {
+                if(Find(item.Image) is not { } master)continue;
+                replaced.Add((item.Image,item.Image.Source,master));
+                item.Image.Source=master.Asset.Bitmap;
+                Masters.Remove(item.Image);
+                Masters.Add(item.Image,master with{Fallback=item.Image.Source});
+            }
+            write();
+        }
+        finally
+        {
+            foreach(var item in replaced)
+            {
+                item.Image.Source=item.Source;
+                Masters.Remove(item.Image);
+                Masters.Add(item.Image,item.Master);
+            }
+        }
+    }
+
     public static double? GetAspectRatio(Image image)
         =>Find(image) is { } master?master.Asset.Width/master.Asset.Height:null;
 
@@ -142,7 +188,7 @@ public static class VectorImageSupport
         for(var index=0;index<Math.Min(originals.Length,copies.Length);index++)
         {
             if(Find(originals[index]) is not { } master)continue;
-            if(forPrint)copies[index].Source=master.Asset.Vector;
+            copies[index].Source=forPrint?master.Asset.Vector:master.Asset.Bitmap;
             Attach(copies[index],master.Asset,master.Placement);
         }
     }

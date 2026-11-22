@@ -896,7 +896,7 @@ public static class DocxInterop
             else if(inline is Span span)AppendInlines(main,target,span.Inlines,ref imageId);
             else if(inline is InlineUIContainer container &&
                     container.Child is Image image &&
-                    image.Source is BitmapSource bitmap)
+                    VectorImageSupport.GetBitmapSource(image) is BitmapSource bitmap)
                 target.Append(ToWordImageRun(main,bitmap,image,ref imageId));
         }
     }

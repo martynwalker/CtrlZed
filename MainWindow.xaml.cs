@@ -807,7 +807,8 @@ public partial class MainWindow : Window
         SetCommentsVisibility(Visibility.Collapsed);
         try
         {
-            new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(stream,DataFormats.Rtf);
+            VectorImageSupport.WithBitmapFallback(Editor.Document,()=>
+                new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(stream,DataFormats.Rtf));
         }
         finally
         {
@@ -1171,7 +1172,8 @@ public partial class MainWindow : Window
     byte[] SnapshotEditorRtf()
     {
         using var stream=new MemoryStream();
-        new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(stream,DataFormats.Rtf);
+        VectorImageSupport.WithBitmapFallback(Editor.Document,()=>
+            new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(stream,DataFormats.Rtf));
         return stream.ToArray();
     }
 

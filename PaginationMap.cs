@@ -332,8 +332,9 @@ public partial class MainWindow
         {
             layout=PaginationLayoutSnapshot.Capture(document);
             using var stream=new MemoryStream();
-            new TextRange(document.ContentStart,document.ContentEnd)
-                .Save(stream,DataFormats.Rtf);
+            VectorImageSupport.WithBitmapFallback(document,()=>
+                new TextRange(document.ContentStart,document.ContentEnd)
+                    .Save(stream,DataFormats.Rtf));
             rtf=stream.ToArray();
         }
         catch(Exception ex)
