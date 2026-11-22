@@ -421,7 +421,7 @@ public partial class MainWindow
             var svg=VectorImageSupport.TryGetSvg(original,out var master)?master:null;
             var start=Editor.Document.ContentStart;
             var sequenceBefore=VectorClipboardSequenceNumber();
-            report.AppendLine($"Clipboard {copyCase}: before Copy images={EnumerateImageContainers(Editor.Document).Count()}, selection={start.GetOffsetToPosition(Editor.Selection.Start)}..{start.GetOffsetToPosition(Editor.Selection.End)}, containsVector={SelectionContainsVectorImage()}, canCopy={ApplicationCommands.Copy.CanExecute(null,Editor)}, source={original.Source?.GetType().Name}, visibility={original.Visibility}.");
+            report.AppendLine($"Clipboard {copyCase}: before Copy images={EnumerateImageContainers(Editor.Document).Count()}, selection={start.GetOffsetToPosition(Editor.Selection.Start)}..{start.GetOffsetToPosition(Editor.Selection.End)}, containsVector={SelectedVectorImages().Count>0}, canCopy={ApplicationCommands.Copy.CanExecute(null,Editor)}, source={original.Source?.GetType().Name}, visibility={original.Visibility}.");
             foreach(var item in EnumerateImageContainers(Editor.Document))
                 report.AppendLine($"Clipboard container: element={start.GetOffsetToPosition(item.Container.ElementStart)}..{start.GetOffsetToPosition(item.Container.ElementEnd)}, content={start.GetOffsetToPosition(item.Container.ContentStart)}..{start.GetOffsetToPosition(item.Container.ContentEnd)}.");
             ApplicationCommands.Copy.Execute(null,Editor);PumpInput();PumpInput();
