@@ -4,11 +4,11 @@ Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 48 (`0.48.0-beta.48`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 48 is pending.
+Beta 48 (`0.48.0-beta.48`) is the current accepted baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc`. The release ZIP comes from that source; baseline promotion adds release documentation. Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.
 
 Beta 47 was the preceding development release. Its vector creation was reported working, with a separate low-priority Page Editing display report tracked as [issue #30](https://github.com/martynwalker/CtrlZed/issues/30); overall acceptance was not recorded.
 
-Beta 46.2 remains the latest accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
+Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
@@ -23,7 +23,7 @@ Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirme
 - [x] Safe and compiled macro preview access without automatic generation or document changes; compatibility with older safe-macro starter references.
 - [x] Windows deterministic-provider gates for strict responses, context coverage, preferences, cancellation/cache, real UI, rich range fidelity, both views and macro wrappers.
 
-The [usage guide](SENTENCE-COMPLETION.md) records the supported workflow and limits. Live model quality and real-provider configuration remain manual acceptance checks. Custom inflections/last choices persist locally; portable profile-archive inclusion is later work. The previously reported [Page Editing floating-picture issue #30](https://github.com/martynwalker/CtrlZed/issues/30) is explicitly deferred at low priority.
+The [usage guide](SENTENCE-COMPLETION.md) records the supported workflow and limits. Live model quality and real-provider configuration are assessed manually; the automated release gate uses a deterministic provider. Custom inflections/last choices persist locally; portable profile-archive inclusion is later work. The previously reported [Page Editing floating-picture issue #30](https://github.com/martynwalker/CtrlZed/issues/30) is explicitly deferred at low priority.
 
 ## Implemented in Beta 47
 
@@ -115,7 +115,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Beta 48 user acceptance is pending.
+Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
 
 ## Remaining queue
 

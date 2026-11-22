@@ -6,9 +6,9 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current development baseline is **[Beta 48 (0.48.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc` before publication and baseline promotion. **User acceptance of Beta 48 is pending.**
+The current accepted baseline is **[Beta 48 (0.48.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc` before publication and baseline promotion. **Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.**
 
-**[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) remains the latest user-accepted baseline**, passed by Martyn on 22 November 2026. It builds forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
+**[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) was the previous user-accepted baseline**, passed by Martyn on 22 November 2026. It built forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48 work, verification and later ideas.
 
