@@ -237,8 +237,6 @@ public partial class MainWindow
             "A rejected SVG replaced a stored raster image.");
         RequireVector(ProfileImageStore.ReadBytes(pngName).SequenceEqual(png),"Failed import damaged the existing profile image.");
 
-        VerifyVectorClipboard(svgName,pngName,report);
-
         ClearFloatingImagePlacements();
         pageWidth=794;pageHeight=1123;pageMargins=new Thickness(72);zoomPercent=100;ApplyZoom();
         Editor.Document=new FlowDocument(new Paragraph(new Run("Vector signatures ")));
@@ -391,6 +389,7 @@ public partial class MainWindow
             EnumerateImageContainers(CloneDocument(forPrint:true)).Single().Image.Source is BitmapSource,
             "An older bitmap-only document requires vector metadata or acquired an unrelated master.");
         report.AppendLine("Recovery preserved SVG masters; portable profile import retained exact source bytes; older bitmap-only document settings remained compatible.");
+        VerifyVectorClipboard(svgName,pngName,report);
     }
 
     void VerifyVectorClipboard(string svgName,string pngName,StringBuilder report)
@@ -420,7 +419,14 @@ public partial class MainWindow
             var visibility=original.Visibility;
             var document=Editor.Document;
             var svg=VectorImageSupport.TryGetSvg(original,out var master)?master:null;
+            var start=Editor.Document.ContentStart;
+            var sequenceBefore=VectorClipboardSequenceNumber();
+            report.AppendLine($"Clipboard {copyCase}: before Copy images={EnumerateImageContainers(Editor.Document).Count()}, selection={start.GetOffsetToPosition(Editor.Selection.Start)}..{start.GetOffsetToPosition(Editor.Selection.End)}, containsVector={SelectionContainsVectorImage()}, canCopy={ApplicationCommands.Copy.CanExecute(null,Editor)}, source={original.Source?.GetType().Name}, visibility={original.Visibility}.");
+            foreach(var item in EnumerateImageContainers(Editor.Document))
+                report.AppendLine($"Clipboard container: element={start.GetOffsetToPosition(item.Container.ElementStart)}..{start.GetOffsetToPosition(item.Container.ElementEnd)}, content={start.GetOffsetToPosition(item.Container.ContentStart)}..{start.GetOffsetToPosition(item.Container.ContentEnd)}.");
             ApplicationCommands.Copy.Execute(null,Editor);PumpInput();PumpInput();
+            var sequenceAfter=VectorClipboardSequenceNumber();
+            report.AppendLine($"Clipboard {copyCase}: after Copy sequence={sequenceBefore}..{sequenceAfter}, status=[{Status.Text}], formats=[{string.Join(',',Clipboard.GetDataObject()?.GetFormats(false)??Array.Empty<string>())}].");
             RequireVector(ReferenceEquals(document,Editor.Document) && ReferenceEquals(original.Source,source) && original.Visibility==visibility &&
                 (!vector || original.Source is DrawingImage && VectorImageSupport.TryGetSvg(original,out var copiedMaster) && copiedMaster==svg),
                 "Copy changed the live signature source or its SVG master.");
@@ -433,8 +439,24 @@ public partial class MainWindow
                 _=>throw new InvalidOperationException("Copy did not advertise a readable RTF image fallback.")
             };
             var fragment=new FlowDocument();
+            var rtfText=Encoding.UTF8.GetString(rtf);
+            var rtfPrefix=sequenceBefore!=sequenceAfter?rtfText[..Math.Min(1200,rtfText.Length)]:"(clipboard unchanged; content not logged)";
+            report.AppendLine($"Clipboard {copyCase}: RTF bytes={rtf.Length}, pict={rtfText.Contains("\\pict",StringComparison.Ordinal)}, prefix=[{rtfPrefix}].");
             using(var input=new MemoryStream(rtf,false))new TextRange(fragment.ContentStart,fragment.ContentEnd).Load(input,DataFormats.Rtf);
-            var fallback=EnumerateImageContainers(fragment).Single().Image.Source as BitmapSource;
+            var fallbackImages=EnumerateImageContainers(fragment).ToList();
+            if(fallbackImages.Count!=1 && sequenceBefore!=sequenceAfter)
+            {
+                try
+                {
+                    var xaml=System.Windows.Markup.XamlWriter.Save(fragment);
+                    report.AppendLine($"Clipboard {copyCase}: fallback XAML=[{xaml[..Math.Min(1500,xaml.Length)]}].");
+                }
+                catch(Exception error){report.AppendLine("Clipboard fallback XAML unavailable: "+error.Message);}
+            }
+            var fallbackText=sequenceBefore!=sequenceAfter?new TextRange(fragment.ContentStart,fragment.ContentEnd).Text:"(clipboard unchanged)";
+            RequireVector(fallbackImages.Count==1,
+                $"Clipboard {copyCase}: copied RTF produced {fallbackImages.Count} images; bytes={rtf.Length}; pict={rtfText.Contains("\\pict",StringComparison.Ordinal)}; text=[{fallbackText}].");
+            var fallback=fallbackImages[0].Image.Source as BitmapSource;
             RequireVector(fallback!=null && CountSignatureInk(fallback)>20 &&
                 (vector?CountSignatureColour(fallback,20,44,136)>20:CountSignatureColour(fallback,0,0,0)>20),
                 "Copied RTF lost the signature's visible bitmap fallback.");
