@@ -184,7 +184,11 @@ public partial class MainWindow
             }
             if(!beta46PaginationPending)
                 PageGuides.CachedPageStartsY=starts.ToArray();
-            PagedEditor.SetPageStarts(starts);
+            // Cached automatic starts follow their old text when Return is
+            // inserted at a page boundary. While the map is pending, only
+            // actual page-break paragraphs should force a new sheet; the host
+            // repacks ordinary text instead of keeping a short stale page.
+            PagedEditor.SetPageStarts(starts,GetManualBreakPositions());
             PagedEditor.IsPaginationPending=beta46PaginationPending;
             if(PagedEditor.IsPaged)
             {

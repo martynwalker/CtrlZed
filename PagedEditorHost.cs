@@ -55,6 +55,7 @@ public sealed class PagedEditorHost : Panel
     readonly ProjectionLayer projectedText;
     readonly ProjectionLayer frontPictures;
     readonly List<double> starts=new(){0};
+    readonly List<double> forcedStarts=new();
     readonly List<double> effectiveStarts=new(){0};
     readonly Dictionary<int,VisualBrush> brushes=new();
     readonly Dictionary<double,double> measuredLineSplits=new();
@@ -145,14 +146,17 @@ public sealed class PagedEditorHost : Panel
     double BodyHeight=>Math.Max(80,HeightOfPaper-Margins.Top-Margins.Bottom);
     double NativeHeight=>Math.Max(0,viewport.NativeSize.Height);
 
-    public void SetPageStarts(IReadOnlyList<double> sourceStarts)
+    public void SetPageStarts(IReadOnlyList<double> sourceStarts,IReadOnlyList<double>? forcedSourceStarts=null)
     {
         var next=sourceStarts.Where(y=>double.IsFinite(y)&&y>=0).OrderBy(y=>y)
             .DistinctBy(y=>Math.Round(y,2)).ToList();
         if(next.Count==0 || next[0]>0.01)next.Insert(0,0);
         else next[0]=0;
-        if(Same(starts,next))return;
+        var forced=(forcedSourceStarts??Array.Empty<double>()).Where(y=>double.IsFinite(y)&&y>0.1)
+            .OrderBy(y=>y).DistinctBy(y=>Math.Round(y,2)).ToList();
+        if(Same(starts,next) && Same(forcedStarts,forced))return;
         starts.Clear();starts.AddRange(next);
+        forcedStarts.Clear();forcedStarts.AddRange(forced);
         measuredLineSplits.Clear();
         RebuildEffectiveStarts(true);
         QueueCaretRefresh();
@@ -168,7 +172,14 @@ public sealed class PagedEditorHost : Panel
         try
         {
             var next=new List<double>{0};
-            var supplied=starts.Where(y=>y>0.1 && (NativeHeight<1 || y<NativeHeight)).ToArray();
+            // Cached automatic page starts are positions in the text, not
+            // permanent breaks. Inserting Return at one moves that position
+            // with the original text. Splitting before it and also retaining
+            // the moved start would create a mostly empty extra paper sheet.
+            // Until print pagination catches up, refill the source using only
+            // actual page-break paragraphs as compulsory boundaries.
+            var boundaries=IsPaged && IsPaginationPending?forcedStarts:starts;
+            var supplied=boundaries.Where(y=>y>0.1 && (NativeHeight<1 || y<NativeHeight)).ToArray();
             foreach(var end in supplied.Append(NativeHeight))
             {
                 if(IsPaged && IsPaginationPending)

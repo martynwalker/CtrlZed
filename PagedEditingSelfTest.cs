@@ -247,6 +247,134 @@ public partial class MainWindow
         RequirePaged(PagedDocumentFingerprint()==beforeZoom,"Zoom changed the document or picture model.");
         VerifyPagedGeometry("zoomed paper");
         report.AppendLine("Paper size, margins and zoom preserved print-page agreement and document content.");
+
+        VerifyReturnAfterThumbnailNavigation(report);
+    }
+
+    void VerifyReturnAfterThumbnailNavigation(StringBuilder report)
+    {
+        var pictureSource=floatingImagePlacements.FirstOrDefault()?.RuntimeImage?.Source;
+        var failures=new List<string>();
+        foreach(var forcedBreaks in new[]{false,true})
+        {
+            var name=forcedBreaks?"explicit page breaks":"automatic page boundaries";
+            ClearFloatingImagePlacements();
+            NavigationPane.Visibility=Visibility.Visible;
+            NavigationTabs.SelectedItem=NavigationPagesTab;
+            pageWidth=794;pageHeight=1123;pageMargins=new Thickness(72);
+            zoomPercent=100;ApplyZoom();
+            var document=new FlowDocument();
+            var rowCount=forcedBreaks?75:120;
+            var rows=new List<Paragraph>();
+            for(var index=0;index<rowCount;index++)
+            {
+                var row=new Paragraph(new Run($"Return navigation row {index:D3}"))
+                {
+                    FontFamily=new FontFamily("Calibri"),FontSize=16,
+                    Margin=new Thickness(0),LineHeight=20,
+                    LineStackingStrategy=LineStackingStrategy.BlockLineHeight,
+                    KeepTogether=false,KeepWithNext=false,
+                    BreakPageBefore=forcedBreaks && index is 25 or 50,
+                    Tag=ParagraphStyleTagPrefix+"Normal"
+                };
+                document.Blocks.Add(row);rows.Add(row);
+            }
+            Image? picture=null;
+            if(pictureSource!=null)
+            {
+                picture=new Image{Source=pictureSource,Width=32,Height=48};
+                rows[forcedBreaks?35:70].Inlines.Add(new InlineUIContainer(picture));
+            }
+            Editor.Document=document;ApplyPage();
+            Editor.CaretPosition=rows[0].ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+            Editor.Focus();FreshPagedLayout();
+            if(picture!=null)
+            {
+                SetPicturePlacement(picture,PicturePlacementMode.InFrontOfText);
+                var placement=floatingImagePlacements.Single();
+                placement.OffsetX=260;placement.OffsetY=8;
+                RefreshFloatingImagePlacements();FreshPagedLayout();
+            }
+            UpdatePageNavigationDemand();
+            WaitForPagedCondition(()=>Beta46PaginationReady && PageNavigationList.Items.Count==Beta46DisplayedPageCount &&
+                PageNavigationList.Items.Count>=3,"The Return/navigation fixture did not produce current page thumbnails.");
+            var initialPages=Beta46DisplayedPageCount;
+            var originalText=PagedDocumentText();
+            var originalParagraphs=EnumerateDocumentParagraphs().Count();
+            ClickReturnNavigationThumbnail(2);
+            RequirePaged(Editor.CaretPosition.Paragraph!=rows[0],"The Return fixture did not navigate away from its first page.");
+
+            // Keep the normal idle worker from replacing the old map while
+            // physical Return input exercises its live provisional geometry.
+            // Geometry/caret dispatcher work continues normally on every key.
+            TextChangedEventHandler holdIdlePagination=(_,__)=>beta35PaginationTimer?.Stop();
+            Editor.TextChanged+=holdIdlePagination;
+            var maximumPending=Beta46DisplayedPageCount;
+            try
+            {
+                for(var count=1;count<=5;count++)
+                {
+                    SendKeys(new[]{KeyInput(0x0D),KeyInput(0x0D,true)});
+                    Editor.UpdateLayout();PagedEditor.UpdateLayout();PumpInput();
+                    maximumPending=Math.Max(maximumPending,Beta46DisplayedPageCount);
+                    var caret=Editor.CaretPosition.GetCharacterRect(LogicalDirection.Forward);
+                    var source=caret.IsEmpty?new Point(double.NaN,double.NaN):Editor.TranslatePoint(caret.TopLeft,EditorSurfaceGrid);
+                    report.AppendLine($"Return navigation {name}, key {count}: displayed={Beta46DisplayedPageCount}, thumbnails={PageNavigationList.Items.Count}, map={beta35PaginationMap?.PageCount}, pending={beta46PaginationPending}, sourceHeight={EditorSurfaceGrid.ActualHeight:0.##}/{EditorSurfaceGrid.DesiredSize.Height:0.##}, editorOffset={Editor.VerticalOffset:0.##}, caretY={caret.Top:0.##}, sourceY={source.Y:0.##}, starts=[{string.Join(',',PagedEditor.SourcePageStarts.Select(value=>value.ToString("0.##",System.Globalization.CultureInfo.InvariantCulture)))}], breakParagraphs={EnumerateDocumentParagraphs().Count(row=>row.BreakPageBefore)}.");
+                }
+            }
+            finally {Editor.TextChanged-=holdIdlePagination;}
+            var preview=CreatePreviewPaginator();preview.ComputePageCount();
+            var expectedPages=preview.PageCount;
+            var insertedParagraphs=EnumerateDocumentParagraphs().Count()-originalParagraphs;
+            if(insertedParagraphs!=5)
+                failures.Add($"{name}: five Returns inserted {insertedParagraphs} paragraphs.");
+            if(maximumPending>Math.Max(initialPages,expectedPages))
+                failures.Add($"{name}: five Returns temporarily displayed {maximumPending} pages, but the actual document has {expectedPages} (initially {initialPages}).");
+            if(!forcedBreaks && expectedPages!=initialPages)
+                failures.Add($"{name}: five short paragraph breaks unexpectedly changed print pages from {initialPages} to {expectedPages} despite spare page space.");
+
+            // Let the normal worker publish its current map and thumbnails.
+            ScheduleBeta35PaginationMap(100);
+            WaitForPagedCondition(()=>Beta46PaginationReady && PageNavigationList.Items.Count==expectedPages,
+                $"Return navigation {name}: the page view and thumbnails did not settle together.");
+            if(Beta46DisplayedPageCount!=expectedPages)
+                failures.Add($"{name}: settled editing/print counts disagree: {Beta46DisplayedPageCount}/{expectedPages}.");
+            var settledCount=Beta46DisplayedPageCount;
+            var settledExtent=PagedEditor.ActualHeight;
+            var textAfterReturns=PagedDocumentText();
+            ClickReturnNavigationThumbnail(1);
+            ClickReturnNavigationThumbnail(Math.Min(2,expectedPages));
+            PumpInput();
+            if(Beta46DisplayedPageCount!=settledCount || Math.Abs(PagedEditor.ActualHeight-settledExtent)>1 ||
+                PagedDocumentText()!=textAfterReturns)
+                failures.Add($"{name}: navigating again changed the page extent or source after Return.");
+
+            for(var undo=0;undo<10 && PagedDocumentText()!=originalText && Editor.CanUndo;undo++)Editor.Undo();
+            if(PagedDocumentText()!=originalText)
+                failures.Add($"{name}: five Returns could not be undone exactly after page navigation.");
+            FreshPagedLayout();
+            report.AppendLine($"Return navigation {name}: initial={initialPages}, maximumPending={maximumPending}, finalPrint={expectedPages}, finalDisplayed={settledCount}; five physical Returns and navigation preserved canonical paragraph insertion/Undo.");
+        }
+        NavigationPane.Visibility=Visibility.Collapsed;
+        UpdatePageNavigationDemand();
+        RequirePaged(failures.Count==0,string.Join(Environment.NewLine,failures));
+        report.AppendLine("Five physical Returns after thumbnail navigation produced no phantom pages; live, settled, thumbnail and print counts remained consistent, and Undo restored the original text.");
+    }
+
+    void ClickReturnNavigationThumbnail(int pageNumber)
+    {
+        var page=PageNavigationList.Items.Cast<NavigationPage>().Single(item=>item.Number==pageNumber);
+        PageNavigationList.ScrollIntoView(page);UpdateLayout();PumpInput();
+        var container=PageNavigationList.ItemContainerGenerator.ContainerFromItem(page) as ListBoxItem
+            ??throw new InvalidOperationException("The Return fixture page thumbnail has no item container.");
+        var point=container.PointToScreen(new Point(container.ActualWidth/2,Math.Min(50,container.ActualHeight/2)));
+        SetPagedCursor((int)Math.Round(point.X),(int)Math.Round(point.Y));
+        SendKeys(new[]
+        {
+            new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput{Flags=2}}},
+            new NativeInput{Type=0,Data=new InputUnion{Mouse=new MouseInput{Flags=4}}}
+        });
+        PumpInput();
     }
 
     void VerifyPagedBrowsingAndNavigation(Image floatingImage,StringBuilder report)
