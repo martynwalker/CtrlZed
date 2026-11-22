@@ -6,11 +6,19 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current development baseline is **[Beta 46.1 (0.46.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.1-beta.46.1)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45006493620) on source commit `00d1f5411cb4c2092a2a519e5e42cc88b0574a15` before publication and baseline promotion. **User acceptance of Beta 46.1 is pending.** Beta 46's page scrolling/navigation defects were reported by Martyn on 22 November 2026 and corrected in this patch.
+The current development baseline is **[Beta 46.2 (0.46.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650` before publication and baseline promotion. **User acceptance of Beta 46.2 is pending.** Martyn reported remaining Return/navigation defects in Beta 46.1 on 22 November 2026.
 
 The latest user-accepted release is **[Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2 work, verification and later ideas.
+
+### Beta 46.2 — Return after page navigation
+
+- Temporary pagination now reflows automatic page boundaries rather than retaining moved cached boundaries as extra sheets after Return.
+- Return at the start of a paragraph with a direct/manual page break retains one leading boundary instead of copying it into blank pages. Named styles with an intentional page-break-before rule retain that rule.
+- A [Windows reproduction on Beta 46.1](https://github.com/martynwalker/CtrlZed/actions/runs/45008775733) confirmed an extra temporary page for natural boundaries and five additional real pages from copied manual breaks.
+- DOCX pictures decode completely from detached, seekable data before the archive stream closes. This corrects the background inflater/disposal race captured during the Windows release checks; imported-image readiness and pixels are verified after archive closure. [Six repeated document checks](https://github.com/martynwalker/CtrlZed/actions/runs/45010079180) passed without the race.
+- Windows regressions physically select a page thumbnail, press Return five times, compare pending/settled/thumbnail/print page counts, re-navigate and Undo. WPF paragraph commands, safe macros and intentional style-owned breaks are also checked.
 
 ### Beta 46.1 — scrolling and page thumbnails
 

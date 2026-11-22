@@ -1,12 +1,23 @@
-# CtrlZed — Beta 46.1 release record and remaining queue
+# CtrlZed — Beta 46.2 release record and remaining queue
 
 Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 46.1 (`0.46.1-beta.46.1`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45006493620) on source commit `00d1f5411cb4c2092a2a519e5e42cc88b0574a15`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 46.1 is pending. Beta 46 was not accepted after Martyn reported scrolling and page-thumbnail defects on 22 November 2026.
+Beta 46.2 (`0.46.2-beta.46.2`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 46.2 is pending. Beta 46.1 improved scrolling but was not accepted after Martyn reported remaining Return/navigation defects on 22 November 2026.
 
 Beta 45.1 (`0.45.1-beta.45.1`) remains the latest user-accepted release, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source.
+
+## Corrected in Beta 46.2
+
+A [baseline Windows reproduction](https://github.com/martynwalker/CtrlZed/actions/runs/45008775733) confirmed two causes: old automatic boundary positions became extra provisional sheets after Return, and native paragraph splitting copied direct/manual page breaks into new blank paragraphs.
+
+- [x] Refill provisional pages using current text geometry and actual explicit breaks; keep the settled print map authoritative.
+- [x] Retain one direct/manual boundary when Return inserts a blank line before its paragraph; preserve intentional named-style page-break rules.
+- [x] Physically navigate by thumbnail and press Return five times, checking live/thumbnail/print page counts and stable re-navigation.
+- [x] Check paragraph count, deliberate page-break count and Undo, plus WPF command and safe-macro paragraph insertion.
+- [x] Decode imported DOCX pictures from a detached seekable stream, removing the background image-read/ZIP-disposal race established by a captured crash stack. Check decoded pixels and readiness immediately after import; run the full document suite in six normal processes.
+- [x] Retain the scrolling, picture, style, clipboard, macro and menu-responsiveness release gates.
 
 ## Corrected in Beta 46.1
 
