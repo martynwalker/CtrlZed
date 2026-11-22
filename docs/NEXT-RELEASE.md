@@ -4,9 +4,9 @@ Updated 22 November 2026.
 
 ## Baselines and acceptance
 
-Beta 46.2 (`0.46.2-beta.46.2`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650`. The release ZIP comes from that source; baseline promotion adds release documentation. User acceptance of Beta 46.2 is pending. Beta 46.1 improved scrolling but was not accepted after Martyn reported remaining Return/navigation defects on 22 November 2026.
+Beta 46.2 (`0.46.2-beta.46.2`) is the current development baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650`. The release ZIP comes from that source; baseline promotion adds release documentation. Martyn confirmed Beta 46.2 as a pass on 22 November 2026 after retesting the Return/navigation fix; it is now the accepted baseline. Beta 46.1 improved scrolling but was not accepted after Martyn reported remaining Return/navigation defects on 22 November 2026.
 
-Beta 45.1 (`0.45.1-beta.45.1`) remains the latest user-accepted release, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source.
+Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
 ## Corrected in Beta 46.2
 
@@ -84,9 +84,9 @@ The release gate includes the Windows build, self-contained publish, launch chec
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
-Martyn accepted the release as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
+Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 45.1 user acceptance passed on 21 November 2026; Beta 46 acceptance is pending.
+Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest.
 
 ## Remaining queue
 

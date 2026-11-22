@@ -6,9 +6,9 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current development baseline is **[Beta 46.2 (0.46.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650` before publication and baseline promotion. **User acceptance of Beta 46.2 is pending.** Martyn reported remaining Return/navigation defects in Beta 46.1 on 22 November 2026.
+The current development baseline is **[Beta 46.2 (0.46.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45010019017) on source commit `398a8e6fbba50e4c913ed89e294b887a4218b650` before publication and baseline promotion. **Martyn confirmed Beta 46.2 as a pass on 22 November 2026 after retesting the Return/navigation fix.** Martyn reported remaining Return/navigation defects in Beta 46.1 on 22 November 2026.
 
-The latest user-accepted release is **[Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1)**, confirmed as a pass by Martyn on 21 November 2026. Beta 46 builds forward from that source and retains the existing editing, style, clipboard, macro and document-protection features.
+**Beta 46.2 is the current user-accepted baseline.** It builds forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2 work, verification and later ideas.
 
