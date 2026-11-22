@@ -221,11 +221,16 @@ public partial class MainWindow
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
         var insertion = Editor.CaretPosition.GetInsertionPosition(LogicalDirection.Forward) ?? Editor.Document.ContentEnd;
-        var container = new InlineUIContainer(image, insertion) { BaselineAlignment = BaselineAlignment.Baseline };
-        WirePictureContainer(container, image);
-        var next = container.ElementEnd.GetInsertionPosition(LogicalDirection.Forward);
-        if (next is not null) Editor.CaretPosition = next;
-        if (placement != PicturePlacementMode.Inline) SetPicturePlacement(image, placement);
+        Editor.BeginChange();
+        try
+        {
+            var container = new InlineUIContainer(image, insertion) { BaselineAlignment = BaselineAlignment.Baseline };
+            WirePictureContainer(container, image);
+            var next = container.ElementEnd.GetInsertionPosition(LogicalDirection.Forward);
+            if (next is not null) Editor.CaretPosition = next;
+            if (placement != PicturePlacementMode.Inline) SetPicturePlacement(image, placement);
+        }
+        finally {Editor.EndChange();}
         MarkDirty($"Profile image inserted: {{{imageName}}}.");
         UpdateDocumentStats();
         Editor.Focus();

@@ -150,8 +150,10 @@ public static class SignatureImages
         drawing.Children.Add(new GeometryDrawing(Brushes.Transparent,null,new RectangleGeometry(new Rect(0,0,width,height))));
         drawing.Children.Add(fitted);drawing.Freeze();
         var vector=new DrawingImage(drawing);vector.Freeze();
-        var bitmap=RenderBitmap(vector,width,height);
         var svg=canonical.ToString(SaveOptions.DisableFormatting);
+        if(svg.Length>MaximumSvgCharacters)
+            throw new InvalidDataException("The SVG signature is too complex. Simplify its paths before importing it.");
+        var bitmap=RenderBitmap(vector,width,height);
         return new SignatureAsset(bitmap,vector,svg,width,height);
     }
 

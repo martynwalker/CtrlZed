@@ -93,9 +93,14 @@ public partial class MainWindow
             };
             VectorImageSupport.SetAsset(image,asset);
             var insertion=Editor.CaretPosition.GetInsertionPosition(LogicalDirection.Forward)??Editor.Document.ContentEnd;
-            var container=new InlineUIContainer(image,insertion){BaselineAlignment=BaselineAlignment.Baseline};
-            WirePictureContainer(container,image);
-            Editor.CaretPosition=container.ElementEnd.GetInsertionPosition(LogicalDirection.Forward)??container.ElementEnd;
+            Editor.BeginChange();
+            try
+            {
+                var container=new InlineUIContainer(image,insertion){BaselineAlignment=BaselineAlignment.Baseline};
+                WirePictureContainer(container,image);
+                Editor.CaretPosition=container.ElementEnd.GetInsertionPosition(LogicalDirection.Forward)??container.ElementEnd;
+            }
+            finally {Editor.EndChange();}
             MarkDirty("Signature inserted.");
             UpdateDocumentStats();Editor.Focus();
         }
