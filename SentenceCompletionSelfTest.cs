@@ -241,7 +241,7 @@ public partial class MainWindow
             SentenceCompletionService.GeneratorOverride=(prompt,token)=>
             {
                 token.ThrowIfCancellationRequested();
-                if(IsSummary(prompt) && (!oversizeMerge || prompt.Contains("Final whole-document merge",StringComparison.Ordinal)))
+                if(IsSummary(prompt) && (!oversizeMerge || prompt.Contains("Final merge of the entire supplied wider context.",StringComparison.Ordinal)))
                     return Task.FromResult(JsonSerializer.Serialize(new{summary=new string('s',oversizeMerge?18001:6001)}));
                 return transport(prompt,token);
             };

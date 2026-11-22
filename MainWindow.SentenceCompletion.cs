@@ -225,7 +225,10 @@ public partial class MainWindow
 
         void UpdateInformation()
         {
-            information.Text=$"Uses {provider}. Context: {SentenceCompletionScopeLabelConverter.Label(Scope())}. Text is sent only when you choose Generate. Nothing changes until Insert.";
+            var mode=WritingModeProfiles.Get(languageSettings.WritingMode).DisplayName;
+            information.Text=$"Writing mode: {mode}. Uses {provider}. Context: {SentenceCompletionScopeLabelConverter.Label(Scope())}. Text is sent only when you choose Generate. Nothing changes until Insert."+
+                (Scope() is CompletionContextScope.Section or CompletionContextScope.WholeDocument
+                    ?" Long passages use additional AI requests to prepare continuity and voice notes.":"");
         }
 
         void UpdateTargetPreview()
@@ -320,6 +323,7 @@ public partial class MainWindow
             {
                 target=CaptureSentenceCompletionTarget();UpdateTargetPreview();
                 request=CreateSentenceCompletionRequest(target,Scope(),Inflection()!.Name,Instruction(),Strength(),hint.Text.Trim());
+                information.ToolTip=request.ContextDescription;
             }
             catch(Exception ex) when(ex is InvalidOperationException or ArgumentException)
             {
