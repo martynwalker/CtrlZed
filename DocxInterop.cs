@@ -1172,15 +1172,19 @@ public static class DocxInterop
         if(string.IsNullOrWhiteSpace(relationshipId))return null;
         if(!main.TryGetPartById(relationshipId,out var relatedPart) || relatedPart is not ImagePart part)return null;
 
-        BitmapImage bitmap;
-        using(var stream=part.GetStream())
-        {
-            bitmap=new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption=BitmapCacheOption.OnLoad;
-            bitmap.StreamSource=stream;
-            bitmap.EndInit();
-        }
+        // A compressed package part can expose a non-seekable stream. WPF
+        // downloads those streams asynchronously even with OnLoad, so closing
+        // the package stream after EndInit can race its background inflater.
+        // Give the decoder a complete, seekable copy before it sees the data.
+        using var imageData=new MemoryStream();
+        using(var stream=part.GetStream(FileMode.Open,FileAccess.Read))stream.CopyTo(imageData);
+        imageData.Position=0;
+        var bitmap=new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption=BitmapCacheOption.OnLoad;
+        bitmap.StreamSource=imageData;
+        bitmap.EndInit();
+        bitmap.Freeze();
         var extent=drawing.Descendants<DW.Extent>().FirstOrDefault();
         var image=new Image{Source=bitmap,Stretch=Stretch.Uniform,Margin=new Thickness(4)};
         if(extent?.Cx?.Value is long cx && cx>0)image.Width=cx/9525.0;
