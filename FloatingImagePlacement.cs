@@ -278,7 +278,7 @@ public partial class MainWindow
             {
                 overlay=new Image
                 {
-                    Source=placement.RuntimeImage.Source,
+                    Source=VectorImageSupport.GetDisplaySource(placement.RuntimeImage),
                     Width=placement.Width,
                     Height=placement.Height,
                     Stretch=Stretch.Uniform,
@@ -299,7 +299,7 @@ public partial class MainWindow
             }
             overlay.Width=placement.Width;
             overlay.Height=placement.Height;
-            overlay.Source=placement.RuntimeImage.Source;
+            overlay.Source=VectorImageSupport.GetDisplaySource(placement.RuntimeImage);
             PositionFloatingImage(placement,container,overlay);
         }
 
@@ -531,7 +531,7 @@ public partial class MainWindow
         foreach(var placement in floatingImagePlacements)
         {
             var image=placement.RuntimeImage;
-            if(image?.Source is not ImageSource source)continue;
+            if(image==null || VectorImageSupport.GetDisplaySource(image) is not ImageSource source)continue;
             var container=FindContainer(image);
             if(container==null)continue;
             var offset=Editor.Document.ContentStart.GetOffsetToPosition(container.ContentStart);
@@ -559,7 +559,7 @@ public partial class MainWindow
         return result;
     }
 
-    static IEnumerable<(InlineUIContainer Container,Image Image)> EnumerateImageContainers(FlowDocument document)
+    internal static IEnumerable<(InlineUIContainer Container,Image Image)> EnumerateImageContainers(FlowDocument document)
     {
         foreach(var block in document.Blocks)
             foreach(var item in EnumerateImageContainers(block))

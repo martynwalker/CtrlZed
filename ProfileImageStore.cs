@@ -1,6 +1,8 @@
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace CtrlZed;
@@ -45,6 +47,8 @@ public static class ProfileImageStore
     {
         var key = NormaliseName(name);
         ValidateImage(bytes);
+        var asset = SignatureImages.Load(bytes);
+        if(asset.Svg is string svg)bytes=Encoding.UTF8.GetBytes(svg);
         lock (Gate)
         {
             var index = LoadIndex();
@@ -88,18 +92,15 @@ public static class ProfileImageStore
     }
 
     public static BitmapImage LoadBitmap(string name)
+        =>LoadAsset(name).Bitmap;
+
+    public static SignatureAsset LoadAsset(string name)
+        =>SignatureImages.Load(ReadBytes(name));
+
+    public static ImageSource LoadImageSource(string name)
     {
-        var bytes = ReadBytes(name);
-        using var stream = new MemoryStream(bytes, false);
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.StreamSource = stream;
-        bitmap.EndInit();
-        if (bitmap.PixelWidth <= 0 || bitmap.PixelHeight <= 0)
-            throw new InvalidDataException("The profile image has invalid dimensions.");
-        bitmap.Freeze();
-        return bitmap;
+        var asset=LoadAsset(name);
+        return asset.Vector is ImageSource vector?vector:asset.Bitmap;
     }
 
     internal static IReadOnlyList<(string Name, byte[] Bytes)> ExportImages()
@@ -148,7 +149,8 @@ public static class ProfileImageStore
         if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return ".jpg";
         if (bytes.Length >= 2 && bytes[0] == (byte)'B' && bytes[1] == (byte)'M') return ".bmp";
         if (bytes.Length >= 6 && (System.Text.Encoding.ASCII.GetString(bytes, 0, 6) is "GIF87a" or "GIF89a")) return ".gif";
-        throw new InvalidDataException("The selected file is not a supported PNG, JPEG, BMP or GIF image.");
+        if(SignatureImages.IsSvg(bytes))return ".svg";
+        throw new InvalidDataException("Choose an SVG, PNG, JPEG, BMP or GIF image.");
     }
 
     static ImageIndex LoadIndex()

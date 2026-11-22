@@ -76,6 +76,7 @@ public partial class MainWindow : Window
         public string Version { get; set; } = "1.0";
         public List<DocumentCommentData> Comments { get; set; } = new();
         public List<FloatingImagePlacementData> FloatingImages { get; set; } = new();
+        public List<VectorImageData> VectorImages { get; set; } = new();
         public StyleDocumentState? Styles { get; set; }
     }
 
@@ -395,6 +396,7 @@ public partial class MainWindow : Window
             Title=documentTitle,Author=documentAuthor,Subject=documentSubject,Keywords=documentKeywords,Version=documentVersion,
             Comments=CaptureComments(),
             FloatingImages=CaptureFloatingImagePlacements(),
+            VectorImages=VectorImageSupport.Capture(Editor.Document),
             Styles=CaptureStyleDocumentState()
         };
 
@@ -429,6 +431,7 @@ public partial class MainWindow : Window
         RefreshHeaderFooter();
         RefreshMacroMenus();
         RestoreComments(v.Comments);
+        VectorImageSupport.Restore(Editor.Document,v.VectorImages);
         RestoreFloatingImagePlacements(v.FloatingImages);
 
     }
@@ -772,7 +775,7 @@ public partial class MainWindow : Window
     HeaderFooterPaginator CreatePreviewPaginator(Size? effectivePageSize=null)
     {
         var size=effectivePageSize??new Size(pageWidth,pageHeight);
-        var clone=CloneDocument();
+        var clone=CloneDocument(forPrint:true);
         HideFloatingImagesInDocument(clone);
         ExpandPreviewFields(clone);
         clone.PageWidth=size.Width;
@@ -786,7 +789,7 @@ public partial class MainWindow : Window
             inner,headerText,footerText,ExpandFields,CreateFloatingPageImages(size));
     }
 
-    FlowDocument CloneDocument()
+    FlowDocument CloneDocument(bool forPrint=false)
     {
         using var stream=new MemoryStream();
         WriteEditorRtf(stream);
@@ -795,6 +798,7 @@ public partial class MainWindow : Window
         new TextRange(clone.ContentStart,clone.ContentEnd).Load(stream,DataFormats.Rtf);
         DocxInterop.CopyDocumentStyles(Editor.Document,clone);
         PaginationLayoutSnapshot.Capture(Editor.Document).Apply(clone);
+        VectorImageSupport.Copy(Editor.Document,clone,forPrint);
         return clone;
     }
 
@@ -1633,18 +1637,22 @@ public partial class MainWindow : Window
         panel.Children.Add(new TextBlock{Text="Signature",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
         var signatureButton=new Button
         {
-            Content=string.IsNullOrWhiteSpace(signatureImagePath)?"Configure Signature…":"Replace Signature…",
+            Content=HasVectorSignatureConfiguration()?"Replace Signature…":"Configure Signature…",
             Width=130,HorizontalAlignment=HorizontalAlignment.Left
         };
-        signatureButton.Click+=(_,__)=>ConfigureSignature(w);
         panel.Children.Add(signatureButton);
-        panel.Children.Add(new TextBlock
+        var signatureInfo=new TextBlock
         {
-            Text=string.IsNullOrWhiteSpace(signatureImagePath)
-                ?"No signature image configured."
-                :"Configured: "+signatureImagePath,
+            Text=SignatureSetupDescription(),
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
-        });
+        };
+        panel.Children.Add(signatureInfo);
+        signatureButton.Click+=(_,__)=>
+        {
+            ConfigureSignature(w);
+            signatureInfo.Text=SignatureSetupDescription();
+            signatureButton.Content=HasVectorSignatureConfiguration()?"Replace Signature…":"Configure Signature…";
+        };
 
         panel.Children.Add(new Separator());
         panel.Children.Add(new TextBlock{Text="Portable workspace",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
@@ -1698,7 +1706,7 @@ public partial class MainWindow : Window
             "Font download and Windows installation workflow with licence information before installation.",
             "Requests such as ‘Space: 1999-like’, ‘a big bad font’ or ‘Arial Bold’.",
             "Experimental AI-generated fonts, including decorative capital alphabets such as animal-shaped letters.",
-            "Automatic bitmap-to-vector signature tracing and SVG-native signature handling.",
+            "Further SVG artwork support for text, gradients, filters and embedded images.",
             "Bitwarden Password Manager integration to generate document passwords and save them as named vault entries.",
             "Further DOCX fidelity, comments/track changes and more advanced publishing layout."
         };
@@ -2817,7 +2825,11 @@ public partial class MainWindow : Window
         {
             if(double.TryParse(width.Text,out var px)&&px>10)
             {
-                if(keep.IsChecked==true&&img.Source is BitmapSource bs&&bs.PixelWidth>0)img.Height=px*bs.PixelHeight/bs.PixelWidth;
+                if(keep.IsChecked==true)
+                {
+                    if(VectorImageSupport.GetAspectRatio(img) is double aspect)img.Height=px/aspect;
+                    else if(img.Source is BitmapSource bs&&bs.PixelWidth>0)img.Height=px*bs.PixelHeight/bs.PixelWidth;
+                }
                 img.Width=px;
             }
             if(paragraph!=null)paragraph.TextAlignment=align.SelectedIndex==0?TextAlignment.Left:align.SelectedIndex==2?TextAlignment.Right:TextAlignment.Center;
@@ -3182,45 +3194,10 @@ public partial class MainWindow : Window
     }
 
     void ConfigureSignature(Window owner)
-    {
-        var d=new OpenFileDialog{Title="Choose signature image",Filter="Signature images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp"};
-        if(d.ShowDialog(owner)!=true)return;
-        try
-        {
-            var root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
-            Directory.CreateDirectory(root);
-            var ext=Path.GetExtension(d.FileName).ToLowerInvariant();
-            var target=Path.Combine(root,"signature"+ext);
-            File.Copy(d.FileName,target,true);
-            signatureImagePath=target;
-            SaveAppSettings();
-            Status.Text="Signature image configured.";
-        }
-        catch(Exception ex){MessageBox.Show(ex.Message,"Signature setup failed",MessageBoxButton.OK,MessageBoxImage.Error);}
-    }
+        =>ConfigureVectorSignature(owner);
 
     void Signature_Click(object s,RoutedEventArgs e)
-    {
-        if(string.IsNullOrWhiteSpace(signatureImagePath)||!File.Exists(signatureImagePath))
-        {
-            var choice=MessageBox.Show("No signature is configured. Configure one now?","Insert Signature",MessageBoxButton.YesNo,MessageBoxImage.Question);
-            if(choice!=MessageBoxResult.Yes)return;
-            ConfigureSignature(this);
-            if(string.IsNullOrWhiteSpace(signatureImagePath)||!File.Exists(signatureImagePath))return;
-        }
-        try
-        {
-            var b=new BitmapImage();
-            b.BeginInit();b.CacheOption=BitmapCacheOption.OnLoad;b.UriSource=new Uri(signatureImagePath);b.EndInit();
-            var img=new Image{Source=b,Width=180,Stretch=Stretch.Uniform,Margin=new Thickness(4)};
-            var ui=new InlineUIContainer(img,Editor.CaretPosition);
-            WirePictureContainer(ui,img);
-            Editor.CaretPosition=ui.ElementEnd;
-            MarkDirty("Signature inserted.");
-            Editor.Focus();
-        }
-        catch(Exception ex){MessageBox.Show(ex.Message,"Insert signature failed",MessageBoxButton.OK,MessageBoxImage.Error);}
-    }
+        =>InsertVectorSignature();
 
     void AiManager_Click(object s,RoutedEventArgs e)
     {

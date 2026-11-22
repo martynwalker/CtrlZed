@@ -19,10 +19,10 @@ public partial class MainWindow
         {
             Title = "CtrlZed Profile Images",
             Owner = this,
-            Width = 660,
-            Height = 470,
-            MinWidth = 560,
-            MinHeight = 380,
+            Width = 830,
+            Height = 540,
+            MinWidth = 760,
+            MinHeight = 450,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Icon = Branding.CreateIconImageSource()
         };
@@ -51,10 +51,12 @@ public partial class MainWindow
         AddProfileImageRow(form, 0, "Name", name);
         AddProfileImageRow(form, 1, "Image file", fileName);
         AddProfileImageRow(form, 2, "Preview", preview);
+        var note=new TextBlock{Text="Upload SVG artwork directly, or use Trace Signature to turn an existing PNG or JPEG signature into a vector image.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,0)};
+        Grid.SetRow(note,3);Grid.SetColumnSpan(note,2);form.Children.Add(note);
         Grid.SetRow(form, 0); Grid.SetColumn(form, 1); root.Children.Add(form);
 
         byte[]? pendingBytes = null;
-        string? selectedName = null;
 
         void RefreshList(string? select = null)
         {
@@ -67,10 +69,10 @@ public partial class MainWindow
             try
             {
                 name.Text = imageName;
-                selectedName = imageName;
                 pendingBytes = null;
-                fileName.Text = "Stored in the CtrlZed profile";
-                previewImage.Source = ProfileImageStore.LoadBitmap(imageName);
+                var asset=ProfileImageStore.LoadAsset(imageName);
+                fileName.Text = asset.Svg!=null?"Stored SVG vector image":"Stored in the CtrlZed profile";
+                previewImage.Source = asset.Vector is ImageSource vector?vector:asset.Bitmap;
             }
             catch (Exception ex)
             {
@@ -86,10 +88,13 @@ public partial class MainWindow
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
         var choose = new Button { Content = "Upload Image…", MinWidth = 105, Margin = new Thickness(4) };
+        var trace = new Button { Content = "Trace Signature…", MinWidth = 110, Margin = new Thickness(4) };
+        var export = new Button { Content = "Export SVG…", MinWidth = 95, Margin = new Thickness(4) };
         var save = new Button { Content = "Save Image", MinWidth = 95, Margin = new Thickness(4), IsDefault = true };
         var delete = new Button { Content = "Delete", MinWidth = 75, Margin = new Thickness(4) };
         var close = new Button { Content = "Close", MinWidth = 75, Margin = new Thickness(4), IsCancel = true };
-        buttons.Children.Add(choose); buttons.Children.Add(save); buttons.Children.Add(delete); buttons.Children.Add(close);
+        buttons.Children.Add(choose);buttons.Children.Add(trace);buttons.Children.Add(export);
+        buttons.Children.Add(save); buttons.Children.Add(delete); buttons.Children.Add(close);
         Grid.SetRow(buttons, 1); Grid.SetColumnSpan(buttons, 2); root.Children.Add(buttons);
 
         choose.Click += (_, __) =>
@@ -97,26 +102,56 @@ public partial class MainWindow
             var dialog = new OpenFileDialog
             {
                 Title = "Choose a profile image",
-                Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
+                Filter = "Image files|*.svg;*.png;*.jpg;*.jpeg;*.bmp;*.gif|SVG vector image (*.svg)|*.svg|All files|*.*",
                 CheckFileExists = true
             };
             if (dialog.ShowDialog(window) != true) return;
             try
             {
-                var bytes = File.ReadAllBytes(dialog.FileName);
-                pendingBytes = bytes;
+                var bytes = SignatureImportWindow.ReadFile(dialog.FileName);
+                var selected=SignatureImportWindow.Choose(window,bytes,"Review Profile Image",false);
+                if(selected==null)return;
+                var asset=SignatureImages.Load(selected);
+                pendingBytes = selected;
                 fileName.Text = Path.GetFileName(dialog.FileName);
                 if (string.IsNullOrWhiteSpace(name.Text)) name.Text = Path.GetFileNameWithoutExtension(dialog.FileName);
-                using var stream = new MemoryStream(bytes, false);
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze();
-                previewImage.Source = bitmap;
+                previewImage.Source = asset.Vector is ImageSource vector?vector:asset.Bitmap;
             }
             catch (Exception ex)
             {
                 pendingBytes = null;
                 MessageBox.Show(window, ex.Message, "Image upload failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        };
+
+        trace.Click+=(_,__)=>
+        {
+            try
+            {
+                var bytes=pendingBytes ?? (list.SelectedItem is string imageName?ProfileImageStore.ReadBytes(imageName):null);
+                if(bytes==null)throw new InvalidOperationException("Upload an image or select a stored signature first.");
+                var selected=SignatureImportWindow.Choose(window,bytes,"Trace Signature",true);
+                if(selected==null)return;
+                var asset=SignatureImages.Load(selected);
+                pendingBytes=selected;
+                previewImage.Source=asset.Vector is ImageSource vector?vector:asset.Bitmap;
+                fileName.Text=asset.Svg!=null?"Vector signature ready — choose Save Image to keep it":"Image ready — choose Save Image to keep it";
+            }
+            catch(Exception ex){MessageBox.Show(window,ex.Message,"Trace Signature",MessageBoxButton.OK,MessageBoxImage.Warning);}
+        };
+
+        export.Click+=(_,__)=>
+        {
+            try
+            {
+                var bytes=pendingBytes ?? (list.SelectedItem is string imageName?ProfileImageStore.ReadBytes(imageName):null);
+                if(bytes==null || SignatureImages.Load(bytes).Svg is not string svg)
+                    throw new InvalidOperationException("Select an SVG image or trace a signature before exporting it.");
+                var dialog=new SaveFileDialog{Title="Export Vector Signature",Filter="SVG vector image (*.svg)|*.svg",
+                    DefaultExt=".svg",AddExtension=true,FileName=string.IsNullOrWhiteSpace(name.Text)?"signature.svg":name.Text.Trim()+".svg"};
+                if(dialog.ShowDialog(window)==true)File.WriteAllText(dialog.FileName,svg,new System.Text.UTF8Encoding(false));
+            }
+            catch(Exception ex){MessageBox.Show(window,ex.Message,"Export SVG",MessageBoxButton.OK,MessageBoxImage.Warning);}
         };
 
         save.Click += (_, __) =>
@@ -126,7 +161,6 @@ public partial class MainWindow
                 if (pendingBytes is null) throw new InvalidOperationException("Choose an image file with Upload Image first.");
                 var imageName = name.Text.Trim();
                 ProfileImageStore.Save(imageName, pendingBytes);
-                selectedName = imageName;
                 pendingBytes = null;
                 RefreshList(imageName);
                 fileName.Text = "Stored in the CtrlZed profile";
@@ -145,7 +179,6 @@ public partial class MainWindow
             if (MessageBox.Show(window, $"Delete the profile image '{imageName}'?", "Delete profile image", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             ProfileImageStore.Delete(imageName);
             pendingBytes = null;
-            selectedName = null;
             name.Clear(); fileName.Text = "No image selected"; previewImage.Source = null;
             RefreshList();
             Status.Text = $"Profile image deleted: {imageName}";
@@ -176,14 +209,15 @@ public partial class MainWindow
         if (!double.IsFinite(widthMillimetres) || widthMillimetres <= 0 || widthMillimetres > 500)
             throw new InvalidOperationException("Image width must be greater than 0 and no more than 500 mm.");
 
-        var bitmap = ProfileImageStore.LoadBitmap(imageName);
+        var asset = ProfileImageStore.LoadAsset(imageName);
         var width = widthMillimetres * 96.0 / 25.4;
-        var height = width * bitmap.PixelHeight / (double)bitmap.PixelWidth;
+        var height = width * asset.Height / asset.Width;
         var image = new Image
         {
-            Source = bitmap, Width = width, Height = height,
+            Source = asset.Bitmap, Width = width, Height = height,
             Stretch = Stretch.Uniform, IsHitTestVisible = false, Focusable = false
         };
+        VectorImageSupport.SetAsset(image,asset);
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
         var insertion = Editor.CaretPosition.GetInsertionPosition(LogicalDirection.Forward) ?? Editor.Document.ContentEnd;

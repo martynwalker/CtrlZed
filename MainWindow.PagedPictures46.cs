@@ -44,7 +44,8 @@ public partial class MainWindow
         foreach(var placement in floatingImagePlacements)
         {
             var image=placement.RuntimeImage;
-            if(image?.Source is not ImageSource source || !containers.TryGetValue(image,out var container))continue;
+            if(image==null || VectorImageSupport.GetDisplaySource(image) is not ImageSource source ||
+               !containers.TryGetValue(image,out var container))continue;
             try
             {
                 var rect=container.ContentStart.GetCharacterRect(LogicalDirection.Forward);
