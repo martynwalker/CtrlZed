@@ -55,14 +55,17 @@ public static class SelfTest
         Directory.CreateDirectory(root);
         try
         {
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Filename and palette checks");
             FileNameSelfTest.Run();
             if(NativeColourDialog.InitialColourRef("#FF0000")!=0x0000FF ||
                NativeColourDialog.InitialColourRef("#0000FF")!=0xFF0000 ||
                NativeColourDialog.ColourRefToHex(0x00CC66)!="#66CC00")
                 throw new InvalidOperationException("The native colour palette swapped RGB colour channels.");
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Icon and editor highlighting");
             if(Branding.CreateIconImageSource()==null)return 26;
             if(HighlightingManager.Instance.GetDefinition("VBNET")==null)return 35;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Local spelling");
             const string simpleText="This is complete. ";
             if(!ContextualSpellingEngine.TryFindCompletedSentence(simpleText,simpleText.Length,out var simpleSentence) ||
                simpleSentence.Text!="This is complete.")return 36;
@@ -81,10 +84,12 @@ public static class SelfTest
             var spellingPrompt=ContextualSpellingEngine.BuildAiChoicePrompt("Send it to this adress.","adress",new[]{"address","across"},"Formal letter");
             if(!spellingPrompt.Contains("Return exactly") || !spellingPrompt.Contains("Send it to this adress."))return 44;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Chart renderer");
             var chart=AiResultRenderer.TryRenderChart("TITLE: Test movements\nFTSE 100|1.2\nDAX|-0.8\nNikkei 225|2.1");
             if(chart==null||chart.PixelWidth<400)return 27;
             var prompt=AiResultRenderer.MacroPrompt("Insert today's date",".czm",SafeMacroLanguage.Reference,"");
             if(!prompt.Contains("INSERT_FIELD")||!prompt.Contains("Insert today's date"))return 28;
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Compiled CSharp macro");
             var csharpEditor=new RichTextBox();
             CompiledMacroHost.RunAsync(
 @"using System.Windows.Controls;
@@ -93,6 +98,7 @@ public static class TestMacro {
 }",".cs",csharpEditor,Application.Current?.MainWindow??new Window()).GetAwaiter().GetResult();
             if(!string.Equals(csharpEditor.Tag?.ToString(),"CSharpMacroOK",StringComparison.Ordinal))return 30;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Compiled Visual Basic macro");
             var vbEditor=new RichTextBox();
             var vbSecretName="VBMacroSecret_"+Guid.NewGuid().ToString("N");
             CtrlZedSecrets.Set(vbSecretName,"ok");
@@ -117,6 +123,7 @@ End Module
                !string.Equals(vbEditor.Tag?.ToString(),"VBMacroOK"+Environment.NewLine+"ok",StringComparison.Ordinal))return 31;
             CtrlZedSecrets.Remove(vbSecretName);
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Secret storage");
             var secretName="SelfTest_"+Guid.NewGuid().ToString("N");
             CtrlZedSecrets.Set(secretName,"secret-value");
             if(!CtrlZedSecrets.Exists(secretName) || CtrlZedSecrets.Get(secretName)!="secret-value")return 32;
@@ -127,6 +134,7 @@ End Module
             var profile=AiDirectService.GetProfile("ChatGPT");
             if(string.IsNullOrWhiteSpace(profile.Model))return 29;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Following paragraph styles");
             var legacyStyle=System.Text.Json.JsonSerializer.Deserialize<StyleSetStore.TextStyle>("{}");
             if(legacyStyle?.FollowingStyle!="Normal")
                 throw new InvalidOperationException("An older style set did not default its following style to Normal.");
@@ -134,6 +142,7 @@ End Module
             VerifyFollowingParagraphStyle("Heading 1","Normal");
             VerifyFollowingParagraphStyle("Quote","Caption");
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Document fixture");
             var doc=new FlowDocument();
             doc.Blocks.Add(new Paragraph(new Run("CtrlZed self test")){FontSize=24,FontWeight=System.Windows.FontWeights.Bold});
             doc.Blocks.Add(new Paragraph(new Run("Find across ordinary text.")));
@@ -166,18 +175,21 @@ End Module
             numberedList.ListItems.Add(new ListItem(new Paragraph(new Run("Number two"))));
             doc.Blocks.Add(numberedList);
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: RTF roundtrip");
             var rtf=Path.Combine(root,"test.rtf");
             using(var fs=File.Create(rtf))new TextRange(doc.ContentStart,doc.ContentEnd).Save(fs,System.Windows.DataFormats.Rtf);
             var rtfDoc=new FlowDocument();
             using(var fs=File.OpenRead(rtf))new TextRange(rtfDoc.ContentStart,rtfDoc.ContentEnd).Load(fs,System.Windows.DataFormats.Rtf);
             if(!new TextRange(rtfDoc.ContentStart,rtfDoc.ContentEnd).Text.Contains("CtrlZed self test"))return 11;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: DOCX export");
             var docx=Path.Combine(root,"test.docx");
             DocxInterop.Save(docx,doc,"Test {page} of {pages}","{filename}",794,1123,new System.Windows.Thickness(72),"Test Title","Test Author","Test Subject","alpha, beta");
             if(!File.Exists(docx)||new FileInfo(docx).Length<500)return 12;
             using(var zip=ZipFile.OpenRead(docx))
                 if(zip.GetEntry("word/document.xml")==null)return 13;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: DOCX schema");
             using(var validationDoc=WordprocessingDocument.Open(docx,false))
             {
                 var validationErrors=new OpenXmlValidator().Validate(validationDoc).Take(1).ToList();
@@ -188,6 +200,7 @@ End Module
                 }
             }
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: DOCX import");
             var layout=DocxInterop.LoadWithLayout(docx);
             var imported=layout.Document;
             if(!layout.Header.Contains("{page}")||!layout.Header.Contains("{pages}"))return 18;
@@ -207,6 +220,7 @@ End Module
                 .Any(ui=>ui.Child is Image);
             if(!importedImage)return 16;
 
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"CtrlZedSelfTestProgress.txt"),"Core: Document protection");
             TestDocumentProtection();
             return 0;
         }

@@ -51,6 +51,7 @@ jobs:
             if (Test-Path $failure) { Get-Content $failure }
             $progress = Join-Path $env:TEMP "CtrlZedSelfTestProgress.txt"
             if (Test-Path $progress) { Get-Content $progress }
+            Get-WinEvent -FilterHashtable @{LogName='Application'; Id=1000; StartTime=(Get-Date).AddMinutes(-10)} -MaxEvents 3 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.Message }
             throw "CtrlZed self-test failed with code $($t.ExitCode)"
           }
       - name: Following-style keyboard regression

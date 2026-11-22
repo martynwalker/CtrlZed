@@ -48,19 +48,42 @@ public static class PaginationMapBuilder
 
         var thread=new Thread(() =>
         {
+            Dispatcher? dispatcher=null;
+            PaginationMapResult? result=null;
+            Exception? failure=null;
+            var cancelled=false;
             try
             {
-                completion.TrySetResult(BuildCore(
-                    rtf,pageWidth,pageHeight,margins,cacheKey,cancellationToken,includeThumbnails,layout));
+                dispatcher=Dispatcher.CurrentDispatcher;
+                result=BuildCore(
+                    rtf,pageWidth,pageHeight,margins,cacheKey,cancellationToken,includeThumbnails,layout);
             }
             catch(OperationCanceledException)
             {
-                completion.TrySetCanceled(cancellationToken);
+                cancelled=true;
             }
             catch(Exception ex)
             {
-                completion.TrySetException(ex);
+                failure=ex;
             }
+            finally
+            {
+                // WPF owns native PTS contexts through this thread's
+                // Dispatcher. ShutdownFinished disposes them on their owner
+                // thread; simply exiting the STA leaves that cleanup to later
+                // finalizers while other document work may already be running.
+                try
+                {
+                    if(dispatcher!=null && !dispatcher.HasShutdownFinished)dispatcher.InvokeShutdown();
+                }
+                catch(Exception ex) { failure??=ex; }
+            }
+
+            // Return only frozen bitmaps and immutable data, and only after
+            // the worker's native pagination resources have been released.
+            if(failure!=null)completion.TrySetException(failure);
+            else if(cancelled)completion.TrySetCanceled(cancellationToken);
+            else completion.TrySetResult(result!);
         })
         {
             IsBackground=true,
@@ -93,6 +116,8 @@ public static class PaginationMapBuilder
         document.ColumnGap=0;
 
         var paginator=((IDocumentPaginatorSource)document).DocumentPaginator;
+        var dynamicPaginator=paginator as DynamicDocumentPaginator;
+        if(dynamicPaginator!=null)dynamicPaginator.IsBackgroundPaginationEnabled=false;
         paginator.PageSize=new Size(document.PageWidth,document.PageHeight);
         paginator.ComputePageCount();
         cancellationToken.ThrowIfCancellationRequested();
@@ -101,7 +126,6 @@ public static class PaginationMapBuilder
         var totalOffset=layout?.SourceSymbolLength??Math.Max(0,
             document.ContentStart.GetOffsetToPosition(document.ContentEnd));
         var starts=new List<int>(pageCount){0};
-        var dynamicPaginator=paginator as DynamicDocumentPaginator;
         var firstContentY=Enumerable.Repeat(margins.Top,pageCount).ToArray();
 
         var thumbnails=includeThumbnails?new BitmapSource?[pageCount]:Array.Empty<BitmapSource?>();
@@ -109,20 +133,29 @@ public static class PaginationMapBuilder
         {
             cancellationToken.ThrowIfCancellationRequested();
             var page=dynamicPaginator!=null || includeThumbnails?paginator.GetPage(pageNumber):DocumentPage.Missing;
-            if(includeThumbnails && page!=DocumentPage.Missing && page.Visual!=null)
-                thumbnails[pageNumber]=CreateThumbnail(page);
-            if(pageNumber==0)continue;
-
-            var offset=-1;
-            if(dynamicPaginator!=null && page!=DocumentPage.Missing &&
-               dynamicPaginator.GetPagePosition(page) is TextPointer pointer)
+            try
             {
-                offset=mapOffset?.Invoke(pointer)??document.ContentStart.GetOffsetToPosition(pointer);
+                if(includeThumbnails && page!=DocumentPage.Missing && page.Visual!=null)
+                    thumbnails[pageNumber]=CreateThumbnail(page);
+                if(pageNumber==0)continue;
+
+                var offset=-1;
+                if(dynamicPaginator!=null && page!=DocumentPage.Missing &&
+                   dynamicPaginator.GetPagePosition(page) is TextPointer pointer)
+                {
+                    offset=mapOffset?.Invoke(pointer)??document.ContentStart.GetOffsetToPosition(pointer);
+                }
+                if(offset<0)
+                    offset=(int)Math.Round(totalOffset*pageNumber/(double)pageCount);
+                offset=Math.Clamp(offset,starts[^1],totalOffset);
+                starts.Add(offset);
             }
-            if(offset<0)
-                offset=(int)Math.Round(totalOffset*pageNumber/(double)pageCount);
-            offset=Math.Clamp(offset,starts[^1],totalOffset);
-            starts.Add(offset);
+            finally
+            {
+                // Nothing in the result references a live DocumentPage or
+                // visual. Dispose on the same STA which created its PTS page.
+                if(page!=DocumentPage.Missing)page.Dispose();
+            }
         }
 
         return new PaginationMapResult(cacheKey,pageCount,starts,DateTime.UtcNow)
