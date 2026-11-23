@@ -424,14 +424,12 @@ public partial class MainWindow
         var readOnlyDescriptor=DependencyPropertyDescriptor.FromProperty(TextBoxBase.IsReadOnlyProperty,typeof(RichTextBox));
         Editor.TextChanged+=documentChanged;Editor.SelectionChanged+=selectionChanged;Editor.IsEnabledChanged+=enabledChanged;
         readOnlyDescriptor?.AddValueChanged(Editor,readOnlyChanged);
-        w.Closing+=(_,__)=>PrepareFontFinderCaretReturn();
         w.Closed+=(_,__)=>
         {
             closed=true;CancelRequest();lifetimeCancellation.Cancel();lifetimeCancellation.Dispose();
             Editor.TextChanged-=documentChanged;Editor.SelectionChanged-=selectionChanged;Editor.IsEnabledChanged-=enabledChanged;
             readOnlyDescriptor?.RemoveValueChanged(Editor,readOnlyChanged);
             if(ReferenceEquals(fontFinderWindow,w))fontFinderWindow=null;
-            CompleteFontFinderCaretReturn();
         };
         RefreshStyles();UpdateInformation();UpdateTargetInformation();UpdateButtons();
         status.Text=targetError??"Reading installed font families. Search installed is local and needs no AI account.";

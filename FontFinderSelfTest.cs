@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -70,8 +71,10 @@ public partial class MainWindow
             if(window is {IsLoaded:true})
             {
                 var editor=window;
-                Phase("raw WPF pending typing at the finder fixture's exact word-start caret",()=>editor.VerifyFontFinderInteriorCaretControl(false,report));
+                Phase("raw WPF language-mismatch typing diagnostic at the fixture's exact word-start caret",()=>editor.VerifyFontFinderInteriorCaretControl(false,report));
+                Phase("raw WPF matching-keyboard-language typing control at the exact word-start caret",()=>editor.VerifyFontFinderInteriorCaretControl(false,report,true));
                 Phase("direct Font Finder API typing at the fixture's exact word-start caret",()=>editor.VerifyFontFinderInteriorCaretControl(true,report));
+                Phase("inside-word future typing preserves existing text formatting and native Undo",()=>editor.VerifyFontFinderInsideWordCaret(report));
                 foreach(var mode in new[]{EditorViewMode.Continuous,EditorViewMode.Paged})
                 {
                     var view=mode;
@@ -601,10 +604,13 @@ public partial class MainWindow
         report.AppendLine(mode+": an empty caret carried pending WPF size, colour, underline, bold and italic into the real finder. Keyboard focus moved to its query; local search and Apply retained that state, and an actual typed X received the selected installed family after the finder closed.");
     }
 
-    void VerifyFontFinderInteriorCaretControl(bool useFinderApi,StringBuilder report)
+    void VerifyFontFinderInteriorCaretControl(bool useFinderApi,StringBuilder report,bool matchInputLanguage=false)
     {
         fontFinderWindow?.Close();var installed=FontFinderInstalledFixture();
-        var paragraph=new Paragraph(new Run("Typing fixture content."){FontFamily=new FontFamily(installed.Before)});
+        var keyboardLanguage=InputLanguageManager.Current.CurrentInputLanguage.IetfLanguageTag;
+        var fixtureLanguage=matchInputLanguage?keyboardLanguage:keyboardLanguage.Equals("en-GB",StringComparison.OrdinalIgnoreCase)?"en-US":"en-GB";
+        var paragraph=new Paragraph(new Run("Typing fixture content."){FontFamily=new FontFamily(installed.Before)})
+        {Language=XmlLanguage.GetLanguage(fixtureLanguage)};
         SentenceSetDocument(new FlowDocument(paragraph),EditorViewMode.Continuous);
         Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);
         Editor.CaretPosition=SentenceTextPointer(paragraph,7);Editor.Focus();PumpInput();
@@ -622,16 +628,65 @@ public partial class MainWindow
         PumpInput();
         var expected=FontFinderCharacterState(Editor.Selection);
         var before=PagedDocumentText();
-        var label=useFinderApi?"Direct API word-start control":"Raw WPF word-start control";
+        var label=useFinderApi?"Direct API word-start control":matchInputLanguage?"Raw WPF matching-language word-start control":"Raw WPF language-mismatch word-start diagnostic";
         report.AppendLine(label+" before native X: expected="+expected+"; keyboard focus="+Editor.IsKeyboardFocusWithin+".");
+        report.AppendLine(label+" culture diagnostic: keyboard="+InputLanguageManager.Current.CurrentInputLanguage.IetfLanguageTag+
+            "; editor="+Editor.Language.IetfLanguageTag+"; paragraph="+paragraph.Language.IetfLanguageTag+
+            "; caret="+Editor.Selection.GetPropertyValue(FrameworkElement.LanguageProperty)+".");
         RequireFontFinder(Editor.IsKeyboardFocusWithin && PagedDocumentText()=="Typing fixture content.\r\n",
             label+" did not start at the real document caret with its unchanged source.");
         TraceFontFinderInput(report,label,()=>TypeInput("X"));PumpInput();
         var typed=SentenceFindText(paragraph,"X");
         report.AppendLine(label+" after native X: typed="+FontFinderCharacterState(typed)+"; caret="+FontFinderCharacterState(Editor.Selection)+
             "; document="+JsonSerializer.Serialize(PagedDocumentText())+".");
-        RequireFontFinder(FontFinderCharacterState(typed)==expected && PagedDocumentText()==before.Replace("Typing fixture","Typing Xfixture",StringComparison.Ordinal),
-            label+" lost pending formatting: expected="+expected+"; actual="+FontFinderCharacterState(typed)+".");
+        RequireFontFinder(PagedDocumentText()==before.Replace("Typing fixture","Typing Xfixture",StringComparison.Ordinal),label+" did not insert the actual native character at its intended caret.");
+        if(useFinderApi || matchInputLanguage)
+            RequireFontFinder(FontFinderCharacterState(typed)==expected,
+                label+" lost pending formatting: expected="+expected+"; actual="+FontFinderCharacterState(typed)+".");
+        else report.AppendLine("Raw framework diagnostic only: keyboard/document language mismatch "+
+            (FontFinderCharacterState(typed)==expected?"retained":"discarded")+" the pending character properties. Font Finder API/UI regressions independently require the intended formatting.");
+    }
+
+    void VerifyFontFinderInsideWordCaret(StringBuilder report)
+    {
+        fontFinderWindow?.Close();var installed=FontFinderInstalledFixture();
+        var paragraph=new Paragraph();
+        paragraph.Inlines.Add(new Run("Typing "){FontFamily=new FontFamily(installed.Before)});
+        paragraph.Inlines.Add(new Run("fixture")
+        {
+            FontFamily=new FontFamily(installed.Before),FontSize=29,FontWeight=FontWeights.Bold,
+            FontStyle=FontStyles.Italic,Foreground=Brushes.DarkMagenta,TextDecorations=TextDecorations.Underline
+        });
+        paragraph.Inlines.Add(new Run(" content."){FontFamily=new FontFamily(installed.Before)});
+        SentenceSetDocument(new FlowDocument(paragraph),EditorViewMode.Continuous);
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        Editor.CaretPosition=SentenceTextPointer(paragraph,10);Editor.Focus();PumpInput();
+        var before=PagedDocumentText();
+        var prefix=FontFinderCharacterState(SentenceFindText(paragraph,"Typing "));
+        var word=FontFinderCharacterState(SentenceFindText(paragraph,"fixture"));
+        var suffix=FontFinderCharacterState(SentenceFindText(paragraph," content."));
+        var expected=installed.After+FontFinderCharacterState(Editor.Selection,omitFamily:true);
+        var target=CaptureFontFinderTarget();
+        RequireFontFinder(target.IsCaret,"The inside-word fixture did not capture an empty caret.");
+        ApplyFontFinderSelection(target,new FontFinderMatch(installed.After,null,null,"Inside-word future typing only."),installed.Catalogue);PumpInput();
+        RequireFontFinder(PagedDocumentText()==before && FontFinderCharacterState(SentenceFindText(paragraph,"Typing "))==prefix &&
+            FontFinderCharacterState(SentenceFindText(paragraph,"fixture"))==word && FontFinderCharacterState(SentenceFindText(paragraph," content."))==suffix,
+            "Applying a future-typing font inside a word changed existing text formatting before any input.");
+        ResetSentenceUndo();TraceFontFinderInput(report,"Inside-word Font Finder future typing",()=>TypeInput("X"));PumpInput();
+        var typed=SentenceFindText(paragraph,"X");
+        RequireFontFinder(FontFinderCharacterState(typed)==expected && PagedDocumentText()==before.Replace("fixture","fixXture",StringComparison.Ordinal),
+            "Inside-word actual typing lost its chosen family or existing emphasis/size/colour/underline: expected="+expected+"; actual="+FontFinderCharacterState(typed)+".");
+        RequireFontFinder(FontFinderCharacterState(SentenceFindText(paragraph,"fix"))==word &&
+            FontFinderCharacterState(SentenceFindText(paragraph,"ture"))==word && FontFinderCharacterState(SentenceFindText(paragraph,"Typing "))==prefix &&
+            FontFinderCharacterState(SentenceFindText(paragraph," content."))==suffix,
+            "Inside-word font typing changed characters outside the newly inserted span.");
+        Editor.Undo();PumpInput();
+        RequireFontFinder(PagedDocumentText()==before && FontFinderCharacterState(SentenceFindText(paragraph,"fixture"))==word && Editor.CanRedo,
+            "One Undo did not remove both the native inserted character and its font formatting inside a word.");
+        Editor.Redo();PumpInput();
+        RequireFontFinder(FontFinderCharacterState(SentenceFindText(paragraph,"X"))==expected && PagedDocumentText()==before.Replace("fixture","fixXture",StringComparison.Ordinal),
+            "One Redo did not restore the actual inside-word character and chosen font formatting together.");
+        report.AppendLine("At an empty caret inside an existing word, choosing a family left every original character's formatting intact. Only the actual next typed character received the choice and retained the caret's emphasis, size, colour and underline; one native Undo/Redo removed/restored character and font formatting together.");
     }
 
     void VerifyFontFinderCaretReturnGuard(string change,StringBuilder report)
@@ -655,7 +710,13 @@ public partial class MainWindow
         ClickFontFinder(dialog,"FontFinderApply");PumpInput();
         RequireFontFinder(Editor.IsKeyboardFocusWithin,"The caret-return guard could not obtain actual document keyboard focus after Apply.");
         var applied=FontFinderCharacterState(Editor.Selection);
-        if(change=="caret movement")Editor.CaretPosition=SentenceTextPointer(paragraph,13);
+        if(change=="caret movement")
+        {
+            SendKeys(Enumerable.Range(0,7).SelectMany(_=>new[]{KeyInput(0x27),KeyInput(0x27,true)}).ToArray());
+            PumpInput();
+            RequireFontFinder(new TextRange(paragraph.ContentStart,Editor.CaretPosition).Text=="Caret return ",
+                "Actual Right-arrow navigation did not establish the intended later caret destination.");
+        }
         else if(change=="source edit"){TypeInput("Y");PumpInput();}
         else
         {
@@ -672,6 +733,7 @@ public partial class MainWindow
         var before=PagedDocumentText();
         var prefix=new TextRange(Editor.Document.ContentStart,Editor.CaretPosition).Text;
         var deliberate=FontFinderCharacterState(Editor.Selection);
+        var destinationBaseline=change=="caret movement"?FontFinderCharacterState(SentenceFindText(paragraph,"guard")):deliberate;
         report.AppendLine("Caret return "+change+" diagnostic: obsolete applied="+applied+"; deliberate current="+deliberate+".");
         CloseFontFinderThroughButton(dialog);
         Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);Editor.Focus();PumpInput();
@@ -680,8 +742,6 @@ public partial class MainWindow
             "Closing the finder restored an obsolete caret/document destination after "+change+".");
         var typing=FontFinderCharacterState(Editor.Selection);
         report.AppendLine("Caret return "+change+" diagnostic: after Close/owner focus="+typing+".");
-        if(change=="caret movement")
-            RequireFontFinder(typing==deliberate,"Closing the finder overwrote the actual WPF typing format at the author's later caret destination.");
         if(change=="pending format")
             RequireFontFinder((Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily)?.Source==installed.Before && typing!=applied,
                 "Closing the finder restored obsolete font formatting after "+change+".");
@@ -690,7 +750,8 @@ public partial class MainWindow
                 "Closing the finder overwrote the author's later pending colour with the old applied colour.");
         TraceFontFinderInput(report,"Stale return "+change,()=>TypeInput("X"));PumpInput();
         var typed=SentenceFindText(paragraph,"X");
-        RequireFontFinder(FontFinderCharacterState(typed)==typing && PagedDocumentText()==before.Insert(prefix.Length,"X"),
+        var expectedTyping=change=="caret movement"?destinationBaseline:typing;
+        RequireFontFinder(FontFinderCharacterState(typed)==expectedTyping && PagedDocumentText()==before.Insert(prefix.Length,"X"),
             "Typing after finder closure used an obsolete destination or format after "+change+".");
         report.AppendLine("After "+change+", reactivating and closing the finder through its actual Close button could not restore the obsolete caret or formatting; the next typed character used the current destination.");
     }
@@ -806,6 +867,8 @@ public partial class MainWindow
                 };
                 report.AppendLine(context+" input trace: "+stage+"; event="+value.RoutedEvent?.Name+"; "+details+
                     "; modifiers="+Keyboard.Modifiers+"; focus="+Editor.IsKeyboardFocusWithin+"; caret="+FontFinderCharacterState(Editor.Selection)+
+                    "; keyboard culture="+InputLanguageManager.Current.CurrentInputLanguage.IetfLanguageTag+
+                    "; caret language="+Editor.Selection.GetPropertyValue(FrameworkElement.LanguageProperty)+
                     "; symbols="+Editor.Document.ContentStart.GetOffsetToPosition(Editor.Selection.Start)+"/"+
                     Editor.Document.ContentStart.GetOffsetToPosition(Editor.Selection.End)+".");
             }
