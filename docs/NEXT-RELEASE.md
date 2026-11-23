@@ -1,4 +1,4 @@
-# CtrlZed — Beta 49 release record and remaining queue
+# CtrlZed — Beta 50 candidate and release record
 
 Updated 23 November 2026.
 
@@ -13,6 +13,17 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 50 candidate — Google Fonts
+
+- [ ] Generate a pinned supported-static-font catalogue from the official source, retaining real face metadata, licence text and notices.
+- [ ] Local discovery and optional direct-provider AI ranking without sending the document sample.
+- [ ] Explicit download of a verified real private-file preview, with no document changes or installation during search/preview.
+- [ ] Explicit per-user installation, existing-registration protection, transaction rollback and source/licence receipts.
+- [ ] Honest restart guidance for WPF's cached installed-font list; continue applying ordinary installed family names through the accepted finder.
+- [ ] Windows catalogue/download/preview/UI/install checks alongside every accepted editing gate.
+
+Candidate verification is in progress. Beta 49 remains the accepted baseline. The [Google Fonts guide](ONLINE-FONTS.md) records the workflow and static-font scope. Broader catalogues, variable fonts and generated fonts remain queued.
 
 ## Implemented in Beta 49 — installed Font Finder
 

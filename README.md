@@ -14,6 +14,13 @@ The current accepted baseline is **[Beta 49 (0.49.0)](https://github.com/martynw
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48/49 work, verification and later ideas.
 
+### Beta 50 candidate — Google Fonts discovery and installation
+
+- **Format → Find a Font… → Google Fonts…** browses supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
+- Read the actual source licence and notices before downloading a real preview. Preview text stays local; search, AI and previews do not install fonts or edit the document.
+- Explicit installation is for the current Windows user and preserves existing registrations. Save and restart CtrlZed afterwards to refresh WPF's cached installed-font list, then apply through the existing finder.
+- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. Windows candidate verification is in progress. Beta 49 remains the accepted baseline.
+
 ### Beta 49 — installed Font Finder
 
 - **Format → Find a Font…** searches installed fonts locally by name or description, previews your own text and offers an explicit **Ask AI** option through the configured direct provider.
@@ -156,7 +163,7 @@ Use `.czd` as the canonical working format and DOCX as an interchange format.
 
 A release must pass:
 
-1. compilation on GitHub-hosted Windows and self-contained Windows publication
+1. generation and validation of the pinned static Google Fonts catalogue, compilation on GitHub-hosted Windows and self-contained Windows publication
 2. executable launch with a responsive main window
 3. `--self-test`, including RTF/DOCX round trips, tables, inline images, Open XML schema validation, language-intelligence checks and filename-suggestion cases
 4. `--following-style-test`, exercising actual keyboard input after headings, captions and quotes, repeated Return, soft breaks and Undo/Redo
@@ -167,7 +174,8 @@ A release must pass:
 9. `--sentence-completion-test`, covering response/context contracts, complete-source summaries, preferences, real asynchronous previews, precise rich insertion/Undo, stale mode/source results and macro preview access with a deterministic provider
 10. `--vector-signature-test`, covering tracing and SVG fidelity, live preview/threshold interaction, atomic Undo/Redo, named-image macros, native/profile/recovery persistence, compatibility fallbacks and vector print sources
 11. `--font-finder-test`, covering installed/local search, strict response contracts, privacy, real asynchronous previews, stale guards, rich font application/Undo and style persistence with a deterministic provider
-12. packaging and prerelease publication
+12. `--online-font-test`, covering pinned catalogue/licences, real font downloads and private previews, explicit UI consent, stale results, per-user installation, collisions, rollback and cleanup
+13. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 
@@ -300,3 +308,7 @@ Beta 32 adds the first grammar and style review system:
 - corrected single ampersands in dynamically generated menu captions.
 
 At the Beta 32 milestone, contextual thesaurus and poetry rhyme assistance were queued for the next language-intelligence release; they were subsequently delivered in Beta 33. Later language-intelligence improvements remain tracked in [issue #17](https://github.com/martynwalker/CtrlZed/issues/17).
+
+## Building the online font catalogue
+
+Before building a fresh source checkout, run `python scripts/build-online-font-catalog.py --output OnlineFontCatalogue.json`. Python 3 and Git are required for this source preparation step; the distributed Windows application needs neither. The script uses a sparse, blob-filtered checkout of the pinned official repository and downloads metadata/licences, not the full font collection. The Windows workflow also prepares an independently verified test font in its temporary fixture directory; that fixture is not distributed in the portable ZIP.

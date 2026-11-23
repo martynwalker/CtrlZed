@@ -1641,7 +1641,7 @@ public partial class MainWindow : Window
         panel.Children.Add(fontFinder);
         panel.Children.Add(new TextBlock
         {
-            Text="Search installed fonts, preview your text and apply a choice to text or a named style. Online catalogues, downloads/install and generated fonts remain under Coming Soon.",
+            Text="Search installed fonts, or browse supported Google Fonts with licence details, downloads and optional installation for this Windows user. Generated fonts remain under Coming Soon.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
         });
         panel.Children.Add(new Separator());
@@ -1713,8 +1713,7 @@ public partial class MainWindow : Window
         var items=new[]
         {
             "Further page-editing fidelity for field-code/comment display, complex tables and oversized objects.",
-            "Extend Font Finder to properly licensed online free-font catalogues such as Google Fonts.",
-            "Font download and Windows installation workflow with licence information before installation.",
+            "Broader online-font catalogues and variable-font support beyond the supported static Google Fonts selection.",
             "Experimental AI-generated fonts, including decorative capital alphabets such as animal-shaped letters.",
             "Further SVG artwork support for text, gradients, filters and embedded images.",
             "Bitwarden Password Manager integration to generate document passwords and save them as named vault entries.",

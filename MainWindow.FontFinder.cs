@@ -69,7 +69,10 @@ public partial class MainWindow
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        root.Children.Add(new TextBlock{Text="Find a Font",FontSize=23,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
+        var finderHeading=new Grid();finderHeading.ColumnDefinitions.Add(new ColumnDefinition());finderHeading.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+        finderHeading.Children.Add(new TextBlock{Text="Find a Font",FontSize=23,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,6)});
+        var googleFonts=Named("FontFinderGoogleFonts",ActionButton("Google Fonts…"));googleFonts.Margin=new Thickness(8,0,0,6);
+        googleFonts.Click+=(_,__)=>ShowOnlineFontFinder();Grid.SetColumn(googleFonts,1);finderHeading.Children.Add(googleFonts);root.Children.Add(finderHeading);
         var information=Named("FontFinderInformation",new TextBlock
         {
             Text="Search installed fonts by name or describe the look you need. Previewing never changes the document.",
