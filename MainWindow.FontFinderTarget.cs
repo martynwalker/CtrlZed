@@ -252,7 +252,8 @@ public partial class MainWindow
     internal void PrepareFontFinderCaretReturn()
     {
         var pending = fontFinderCaretReturn;
-        if (pending == null || !FontFinderCaretReturnLocationCurrent(pending))
+        if (pending == null || !FontFinderCaretReturnLocationCurrent(pending) ||
+            !FontFinderTypingFormatMatches(pending.Formatting))
         {
             fontFinderCaretReturn = null;
             fontFinderCaretReturnClosing = false;

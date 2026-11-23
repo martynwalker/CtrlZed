@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -69,6 +70,8 @@ public partial class MainWindow
             if(window is {IsLoaded:true})
             {
                 var editor=window;
+                Phase("raw WPF pending typing at the finder fixture's exact word-start caret",()=>editor.VerifyFontFinderInteriorCaretControl(false,report));
+                Phase("direct Font Finder API typing at the fixture's exact word-start caret",()=>editor.VerifyFontFinderInteriorCaretControl(true,report));
                 foreach(var mode in new[]{EditorViewMode.Continuous,EditorViewMode.Paged})
                 {
                     var view=mode;
@@ -586,7 +589,7 @@ public partial class MainWindow
         Editor.Focus();PumpInput();
         report.AppendLine(mode+" caret UI diagnostic: after Editor.Focus="+FontFinderCharacterState(Editor.Selection)+
             "; editor keyboard focus="+Editor.IsKeyboardFocusWithin+".");
-        TypeInput("X");PumpInput();
+        TraceFontFinderInput(report,mode+" real UI after Close",()=>TypeInput("X"));PumpInput();
         var typed=SentenceFindText(paragraph,"X");
         report.AppendLine(mode+" caret UI diagnostic: typed X="+FontFinderCharacterState(typed)+
             "; current caret="+FontFinderCharacterState(Editor.Selection)+"; actual document="+JsonSerializer.Serialize(PagedDocumentText())+".");
@@ -596,6 +599,39 @@ public partial class MainWindow
         RequireFontFinder(PagedDocumentText()==before.Replace("Typing fixture","Typing Xfixture",StringComparison.Ordinal),
             "The real empty-caret font application changed anything beyond the explicitly typed test character in "+mode+".");
         report.AppendLine(mode+": an empty caret carried pending WPF size, colour, underline, bold and italic into the real finder. Keyboard focus moved to its query; local search and Apply retained that state, and an actual typed X received the selected installed family after the finder closed.");
+    }
+
+    void VerifyFontFinderInteriorCaretControl(bool useFinderApi,StringBuilder report)
+    {
+        fontFinderWindow?.Close();var installed=FontFinderInstalledFixture();
+        var paragraph=new Paragraph(new Run("Typing fixture content."){FontFamily=new FontFamily(installed.Before)});
+        SentenceSetDocument(new FlowDocument(paragraph),EditorViewMode.Continuous);
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        Editor.CaretPosition=SentenceTextPointer(paragraph,7);Editor.Focus();PumpInput();
+        Editor.Selection.ApplyPropertyValue(TextElement.FontSizeProperty,29d);
+        Editor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DarkMagenta);
+        Editor.Selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
+        Editor.Selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
+        Editor.Selection.ApplyPropertyValue(Inline.TextDecorationsProperty,TextDecorations.Underline);
+        if(useFinderApi)
+        {
+            var target=CaptureFontFinderTarget();
+            ApplyFontFinderSelection(target,new FontFinderMatch(installed.After,null,null,"Exact-position direct API control."),installed.Catalogue);
+        }
+        else Editor.Selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(installed.After));
+        PumpInput();
+        var expected=FontFinderCharacterState(Editor.Selection);
+        var before=PagedDocumentText();
+        var label=useFinderApi?"Direct API word-start control":"Raw WPF word-start control";
+        report.AppendLine(label+" before native X: expected="+expected+"; keyboard focus="+Editor.IsKeyboardFocusWithin+".");
+        RequireFontFinder(Editor.IsKeyboardFocusWithin && PagedDocumentText()=="Typing fixture content.\r\n",
+            label+" did not start at the real document caret with its unchanged source.");
+        TraceFontFinderInput(report,label,()=>TypeInput("X"));PumpInput();
+        var typed=SentenceFindText(paragraph,"X");
+        report.AppendLine(label+" after native X: typed="+FontFinderCharacterState(typed)+"; caret="+FontFinderCharacterState(Editor.Selection)+
+            "; document="+JsonSerializer.Serialize(PagedDocumentText())+".");
+        RequireFontFinder(FontFinderCharacterState(typed)==expected && PagedDocumentText()==before.Replace("Typing fixture","Typing Xfixture",StringComparison.Ordinal),
+            label+" lost pending formatting: expected="+expected+"; actual="+FontFinderCharacterState(typed)+".");
     }
 
     void VerifyFontFinderCaretReturnGuard(string change,StringBuilder report)
@@ -652,7 +688,7 @@ public partial class MainWindow
         if(change=="pending format")
             RequireFontFinder((Editor.Selection.GetPropertyValue(TextElement.ForegroundProperty) as SolidColorBrush)?.Color!=Colors.DarkMagenta,
                 "Closing the finder overwrote the author's later pending colour with the old applied colour.");
-        TypeInput("X");PumpInput();
+        TraceFontFinderInput(report,"Stale return "+change,()=>TypeInput("X"));PumpInput();
         var typed=SentenceFindText(paragraph,"X");
         RequireFontFinder(FontFinderCharacterState(typed)==typing && PagedDocumentText()==before.Insert(prefix.Length,"X"),
             "Typing after finder closure used an obsolete destination or format after "+change+".");
@@ -755,6 +791,33 @@ public partial class MainWindow
     static T FontFinderControl<T>(Window window,string name) where T:FrameworkElement
         =>window.FindName(name) as T??throw new InvalidOperationException("Font Finder is missing control "+name+".");
     static void ClickFontFinder(Window window,string name)=>FontFinderControl<Button>(window,name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    void TraceFontFinderInput(StringBuilder report,string context,Action input)
+    {
+        void Record(string stage,InputEventArgs value)
+        {
+            if(value is not KeyEventArgs && value is not TextCompositionEventArgs)return;
+            try
+            {
+                var details=value switch
+                {
+                    KeyEventArgs key=>"key="+key.Key+"; system key="+key.SystemKey,
+                    TextCompositionEventArgs text=>"composition="+JsonSerializer.Serialize(text.Text)+"; composition type="+text.TextComposition.GetType().FullName,
+                    _=>""
+                };
+                report.AppendLine(context+" input trace: "+stage+"; event="+value.RoutedEvent?.Name+"; "+details+
+                    "; modifiers="+Keyboard.Modifiers+"; focus="+Editor.IsKeyboardFocusWithin+"; caret="+FontFinderCharacterState(Editor.Selection)+
+                    "; symbols="+Editor.Document.ContentStart.GetOffsetToPosition(Editor.Selection.Start)+"/"+
+                    Editor.Document.ContentStart.GetOffsetToPosition(Editor.Selection.End)+".");
+            }
+            catch(Exception error){report.AppendLine(context+" input trace diagnostic unavailable: "+error.Message);}
+        }
+        void Before(object sender,PreProcessInputEventArgs args)=>Record("PreProcessInput",args.StagingItem.Input);
+        void After(object sender,ProcessInputEventArgs args)=>Record("PostProcessInput",args.StagingItem.Input);
+        var manager=InputManager.Current;
+        manager.PreProcessInput+=Before;manager.PostProcessInput+=After;
+        try{input();}
+        finally{manager.PreProcessInput-=Before;manager.PostProcessInput-=After;}
+    }
     static void CloseFontFinderThroughButton(Window window)
     {
         window.Activate();FontFinderControl<TextBox>(window,"FontFinderQuery").Focus();PumpInput();
