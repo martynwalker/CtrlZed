@@ -10,7 +10,15 @@ The current accepted baseline is **[Beta 48 (0.48.0)](https://github.com/martynw
 
 **[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) was the previous user-accepted baseline**, passed by Martyn on 22 November 2026. It built forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48 work and the Beta 49 candidate, verification and later ideas.
+
+### Beta 49 candidate — installed Font Finder
+
+- **Format → Find a Font…** searches installed fonts locally by name or description, previews your own text and offers an explicit **Ask AI** option through the configured direct provider.
+- Apply a font family and chosen standard emphasis to captured text, the typing caret or a named style in the active set. Point size, colour, underline and paragraph layout are preserved. Previews do not dirty the document.
+- The document sample stays local. AI receives only the request, Writing Mode and installed-font catalogue; returned sources must be real supplied families. No fonts are downloaded or installed.
+- Selection formatting is one Undo operation. Updating a named style saves its definition separately from native document Undo; restore the definition through Styles.
+- The [usage guide](docs/FONT-FINDER.md) covers setup, search limits, preview controls and saved styles. Google Fonts discovery/download/install and generated fonts remain later work.
 
 ### Beta 48 — Finish Sentence
 
@@ -155,7 +163,8 @@ A release must pass:
 8. `--paged-editing-test`, covering distinct paper geometry, canonical document/Undo preservation, physical page clicks, cross-page keyboard input and caret visibility, macro insertion, image page offsets and pixel-checked picture/print agreement
 9. `--sentence-completion-test`, covering response/context contracts, complete-source summaries, preferences, real asynchronous previews, precise rich insertion/Undo, stale mode/source results and macro preview access with a deterministic provider
 10. `--vector-signature-test`, covering tracing and SVG fidelity, live preview/threshold interaction, atomic Undo/Redo, named-image macros, native/profile/recovery persistence, compatibility fallbacks and vector print sources
-11. packaging and prerelease publication
+11. `--font-finder-test`, covering installed/local search, strict response contracts, privacy, real asynchronous previews, stale guards, rich font application/Undo and style persistence with a deterministic provider
+12. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 

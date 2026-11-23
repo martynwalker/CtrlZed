@@ -1,6 +1,6 @@
-# CtrlZed — Beta 48 release record and remaining queue
+# CtrlZed — Beta 49 candidate and release record
 
-Updated 22 November 2026.
+Updated 23 November 2026.
 
 ## Baselines and acceptance
 
@@ -11,6 +11,16 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 49 candidate — installed Font Finder
+
+- [x] Format → Find a Font, installed-family catalogue, local name/description search and Writing Mode ranking.
+- [x] Real editable previews, eight or fewer installed choices, exact family/alias handling and explicit standard emphasis.
+- [x] Separate optional Ask AI through the configured direct provider; strict source whitelist and bounded catalogue scope. Document sample text stays local.
+- [x] Explicit captured-selection/caret apply and named-style updates preserving other character/paragraph settings, stable identities and aliases.
+- [x] Cancellable modeless requests, stale query/mode/provider/document guards and no document changes during search or preview.
+
+Candidate verification is in progress. The [usage guide](FONT-FINDER.md) records the workflow and scope. Selection formatting uses native document Undo; saved named-style definitions are outside that Undo history. Online catalogue discovery, licence-aware download/install and generated fonts remain queued. Beta 48 remains the accepted baseline until Martyn tests Beta 49.
 
 ## Implemented in Beta 48
 
@@ -119,4 +129,4 @@ Status: Windows build, all functional regressions, packaging and publication pas
 
 ## Remaining queue
 
-The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, the AI Font Finder/font installation workflow, experimental generated fonts, further SVG artwork support, Bitwarden integration or complete Word publishing fidelity.
+The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, online font-catalogue discovery and the font installation workflow, experimental generated fonts, further SVG artwork support, Bitwarden integration or complete Word publishing fidelity.

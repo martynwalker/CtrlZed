@@ -10,7 +10,7 @@ public partial class MainWindow
     internal static bool IsBeta39Assembly()
     {
         var value = typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "";
-        return value.StartsWith("0.48.0", StringComparison.OrdinalIgnoreCase);
+        return value.StartsWith("0.49.0", StringComparison.OrdinalIgnoreCase);
     }
 
     internal void ApplyBeta39VersionIdentity()
@@ -26,12 +26,12 @@ public partial class MainWindow
         AboutMenu.Click -= Beta36About_Click;
         AboutMenu.Click -= Beta38About_Click;
         AboutMenu.Click += Beta39About_Click;
-        if (Status.Text.StartsWith("Ready — CtrlZed beta", StringComparison.OrdinalIgnoreCase)) Status.Text = "Ready — CtrlZed beta 48";
-        if (Title.StartsWith("CtrlZed — beta", StringComparison.OrdinalIgnoreCase)) Title = "CtrlZed — beta 48";
+        if (Status.Text.StartsWith("Ready — CtrlZed beta", StringComparison.OrdinalIgnoreCase)) Status.Text = "Ready — CtrlZed beta 49";
+        if (Title.StartsWith("CtrlZed — beta", StringComparison.OrdinalIgnoreCase)) Title = "CtrlZed — beta 49";
     }
 
     void Beta39About_Click(object sender, RoutedEventArgs e)
-        => Branding.CreateAboutWindow(this, "0.48.0 beta 48").ShowDialog();
+        => Branding.CreateAboutWindow(this, "0.49.0 beta 49").ShowDialog();
 }
 
 internal static class Beta39VersionBootstrap

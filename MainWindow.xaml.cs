@@ -109,6 +109,7 @@ public partial class MainWindow : Window
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
         InitializeRichTextPaste();
         InstallSentenceCompletion();
+        InstallFontFinder();
         InstallVectorClipboard();
         Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
         Editor.AddHandler(CommandManager.PreviewExecutedEvent,new ExecutedRoutedEventHandler(Editor_FollowingStylePreviewExecuted));
@@ -1635,12 +1636,12 @@ public partial class MainWindow : Window
         });
         panel.Children.Add(new Separator());
         panel.Children.Add(new TextBlock{Text="Fonts",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
-        var fontFinder=new Button{Content="AI Font Finder…",Width=120,HorizontalAlignment=HorizontalAlignment.Left};
-        fontFinder.Click+=(_,__)=>ShowComingSoon(w,"AI Font Finder");
+        var fontFinder=new Button{Content="Find a Font…",Width=120,HorizontalAlignment=HorizontalAlignment.Left};
+        fontFinder.Click+=(_,__)=>{w.Close();ShowFontFinder();};
         panel.Children.Add(fontFinder);
         panel.Children.Add(new TextBlock
         {
-            Text="Natural-language font discovery, licensed downloads/install and experimental generated fonts are planned under Coming Soon.",
+            Text="Search installed fonts, preview your text and apply a choice to text or a named style. Online catalogues, downloads/install and generated fonts remain under Coming Soon.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
         });
         panel.Children.Add(new Separator());
@@ -1712,9 +1713,8 @@ public partial class MainWindow : Window
         var items=new[]
         {
             "Further page-editing fidelity for field-code/comment display, complex tables and oversized objects.",
-            "AI Font Finder: natural-language search across properly licensed free-font catalogues such as Google Fonts.",
+            "Extend Font Finder to properly licensed online free-font catalogues such as Google Fonts.",
             "Font download and Windows installation workflow with licence information before installation.",
-            "Requests such as ‘Space: 1999-like’, ‘a big bad font’ or ‘Arial Bold’.",
             "Experimental AI-generated fonts, including decorative capital alphabets such as animal-shaped letters.",
             "Further SVG artwork support for text, gradients, filters and embedded images.",
             "Bitwarden Password Manager integration to generate document passwords and save them as named vault entries.",

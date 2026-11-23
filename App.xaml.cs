@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--font-finder-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunFontFinderSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--sentence-completion-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunSentenceCompletionSelfTest());
