@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace CtrlZed;
 
@@ -51,6 +52,19 @@ public partial class MainWindow
     const int FontFinderMaximumSample = 1000;
     bool fontFinderTargetTrackingInstalled;
     long fontFinderDocumentVersion;
+    FontFinderCaretReturnState? fontFinderCaretReturn;
+    bool fontFinderCaretReturnClosing;
+    bool fontFinderCaretReturnRestoring;
+
+    sealed class FontFinderCaretReturnState
+    {
+        internal FontFinderTarget Target { get; }
+        internal long Version { get; set; }
+        internal IReadOnlyList<(DependencyProperty Property, object Value)> Formatting { get; }
+        internal FontFinderCaretReturnState(FontFinderTarget target, long version,
+            IReadOnlyList<(DependencyProperty Property, object Value)> formatting)
+        { Target = target; Version = version; Formatting = formatting; }
+    }
 
     internal void InstallFontFinderTargetTracking()
     {
@@ -58,13 +72,33 @@ public partial class MainWindow
         fontFinderTargetTrackingInstalled = true;
         // Formatting changes, Undo and Redo also raise TextChanged. No document
         // text is read here, or in the finder's search/preview event handlers.
-        Editor.TextChanged += (_, _) => fontFinderDocumentVersion++;
+        Editor.TextChanged += (_, _) =>
+        {
+            fontFinderDocumentVersion++;
+            if (!fontFinderCaretReturnRestoring) fontFinderCaretReturn = null;
+        };
+        Editor.SelectionChanged += (_, _) =>
+        {
+            var pending = fontFinderCaretReturn;
+            if (pending == null || fontFinderCaretReturnRestoring) return;
+            if (!FontFinderCaretReturnLocationCurrent(pending) ||
+                (!fontFinderCaretReturnClosing && Editor.IsKeyboardFocusWithin &&
+                 !FontFinderTypingFormatMatches(pending.Formatting)))
+                fontFinderCaretReturn = null;
+        };
+        // Deliberate document/toolbar interaction takes precedence over a
+        // previous finder choice, including toolbar changes made off-caret.
+        // The owned finder has its own input route, so its Close button does
+        // not discard the handoff it is about to complete.
+        PreviewMouseDown += (_, _) => fontFinderCaretReturn = null;
+        PreviewKeyDown += (_, _) => fontFinderCaretReturn = null;
     }
 
     internal FontFinderTarget CaptureFontFinderTarget()
     {
         EnsureFontFinderEditable();
         InstallFontFinderTargetTracking();
+        fontFinderCaretReturn = null;
         var selection = Editor.Selection;
         var isCaret = selection.IsEmpty;
         var start = selection.Start.GetPositionAtOffset(0, LogicalDirection.Backward)!;
@@ -177,6 +211,13 @@ public partial class MainWindow
         if (!IsFontFinderTargetCurrent(target))
             throw new InvalidOperationException("The original selection or caret has changed, or another document is open. Close FontFinder and open it again at the intended text.");
         var family = FontFinderInstalledFamily(match, catalog);
+        fontFinderCaretReturn = null;
+        // Focus() on an editor in an inactive owner window can establish only
+        // logical focus. Native activation when the finder later closes would
+        // then rebuild its pending format from the neighbouring run. Activate
+        // the document first, and restore the captured typing format after its
+        // real keyboard-focus transition has taken place.
+        Activate();
         Editor.Focus();
         Editor.BeginChange();
         try
@@ -196,11 +237,115 @@ public partial class MainWindow
             target.Applied = true;
         }
         finally { Editor.EndChange(); }
+        if (target.IsCaret)
+        {
+            fontFinderCaretReturnClosing = false;
+            fontFinderCaretReturn = new FontFinderCaretReturnState(target, fontFinderDocumentVersion,
+                CaptureFontFinderFormatting());
+        }
         RefreshFontBox();
         RefreshParagraphStyleBox();
         MarkDirty(target.IsCaret ? $"FontFinder: {family.Source} selected for future typing at the caret."
             : $"FontFinder: {family.Source} applied to the selection. Ctrl+Z to undo.");
     }
+
+    internal void PrepareFontFinderCaretReturn()
+    {
+        var pending = fontFinderCaretReturn;
+        if (pending == null || !FontFinderCaretReturnLocationCurrent(pending))
+        {
+            fontFinderCaretReturn = null;
+            fontFinderCaretReturnClosing = false;
+            return;
+        }
+        // Closing an owned window can activate its owner before Closed is
+        // raised. That expected focus transition must not be mistaken for a
+        // deliberate author change to the typing format.
+        fontFinderCaretReturnClosing = true;
+    }
+
+    internal void CompleteFontFinderCaretReturn()
+    {
+        var pending = fontFinderCaretReturn;
+        if (pending == null || !FontFinderCaretReturnLocationCurrent(pending))
+        {
+            fontFinderCaretReturn = null;
+            fontFinderCaretReturnClosing = false;
+            return;
+        }
+        fontFinderCaretReturnRestoring = true;
+        try
+        {
+            Activate();
+            Editor.Focus();
+            if (!FontFinderCaretReturnLocationCurrent(pending))
+            {
+                fontFinderCaretReturn = null;
+                return;
+            }
+            RestoreFontFinderTypingFormat(pending);
+        }
+        finally
+        {
+            fontFinderCaretReturnRestoring = false;
+            fontFinderCaretReturnClosing = false;
+        }
+        // One bounded deferred restoration allows the native close/focus
+        // messages to settle. It cannot follow the author to another caret or
+        // document, and any intervening main-window input discards it.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            try
+            {
+                if (!ReferenceEquals(fontFinderCaretReturn, pending) ||
+                    !FontFinderCaretReturnLocationCurrent(pending) || !Editor.IsKeyboardFocusWithin)
+                    return;
+                fontFinderCaretReturnRestoring = true;
+                RestoreFontFinderTypingFormat(pending);
+                RefreshFontBox();
+            }
+            finally
+            {
+                fontFinderCaretReturnRestoring = false;
+                if (ReferenceEquals(fontFinderCaretReturn, pending)) fontFinderCaretReturn = null;
+            }
+        }));
+    }
+
+    void RestoreFontFinderTypingFormat(FontFinderCaretReturnState pending)
+    {
+        Editor.BeginChange();
+        try
+        {
+            foreach (var (property, value) in pending.Formatting)
+                Editor.Selection.ApplyPropertyValue(property, value);
+        }
+        finally { Editor.EndChange(); }
+        pending.Version = fontFinderDocumentVersion;
+    }
+
+    bool FontFinderCaretReturnLocationCurrent(FontFinderCaretReturnState pending)
+    {
+        var target = pending.Target;
+        if (!IsLoaded || !IsVisible || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished ||
+            Editor.IsReadOnly || !Editor.IsEnabled || !ReferenceEquals(Editor.Document, target.Document) ||
+            pending.Version != fontFinderDocumentVersion || !Editor.Selection.IsEmpty)
+            return false;
+        try
+        {
+            if (target.Document.ContentStart.GetOffsetToPosition(target.Start) != target.StartSymbolOffset ||
+                Editor.Selection.Start.CompareTo(target.Start) != 0)
+                return false;
+            var sample = new TextRange(target.SampleStart, target.SampleEnd).Text;
+            if (sample.Length > FontFinderMaximumSample) sample = sample[..FontFinderMaximumSample];
+            return string.Equals(sample, target.SampleText, StringComparison.Ordinal);
+        }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+    }
+
+    bool FontFinderTypingFormatMatches(IReadOnlyList<(DependencyProperty Property, object Value)> formatting)
+        => formatting.All(item => Equals(Editor.Selection.GetPropertyValue(item.Property), item.Value));
 
     internal IReadOnlyList<string> FontFinderStyleNames()
         => StyleSetStore.StyleNames(ActiveParagraphStyleSet);

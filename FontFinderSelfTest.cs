@@ -77,6 +77,11 @@ public partial class MainWindow
                     Phase("real Font Finder focus and pending caret format in "+view,()=>editor.VerifyFontFinderCaretWindow(view,report));
                 }
                 Phase("stale, New document and read-only protection",()=>editor.VerifyFontFinderStaleTargets(report));
+                foreach(var change in new[]{"caret movement","source edit","pending format"})
+                {
+                    var guard=change;
+                    Phase("closed finder ignores an obsolete caret return after "+guard,()=>editor.VerifyFontFinderCaretReturnGuard(guard,report));
+                }
                 Phase("named style scope, aliases, stable identities and native persistence",()=>editor.VerifyFontFinderStyles(report));
                 Phase("explicit AI permission and private deterministic UI request",()=>editor.VerifyFontFinderAiWindow(report));
                 Phase("late query, writing-mode and closed-window responses",()=>editor.VerifyFontFinderLateResponses(report));
@@ -569,15 +574,89 @@ public partial class MainWindow
             (Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily)?.Source==installed.After &&
             FontFinderCharacterState(Editor.Selection,omitFamily:true)==pending,
             "The actual Apply button lost the empty caret's pending size, colour, underline or emphasis after query focus in "+mode+".");
-        dialog.Close();PumpInput();
-        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);Editor.Focus();PumpInput();
+        report.AppendLine(mode+" caret UI diagnostic: expected family="+installed.After+"; expected non-family="+pending+
+            "; after Apply="+FontFinderCharacterState(Editor.Selection)+"; editor keyboard focus="+Editor.IsKeyboardFocusWithin+".");
+        RequireFontFinder(Editor.IsKeyboardFocusWithin,"The real caret Apply action did not return actual keyboard focus to the document in "+mode+".");
+        CloseFontFinderThroughButton(dialog);
+        report.AppendLine(mode+" caret UI diagnostic: after finder Close="+FontFinderCharacterState(Editor.Selection)+
+            "; editor keyboard focus="+Editor.IsKeyboardFocusWithin+".");
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        report.AppendLine(mode+" caret UI diagnostic: after owner Activate="+FontFinderCharacterState(Editor.Selection)+
+            "; editor keyboard focus="+Editor.IsKeyboardFocusWithin+".");
+        Editor.Focus();PumpInput();
+        report.AppendLine(mode+" caret UI diagnostic: after Editor.Focus="+FontFinderCharacterState(Editor.Selection)+
+            "; editor keyboard focus="+Editor.IsKeyboardFocusWithin+".");
         TypeInput("X");PumpInput();
         var typed=SentenceFindText(paragraph,"X");
+        report.AppendLine(mode+" caret UI diagnostic: typed X="+FontFinderCharacterState(typed)+
+            "; current caret="+FontFinderCharacterState(Editor.Selection)+"; actual document="+JsonSerializer.Serialize(PagedDocumentText())+".");
         RequireFontFinder(FontFinderFamilyOf(typed)==installed.After && FontFinderCharacterState(typed,omitFamily:true)==pending,
-            "Typing after closing the real finder lost its chosen family or captured pending size, colour, underline or emphasis in "+mode+".");
+            "Typing after closing the real finder lost its chosen family or captured pending size, colour, underline or emphasis in "+mode+
+            ": expected="+installed.After+"|"+pending+"; actual="+FontFinderCharacterState(typed)+".");
         RequireFontFinder(PagedDocumentText()==before.Replace("Typing fixture","Typing Xfixture",StringComparison.Ordinal),
             "The real empty-caret font application changed anything beyond the explicitly typed test character in "+mode+".");
         report.AppendLine(mode+": an empty caret carried pending WPF size, colour, underline, bold and italic into the real finder. Keyboard focus moved to its query; local search and Apply retained that state, and an actual typed X received the selected installed family after the finder closed.");
+    }
+
+    void VerifyFontFinderCaretReturnGuard(string change,StringBuilder report)
+    {
+        fontFinderWindow?.Close();var installed=FontFinderInstalledFixture();
+        var paragraph=new Paragraph(new Run("Caret return guard sample."){FontFamily=new FontFamily(installed.Before)});
+        SentenceSetDocument(new FlowDocument(paragraph),EditorViewMode.Continuous);
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        Editor.CaretPosition=SentenceTextPointer(paragraph,6);Editor.Focus();PumpInput();
+        Editor.Selection.ApplyPropertyValue(TextElement.FontSizeProperty,29d);
+        Editor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DarkMagenta);
+        Editor.Selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
+        Editor.Selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
+        Editor.Selection.ApplyPropertyValue(Inline.TextDecorationsProperty,TextDecorations.Underline);
+        ShowFontFinder();var dialog=fontFinderWindow!;
+        var query=FontFinderControl<TextBox>(dialog,"FontFinderQuery");dialog.Activate();query.Focus();PumpInput();
+        WaitFontFinder(()=>FontFinderControl<Button>(dialog,"FontFinderSearch").IsEnabled,"Caret-return guard catalogue did not finish loading.");
+        query.Text=installed.After;ClickFontFinder(dialog,"FontFinderSearch");
+        WaitFontFinder(()=>FontFinderControl<ListBox>(dialog,"FontFinderResults").Items.Count>0 && FontFinderControl<Button>(dialog,"FontFinderApply").IsEnabled,
+            "Caret-return guard local match did not become applicable.");
+        ClickFontFinder(dialog,"FontFinderApply");PumpInput();
+        RequireFontFinder(Editor.IsKeyboardFocusWithin,"The caret-return guard could not obtain actual document keyboard focus after Apply.");
+        var applied=FontFinderCharacterState(Editor.Selection);
+        if(change=="caret movement")Editor.CaretPosition=SentenceTextPointer(paragraph,13);
+        else if(change=="source edit"){TypeInput("Y");PumpInput();}
+        else
+        {
+            Editor.Selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(installed.Before));
+            Editor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DarkOrange);
+            Editor.Selection.ApplyPropertyValue(TextElement.FontSizeProperty,17d);
+            Editor.Selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Normal);
+            Editor.Selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Normal);
+            Editor.Selection.ApplyPropertyValue(Inline.TextDecorationsProperty,null);
+        }
+        PumpInput();
+        var expectedDocument=Editor.Document;
+        var expectedOffset=Editor.Document.ContentStart.GetOffsetToPosition(Editor.CaretPosition);
+        var before=PagedDocumentText();
+        var prefix=new TextRange(Editor.Document.ContentStart,Editor.CaretPosition).Text;
+        var deliberate=FontFinderCharacterState(Editor.Selection);
+        report.AppendLine("Caret return "+change+" diagnostic: obsolete applied="+applied+"; deliberate current="+deliberate+".");
+        CloseFontFinderThroughButton(dialog);
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);Editor.Focus();PumpInput();
+        RequireFontFinder(ReferenceEquals(Editor.Document,expectedDocument) && Editor.Selection.IsEmpty &&
+            Editor.Document.ContentStart.GetOffsetToPosition(Editor.CaretPosition)==expectedOffset && PagedDocumentText()==before,
+            "Closing the finder restored an obsolete caret/document destination after "+change+".");
+        var typing=FontFinderCharacterState(Editor.Selection);
+        report.AppendLine("Caret return "+change+" diagnostic: after Close/owner focus="+typing+".");
+        if(change=="caret movement")
+            RequireFontFinder(typing==deliberate,"Closing the finder overwrote the actual WPF typing format at the author's later caret destination.");
+        if(change=="pending format")
+            RequireFontFinder((Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily)?.Source==installed.Before && typing!=applied,
+                "Closing the finder restored obsolete font formatting after "+change+".");
+        if(change=="pending format")
+            RequireFontFinder((Editor.Selection.GetPropertyValue(TextElement.ForegroundProperty) as SolidColorBrush)?.Color!=Colors.DarkMagenta,
+                "Closing the finder overwrote the author's later pending colour with the old applied colour.");
+        TypeInput("X");PumpInput();
+        var typed=SentenceFindText(paragraph,"X");
+        RequireFontFinder(FontFinderCharacterState(typed)==typing && PagedDocumentText()==before.Insert(prefix.Length,"X"),
+            "Typing after finder closure used an obsolete destination or format after "+change+".");
+        report.AppendLine("After "+change+", reactivating and closing the finder through its actual Close button could not restore the obsolete caret or formatting; the next typed character used the current destination.");
     }
 
     void VerifyFontFinderLateResponses(StringBuilder report)
@@ -676,6 +755,24 @@ public partial class MainWindow
     static T FontFinderControl<T>(Window window,string name) where T:FrameworkElement
         =>window.FindName(name) as T??throw new InvalidOperationException("Font Finder is missing control "+name+".");
     static void ClickFontFinder(Window window,string name)=>FontFinderControl<Button>(window,name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    static void CloseFontFinderThroughButton(Window window)
+    {
+        window.Activate();FontFinderControl<TextBox>(window,"FontFinderQuery").Focus();PumpInput();
+        var close=FontFinderLogicalDescendants(window).OfType<Button>().SingleOrDefault(button=>Equals(button.Content,"Close"))
+            ??throw new InvalidOperationException("The actual Font Finder Close button was not found.");
+        close.Focus();PumpInput();
+        RequireFontFinder(close.IsKeyboardFocusWithin,"The actual Font Finder Close button did not receive keyboard focus.");
+        close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));PumpInput();
+        RequireFontFinder(!window.IsVisible,"The actual Font Finder Close button did not close its window.");
+    }
+    static IEnumerable<DependencyObject> FontFinderLogicalDescendants(DependencyObject root)
+    {
+        foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach(var descendant in FontFinderLogicalDescendants(child))yield return descendant;
+        }
+    }
     static void FontFinderChoose(Window window,string name,string label)
     {
         var combo=FontFinderControl<ComboBox>(window,name);
