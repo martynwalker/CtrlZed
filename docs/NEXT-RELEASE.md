@@ -1,10 +1,12 @@
-# CtrlZed — Beta 49 candidate and release record
+# CtrlZed — Beta 49 release record and remaining queue
 
 Updated 23 November 2026.
 
 ## Baselines and acceptance
 
-Beta 48 (`0.48.0-beta.48`) is the current accepted baseline on GitHub `main`. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc`. The release ZIP comes from that source; baseline promotion adds release documentation. Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.
+Beta 49 (`0.49.0-beta.49`) is the current development baseline on GitHub `main`. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source commit `bae79ec445f4af4a2f9514b24ac5a030777086f2`, including packaging and prerelease publication. User acceptance of Beta 49 is pending.
+
+Beta 48 (`0.48.0-beta.48`) remains the current user-accepted baseline. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc`. The release ZIP comes from that source; baseline promotion adds release documentation. Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.
 
 Beta 47 was the preceding development release. Its vector creation was reported working, with a separate low-priority Page Editing display report tracked as [issue #30](https://github.com/martynwalker/CtrlZed/issues/30); overall acceptance was not recorded.
 
@@ -12,15 +14,17 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 49 candidate — installed Font Finder
+## Implemented in Beta 49 — installed Font Finder
 
 - [x] Format → Find a Font, installed-family catalogue, local name/description search and Writing Mode ranking.
 - [x] Real editable previews, eight or fewer installed choices, exact family/alias handling and explicit standard emphasis.
 - [x] Separate optional Ask AI through the configured direct provider; strict source whitelist and bounded catalogue scope. Document sample text stays local.
 - [x] Explicit captured-selection/caret apply and named-style updates preserving other character/paragraph settings, stable identities and aliases.
 - [x] Cancellable modeless requests, stale query/mode/provider/document guards and no document changes during search or preview.
+- [x] Guard the first inserted text span against WPF clearing pending font properties when keyboard/document languages differ, without changing either language or keyboard layout. Defer interior-word caret changes so existing letters keep their formatting.
+- [x] Deterministic Windows search/schema/privacy tests, real modeless windows and Close, both editing views, native input, rich range/Undo/Redo, inside-word source fidelity, stale destinations and named-style/native persistence.
 
-Candidate verification is in progress. The [usage guide](FONT-FINDER.md) records the workflow and scope. Selection formatting uses native document Undo; saved named-style definitions are outside that Undo history. Online catalogue discovery, licence-aware download/install and generated fonts remain queued. Beta 48 remains the accepted baseline until Martyn tests Beta 49.
+The full Windows release gate passed on 23 November 2026. The release ZIP is built from the tested source above; baseline promotion adds release documentation. The [usage guide](FONT-FINDER.md) records the workflow and scope. Selection formatting uses native document Undo; saved named-style definitions are outside that Undo history. Online catalogue discovery, licence-aware download/install and generated fonts remain queued. Beta 48 remains the accepted baseline until Martyn tests Beta 49.
 
 ## Implemented in Beta 48
 
@@ -119,13 +123,13 @@ On 21 November 2026, Martyn reported that normal Ctrl+V lost formatting when cop
 
 ## Verification and promotion
 
-The release gate includes the Windows build, self-contained publish, launch check, deterministic-provider sentence-completion regressions, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
+The release gate includes the Windows build, self-contained publish, launch check, deterministic-provider Font Finder and sentence-completion regressions, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Windows build, all functional regressions, packaging and publication passed. The tested source and release documentation are promoted to `main`. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
+Status: Beta 49 Windows build, all functional regressions, packaging and publication passed in [run 45196647649](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649). The tested source and release documentation are promoted to `main` as the development baseline. Beta 49 awaits user acceptance; Beta 48 remains accepted. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
 
 ## Remaining queue
 

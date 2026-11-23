@@ -8,17 +8,20 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 The current accepted baseline is **[Beta 48 (0.48.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc` before publication and baseline promotion. **Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.**
 
+The current development baseline is **[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49)**. Its full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source commit `bae79ec445f4af4a2f9514b24ac5a030777086f2`, including packaging and publication. **Beta 49 user acceptance is pending; Beta 48 remains the accepted baseline.**
+
 **[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) was the previous user-accepted baseline**, passed by Martyn on 22 November 2026. It built forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48 work and the Beta 49 candidate, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48/49 work, verification and later ideas.
 
-### Beta 49 candidate — installed Font Finder
+### Beta 49 — installed Font Finder
 
 - **Format → Find a Font…** searches installed fonts locally by name or description, previews your own text and offers an explicit **Ask AI** option through the configured direct provider.
 - Apply a font family and chosen standard emphasis to captured text, the typing caret or a named style in the active set. Point size, colour, underline and paragraph layout are preserved. Previews do not dirty the document.
 - The document sample stays local. AI receives only the request, Writing Mode and installed-font catalogue; returned sources must be real supplied families. No fonts are downloaded or installed.
 - Selection formatting is one Undo operation. Updating a named style saves its definition separately from native document Undo; restore the definition through Styles.
 - The [usage guide](docs/FONT-FINDER.md) covers setup, search limits, preview controls and saved styles. Google Fonts discovery/download/install and generated fonts remain later work.
+- Windows regressions cover native keyboard/document language mismatches, real window focus and Close, exact rich insertion, unchanged existing word formatting at an interior caret, one Undo/Redo and stale destinations in both views. Only a proven newly typed span receives a pending caret choice; document language and keyboard layout are preserved.
 
 ### Beta 48 — Finish Sentence
 
