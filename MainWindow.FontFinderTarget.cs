@@ -29,6 +29,7 @@ internal sealed class FontFinderTarget
     internal TextPointer SampleEnd { get; }
     internal IReadOnlyList<(DependencyProperty Property, object Value)> Formatting { get; }
     internal bool Applied { get; set; }
+    internal bool Invalidated { get; set; }
 
     internal FontFinderTarget(FlowDocument document, TextPointer start, TextPointer end,
         bool isCaret, string sampleText, TextPointer sampleStart, TextPointer sampleEnd,
@@ -133,31 +134,40 @@ public partial class MainWindow
 
     internal bool IsFontFinderTargetCurrent(FontFinderTarget target)
     {
-        if (target == null || target.Applied || Editor.IsReadOnly || !Editor.IsEnabled ||
-            !ReferenceEquals(Editor.Document, target.Document) || target.Version != fontFinderDocumentVersion)
+        if (target == null || target.Applied || target.Invalidated) return false;
+        bool Invalidate()
+        {
+            target.Invalidated = true;
             return false;
+        }
+        if (Editor.IsReadOnly || !Editor.IsEnabled || !ReferenceEquals(Editor.Document, target.Document) ||
+            target.Version != fontFinderDocumentVersion)
+            return Invalidate();
         try
         {
             if (target.Start.CompareTo(target.Document.ContentStart) < 0 ||
                 target.End.CompareTo(target.Document.ContentEnd) > 0 || target.Start.CompareTo(target.End) > 0 ||
                 target.Document.ContentStart.GetOffsetToPosition(target.Start) != target.StartSymbolOffset ||
                 target.Document.ContentStart.GetOffsetToPosition(target.End) != target.EndSymbolOffset)
-                return false;
+                return Invalidate();
             var sample = new TextRange(target.SampleStart, target.SampleEnd).Text;
             if (sample.Length > FontFinderMaximumSample) sample = sample[..FontFinderMaximumSample];
-            if (!string.Equals(sample, target.SampleText, StringComparison.Ordinal)) return false;
+            if (!string.Equals(sample, target.SampleText, StringComparison.Ordinal)) return Invalidate();
             // A pending caret format can change without changing any document
-            // text. When it is still the active caret, check that format too.
-            if (target.IsCaret && Editor.Selection.IsEmpty &&
+            // text. Check it while the editor owns keyboard focus. The finder
+            // owns a snapshot while its query/preview has focus: WPF can reset
+            // pending properties during that ordinary focus transfer, and the
+            // apply path restores the captured format before changing the font.
+            if (target.IsCaret && Editor.IsKeyboardFocusWithin && Editor.Selection.IsEmpty &&
                 Editor.Selection.Start.CompareTo(target.Start) == 0)
             {
                 foreach (var (property, value) in target.Formatting)
-                    if (!Equals(Editor.Selection.GetPropertyValue(property), value)) return false;
+                    if (!Equals(Editor.Selection.GetPropertyValue(property), value)) return Invalidate();
             }
             return true;
         }
-        catch (ArgumentException) { return false; }
-        catch (InvalidOperationException) { return false; }
+        catch (ArgumentException) { return Invalidate(); }
+        catch (InvalidOperationException) { return Invalidate(); }
     }
 
     internal void ApplyFontFinderSelection(FontFinderTarget target, FontFinderMatch match,

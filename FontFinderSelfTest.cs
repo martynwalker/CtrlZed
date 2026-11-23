@@ -74,6 +74,7 @@ public partial class MainWindow
                     var view=mode;
                     Phase("rich selection, caret and one Undo/Redo in "+view,()=>editor.VerifyFontFinderTargets(view,report));
                     Phase("real local Font Finder window in "+view,()=>editor.VerifyFontFinderLocalWindow(view,report));
+                    Phase("real Font Finder focus and pending caret format in "+view,()=>editor.VerifyFontFinderCaretWindow(view,report));
                 }
                 Phase("stale, New document and read-only protection",()=>editor.VerifyFontFinderStaleTargets(report));
                 Phase("named style scope, aliases, stable identities and native persistence",()=>editor.VerifyFontFinderStyles(report));
@@ -161,6 +162,8 @@ public partial class MainWindow
             parsed[1].Bold==true && parsed[1].Italic==false,"A valid strict response lost canonical families or nullable emphasis.");
         RequireFontFinder(FontFinderService.ParseResponse("{\"matches\":[]}",catalogue).Count==0,"An honest empty result was rejected.");
         var nine=FontFinderResponse(catalogue.Select(item=>(item.Source,(bool?)null,(bool?)null,"Installed fixture.")).ToArray());
+        RequireFontFinder(FontFinderService.ParseResponse(FontFinderResponse(catalogue.Take(8).Select(item=>(item.Source,(bool?)null,(bool?)null,"Installed fixture.")).ToArray()),catalogue).Count==8,
+            "Eight distinct installed canonical sources were not accepted.");
         foreach(var invalid in new[]
         {
             "```json\n"+valid+"\n```",valid+" trailing prose","{not json}","[]",
@@ -188,8 +191,13 @@ public partial class MainWindow
             "Arial Bold did not resolve to its installed family with explicit bold.");
         var regular=FontFinderService.SearchLocal(catalogue,"Arial Regular",mode);
         RequireFontFinder(regular.Count>0 && regular[0].Bold==false && regular[0].Italic==false,"Regular did not explicitly request normal emphasis.");
+        var intrinsic=FontFinderService.SearchLocal(catalogue,"please use Bold Delight for a heading",mode);
+        RequireFontFinder(intrinsic.Count>0 && intrinsic.All(item=>item.Bold==null),"A family name containing Bold became an emphasis instruction inside a descriptive request.");
         foreach(var query in new[]{"a serif without italics","a serif not oblique"})
-            RequireFontFinder(FontFinderService.SearchLocal(catalogue,query,mode).All(item=>item.Italic==false),"An explicit negative slant request became italic: "+query);
+        {
+            var matches=FontFinderService.SearchLocal(catalogue,query,mode);
+            RequireFontFinder(matches.Count>0 && matches.All(item=>item.Italic==false),"An explicit negative slant request became italic: "+query);
+        }
         var browse=FontFinderService.SearchLocal(catalogue,"",mode);
         RequireFontFinder(browse.Count is >0 and <=8 && browse.Select(item=>item.Source).Distinct(StringComparer.OrdinalIgnoreCase).Count()==browse.Count,
             "Empty local browsing did not return a bounded distinct installed catalogue.");
@@ -222,17 +230,22 @@ public partial class MainWindow
                 "Deterministic generation lost the query, writing profile or canonical response.");
             FontFinderService.GeneratorOverride=(_,token)=>
             {
-                token.ThrowIfCancellationRequested();return Task.FromResult(FontFinderResponse(("Times New Roman",false,false,"Deterministic provider default emphasis.")));
+                token.ThrowIfCancellationRequested();calls++;return Task.FromResult(FontFinderResponse(("Times New Roman",false,false,"Deterministic provider default emphasis.")));
             };
             var emphasis=FontFinderService.SuggestAsync(catalogue,"a traditional serif",mode,CancellationToken.None);AwaitFontFinderTask(emphasis);
             RequireFontFinder(emphasis.Result.Single().Bold==null && emphasis.Result.Single().Italic==null,
                 "Model default false/false cleared emphasis when the description requested only a family.");
             using(var cancelled=new CancellationTokenSource())
             {
+                var cancelledCalls=0;
+                FontFinderService.GeneratorOverride=(_,token)=>
+                {
+                    cancelledCalls++;token.ThrowIfCancellationRequested();return Task.FromResult("{\"matches\":[]}");
+                };
                 cancelled.Cancel();
                 try{AwaitFontFinderTask(FontFinderService.SuggestAsync(catalogue,"cancelled",mode,cancelled.Token));throw new InvalidOperationException("Pre-cancelled generation returned candidates.");}
                 catch(OperationCanceledException){}
-                RequireFontFinder(calls==1,"A pre-cancelled request reached the provider transport.");
+                RequireFontFinder(cancelledCalls==0,"A pre-cancelled request reached the provider transport.");
             }
             var large=Enumerable.Range(0,1200).Select(index=>new FontFinderFamily("Regression Installed Family "+index.ToString("D4"),
                 "Regression Installed Family "+index.ToString("D4"),Array.Empty<string>(),new[]{index%2==0?"serif":"sans-serif"})).ToArray();
@@ -368,7 +381,14 @@ public partial class MainWindow
         ExpectFontFinderRejection(()=>ApplyFontFinderSelection(current,new FontFinderMatch("Not Installed 49",null,null,"Unknown."),installed.Catalogue),
             "An uninstalled canonical source reached font application.");
         RequireFontFinder(FontFinderCharacterState(Editor.Selection)==state,"Rejected unknown font changed selection formatting.");
-        report.AppendLine("Source edits, New document, read-only mode and format edits invalidated captured targets. Unknown sources were blocked independently of UI selection.");
+        Editor.CaretPosition=SentenceTextPointer(safe,4);Editor.Focus();PumpInput();
+        current=CaptureFontFinderTarget();var caretText=PagedDocumentText();
+        Editor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DarkOrange);
+        RequireFontFinder(PagedDocumentText()==caretText && !IsFontFinderTargetCurrent(current),
+            "A changed pending typing colour left the original empty-caret target current.");
+        Editor.CaretPosition=SentenceTextPointer(safe,8);PumpInput();
+        RequireFontFinder(!IsFontFinderTargetCurrent(current),"Moving the caret revived a target already invalidated by a pending-format change.");
+        report.AppendLine("Source edits, New document, read-only mode, range formatting and pending caret-colour changes invalidated captured targets. Moving the caret could not revive an observed stale target. Unknown sources were blocked independently of UI selection.");
     }
 
     void VerifyFontFinderStyles(StringBuilder report)
@@ -513,6 +533,51 @@ public partial class MainWindow
             report.AppendLine("The real Ask AI action required explicit AI-language permission even with the injected transport. The permitted request sent query/profile/catalogue data, omitted the private author-document marker and displayed a deterministic installed match without editing the source.");
         }
         finally{fontFinderWindow?.Close();languageSettings.AllowAiLanguageServices=false;FontFinderService.GeneratorOverride=original;}
+    }
+
+    void VerifyFontFinderCaretWindow(EditorViewMode mode,StringBuilder report)
+    {
+        fontFinderWindow?.Close();var installed=FontFinderInstalledFixture();
+        var paragraph=new Paragraph(new Run("Typing fixture content."){FontFamily=new FontFamily(installed.Before)});
+        SentenceSetDocument(new FlowDocument(paragraph),mode);
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        Editor.CaretPosition=SentenceTextPointer(paragraph,7);Editor.Focus();PumpInput();
+        // These are pending WPF typing properties, deliberately distinct from
+        // the adjacent Run. Opening the real modeless window must retain them.
+        Editor.Selection.ApplyPropertyValue(TextElement.FontFamilyProperty,new FontFamily(installed.Before));
+        Editor.Selection.ApplyPropertyValue(TextElement.FontSizeProperty,29d);
+        Editor.Selection.ApplyPropertyValue(TextElement.ForegroundProperty,Brushes.DarkMagenta);
+        Editor.Selection.ApplyPropertyValue(TextElement.FontWeightProperty,FontWeights.Bold);
+        Editor.Selection.ApplyPropertyValue(TextElement.FontStyleProperty,FontStyles.Italic);
+        Editor.Selection.ApplyPropertyValue(Inline.TextDecorationsProperty,TextDecorations.Underline);
+        var pending=FontFinderCharacterState(Editor.Selection,omitFamily:true);
+        var before=PagedDocumentText();
+        ShowFontFinder();var dialog=fontFinderWindow??throw new InvalidOperationException("The empty-caret Font Finder window did not open.");
+        var query=FontFinderControl<TextBox>(dialog,"FontFinderQuery");
+        dialog.Activate();query.Focus();PumpInput();
+        RequireFontFinder(query.IsKeyboardFocusWithin,"The empty-caret regression did not transfer actual keyboard focus to the finder's query field.");
+        WaitFontFinder(()=>FontFinderControl<Button>(dialog,"FontFinderSearch").IsEnabled,"Empty-caret installed catalogue loading did not finish.");
+        query.Text=installed.After;ClickFontFinder(dialog,"FontFinderSearch");
+        var results=FontFinderControl<ListBox>(dialog,"FontFinderResults");
+        WaitFontFinder(()=>results.Items.Count>0 && FontFinderControl<Button>(dialog,"FontFinderSearch").IsEnabled,"The empty-caret real local search returned no match.");
+        results.SelectedIndex=0;PumpInput();
+        var apply=FontFinderControl<Button>(dialog,"FontFinderApply");
+        RequireFontFinder(apply.IsEnabled,"Losing editor focus invalidated the captured pending caret format: "+FontFinderControl<TextBlock>(dialog,"FontFinderStatus").Text);
+        RequireFontFinder(PagedDocumentText()==before,"Opening or searching the empty-caret finder changed author text.");
+        ClickFontFinder(dialog,"FontFinderApply");PumpInput();
+        RequireFontFinder(PagedDocumentText()==before &&
+            (Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily)?.Source==installed.After &&
+            FontFinderCharacterState(Editor.Selection,omitFamily:true)==pending,
+            "The actual Apply button lost the empty caret's pending size, colour, underline or emphasis after query focus in "+mode+".");
+        dialog.Close();PumpInput();
+        Activate();SetForegroundWindow(new WindowInteropHelper(this).Handle);Editor.Focus();PumpInput();
+        TypeInput("X");PumpInput();
+        var typed=SentenceFindText(paragraph,"X");
+        RequireFontFinder(FontFinderFamilyOf(typed)==installed.After && FontFinderCharacterState(typed,omitFamily:true)==pending,
+            "Typing after closing the real finder lost its chosen family or captured pending size, colour, underline or emphasis in "+mode+".");
+        RequireFontFinder(PagedDocumentText()==before.Replace("Typing fixture","Typing Xfixture",StringComparison.Ordinal),
+            "The real empty-caret font application changed anything beyond the explicitly typed test character in "+mode+".");
+        report.AppendLine(mode+": an empty caret carried pending WPF size, colour, underline, bold and italic into the real finder. Keyboard focus moved to its query; local search and Apply retained that state, and an actual typed X received the selected installed family after the finder closed.");
     }
 
     void VerifyFontFinderLateResponses(StringBuilder report)
