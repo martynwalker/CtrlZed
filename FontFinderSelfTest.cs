@@ -333,7 +333,7 @@ public partial class MainWindow
             Equals(SentenceFindText(paragraph,"format these words").GetPropertyValue(TextElement.FontWeightProperty),FontWeights.Normal),
             "One Redo failed to restore font application in "+mode+".");
 
-        var left=new Run("LEFT"){FontFamily=new FontFamily(installed.Before),FontWeight=FontWeights.Bold};
+        var left=new Run("LEFT "){FontFamily=new FontFamily(installed.Before),FontWeight=FontWeights.Bold};
         var right=new Run("RIGHT"){FontFamily=new FontFamily(installed.Before),FontStyle=FontStyles.Italic};
         var caretParagraph=new Paragraph();caretParagraph.Inlines.Add(left);caretParagraph.Inlines.Add(right);
         SentenceSetDocument(new FlowDocument(caretParagraph),mode);
@@ -352,8 +352,10 @@ public partial class MainWindow
             target.Bold==Equals(activeBold,FontWeights.Bold) && target.Italic==Equals(activeItalic,FontStyles.Italic),
             "The empty-caret target substituted adjacent-run formatting for WPF's actual typing state in "+mode+".");
         before=PagedDocumentText();
+        var existingCaretTextFormat=FontFinderCharacterState(new TextRange(caretParagraph.ContentStart,caretParagraph.ContentEnd));
         ApplyFontFinderSelection(target,new FontFinderMatch(installed.After,null,null,"Next typing family only."),installed.Catalogue);PumpInput();
         RequireFontFinder(PagedDocumentText()==before &&
+            FontFinderCharacterState(new TextRange(caretParagraph.ContentStart,caretParagraph.ContentEnd))==existingCaretTextFormat &&
             (Editor.Selection.GetPropertyValue(TextElement.FontFamilyProperty) as FontFamily)?.Source==installed.After &&
             Equals(Editor.Selection.GetPropertyValue(TextElement.FontWeightProperty),activeBold) &&
             Equals(Editor.Selection.GetPropertyValue(TextElement.FontStyleProperty),activeItalic),
