@@ -101,6 +101,7 @@ public partial class MainWindow
                         var change = kind;
                         Phase("obsolete downloaded previews after " + change, () => editor.VerifyOnlineFontLatePreview(data, change, report));
                     }
+                    Phase("obsolete downloaded preview after selecting another real face", () => editor.VerifyOnlineFontLateFace(report));
                     Phase("actual synthetic online font window screenshot", () => editor.CaptureOnlineFontScreenshot(data, report));
                     Phase("per-user install conflict, rollback, persistence and owned cleanup", () => VerifyOnlineFontInstallation(data, report));
                     Phase("real explicit Install action and restart guidance", () => editor.VerifyOnlineFontInstallWindow(data, report));
@@ -239,7 +240,11 @@ public partial class MainWindow
         Invalid(root => root["families"]![0]!["licence"] = "UNKNOWN", "An unknown licence declaration was accepted.");
         Invalid(root => root["families"]![0]!["licenceFiles"] = new JsonArray(), "A family without its licence text was accepted.");
         Invalid(root => root["families"]![0]!["licenceFiles"]![0]!["text"] = "Changed licence", "A corrupted licence passed its pinned blob hash.");
-        Invalid(root => root["families"]!.AsArray().Add(root["families"]![0]!.DeepClone()), "Duplicate catalogue identifiers were accepted.");
+        Invalid(root =>
+        {
+            root["families"]!.AsArray().Add(root["families"]![0]!.DeepClone());
+            root["source"]!["supportedFamilies"] = 2; root["source"]!["metadataFamiliesScanned"] = 2;
+        }, "Duplicate catalogue identifiers were accepted.");
         OnlineReject(() => OnlineFontService.ParseCatalogue(new string(' ', 21 * 1024 * 1024)), "An oversized catalogue was accepted.");
         report.AppendLine("The entire bundled subset has real static faces, source URLs and hash-verified licence text. Invalid schemas, revisions, IDs, paths, styles, weights, licences and duplicates were rejected.");
     }
@@ -303,6 +308,13 @@ public partial class MainWindow
         OnlineReject(() => OnlineFontService.ValidateFontBytes(badTable), "An out-of-bounds font table was accepted.");
         var variable = fixture.Bytes.ToArray(); Encoding.ASCII.GetBytes("fvar").CopyTo(variable, 12);
         OnlineReject(() => OnlineFontService.ValidateFontBytes(variable), "An unsupported variable-font table was accepted.");
+        var copied = Path.Combine(OnlineFontService.CacheRootOverride!, "changed-after-review.ttf");
+        Directory.CreateDirectory(Path.GetDirectoryName(copied)!); File.WriteAllBytes(copied, fixture.Bytes);
+        var reviewed = new OnlineFontFile(fixture.Face, copied, OnlineSha256(fixture.Bytes));
+        OnlineFontService.ValidateFile(fixture.Catalogue, fixture.Family, reviewed);
+        var changed = fixture.Bytes.ToArray(); changed[^1] ^= 1; File.WriteAllBytes(copied, changed);
+        OnlineReject(() => OnlineFontService.ValidateFile(fixture.Catalogue, fixture.Family, reviewed), "A font changed after preview was accepted for installation.");
+        File.Delete(copied);
         report.AppendLine("The authentic static fixture passed SFNT checks; HTML, truncation, out-of-bounds tables and an fvar-bearing font were rejected before native font rendering.");
     }
 
@@ -541,6 +553,40 @@ public partial class MainWindow
         finally
         {
             completion.TrySetResult(fixture.Bytes.ToArray()); onlineFontWindow?.Close();
+            OnlineFontService.DownloadOverride = original; OnlineFontService.CacheRootOverride = root;
+        }
+    }
+
+    void VerifyOnlineFontLateFace(StringBuilder report)
+    {
+        var catalogue = OnlineFontService.LoadCatalogue();
+        var family = catalogue.Families.Single(font => font.Name == "Lato");
+        var face = family.Faces.Single(font => !font.Italic && font.Weight == 400);
+        var other = family.Faces.First(font => font.Path != face.Path);
+        var bytes = File.ReadAllBytes(Path.Combine(Path.GetTempPath(), "CtrlZed50FontFixture", Path.GetFileName(face.Path)));
+        OnlineRequire(OnlineGitBlobHash(bytes) == face.BlobSha, "The secondary real-face fixture does not match its pinned font.");
+        var fixture = new OnlineFontFixture(catalogue, family, face, bytes);
+        var original = OnlineFontService.DownloadOverride; var root = OnlineFontService.CacheRootOverride;
+        var completion = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = false; var returned = false;
+        try
+        {
+            OnlineFontService.CacheRootOverride = Path.Combine(root!, "Late actual face");
+            OnlineFontService.DownloadOverride = async (_, _) => { started = true; var data = await completion.Task; returned = true; return data; };
+            var dialog = OpenOnlineFixtureWindow(fixture); var source = OnlineDocumentState();
+            OnlineClick(dialog, "OnlineFontPreview"); OnlineWait(() => started, "The delayed real-face preview never started.");
+            var faces = OnlineControl<ComboBox>(dialog, "OnlineFontFaces");
+            faces.SelectedItem = faces.Items.OfType<OnlineFontFace>().Single(item => item.Path == other.Path);
+            completion.SetResult(bytes); OnlineWait(() => returned, "The old real-face preview never returned."); PumpInput(); PumpInput();
+            OnlineRequire((faces.SelectedItem as OnlineFontFace)?.Path == other.Path &&
+                OnlineControl<TextBox>(dialog, "OnlineFontSample").Visibility != Visibility.Visible &&
+                !OnlineControl<Button>(dialog, "OnlineFontInstall").IsEnabled && OnlineDocumentState() == source && !dirty,
+                "A downloaded face replaced the user's later real face choice or became installable.");
+            dialog.Close(); report.AppendLine("A valid Lato Regular download returned after the user selected another actual supplied face; the old preview and installation permission were discarded.");
+        }
+        finally
+        {
+            completion.TrySetResult(bytes); onlineFontWindow?.Close();
             OnlineFontService.DownloadOverride = original; OnlineFontService.CacheRootOverride = root;
         }
     }
