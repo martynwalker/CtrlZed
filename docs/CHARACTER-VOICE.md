@@ -20,4 +20,4 @@ Rewriting and AI discovery require AI language services to be enabled in Languag
 
 Windows release checks use an in-process deterministic transport for discovery schemas, alias searches, cancellation, preview routing, captured-target guards, rich Undo and both editing views. They do not assess a live model's prose quality or provider setup.
 
-The [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) passed on source `da6f33cbb2ba01b11a894e48d972e949a139aadc` on 24 November 2026, including packaging and publication. The final dialogue screenshot was inspected. Beta 51 awaits user acceptance.
+The [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) passed on source `da6f33cbb2ba01b11a894e48d972e949a139aadc` on 24 November 2026, including packaging and publication. The final dialogue screenshot was inspected. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.

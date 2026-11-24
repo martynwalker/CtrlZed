@@ -4,9 +4,9 @@ Updated 24 November 2026.
 
 ## Baselines and acceptance
 
-Beta 51 (`0.51.0-beta.51`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Windows dialogue screenshot was inspected. Beta 51 user acceptance is pending.
+Beta 51 (`0.51.0-beta.51`) is the current accepted and development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Windows dialogue screenshot was inspected. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.
 
-Beta 50.2 (`0.50.2-beta.50.2`) is the current accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication on 24 November 2026. The release ZIP is built from that tested source; baseline promotion adds release documentation. The final Windows toolbar screenshot was inspected. Martyn accepted Beta 50.2 on 24 November 2026 after reviewing the original transparent icon.
+Beta 50.2 (`0.50.2-beta.50.2`) was the preceding accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication on 24 November 2026. The release ZIP is built from that tested source; baseline promotion adds release documentation. The final Windows toolbar screenshot was inspected. Martyn accepted Beta 50.2 on 24 November 2026 after reviewing the original transparent icon.
 
 Beta 50.1 (`0.50.1-beta.50.1`) was the preceding accepted functional baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`, including packaging and publication on 24 November 2026. Martyn reported it as all good on 24 November, with the colour-icon square as a cosmetic follow-up addressed in Beta 50.2.
 
@@ -31,7 +31,7 @@ Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirme
 - [x] Captured ordinary-text destination, multi-paragraph replacement or caret insertion, retained opening format and one native Undo.
 - [x] Windows deterministic service, preview, cancellation, editing and existing release gates.
 
-All Windows release checks passed, including both-view rich replacement/Undo, selected boundary spaces and paragraph separators with unchanged following formatting, pasted insertion, manual page breaks, explicit private discovery, real preview actions, cancellation and stale configurations. Live interpretation and prose quality remain user acceptance checks; automated tests use a deterministic transport. No document text or generated profile/result is persisted by this feature. The low-priority Page Editing floating-picture issue #30 remains deferred.
+All Windows release checks passed, including both-view rich replacement/Undo, selected boundary spaces and paragraph separators with unchanged following formatting, pasted insertion, manual page breaks, explicit private discovery, real preview actions, cancellation and stale configurations. Martyn accepted the feature on 24 November 2026. Automated tests use a deterministic transport; live literary interpretation and prose quality are assessed by the writer. No document text or generated profile/result is persisted by this feature. The low-priority Page Editing floating-picture issue #30 remains deferred.
 
 ## Corrected in Beta 50.2 — original colour-picker artwork
 
@@ -62,7 +62,7 @@ All Windows release checks passed. The product patch builds forward from the tes
 - [x] Honest restart guidance for WPF's cached installed-font list; continue applying ordinary installed family names through the accepted finder.
 - [x] Windows catalogue/download/preview/UI/install checks alongside every accepted editing gate.
 
-All Windows release checks passed. The catalogue scans 2,042 source families and supplies 1,423 supported static families; 607 variable/unsupported families and 12 families without a recognised complete licence record are excluded. The source pin is `06bfe0d62a98375cb09c942fa18e68bd32cff057` of the official Google Fonts repository. Beta 50.2 is the accepted baseline. The [Google Fonts guide](ONLINE-FONTS.md) records the workflow and static-font scope. Broader catalogues, variable fonts and generated fonts remain queued.
+All Windows release checks passed. The catalogue scans 2,042 source families and supplies 1,423 supported static families; 607 variable/unsupported families and 12 families without a recognised complete licence record are excluded. The source pin is `06bfe0d62a98375cb09c942fa18e68bd32cff057` of the official Google Fonts repository. Beta 51 is the accepted baseline. The [Google Fonts guide](ONLINE-FONTS.md) records the workflow and static-font scope. Broader catalogues, variable fonts and generated fonts remain queued.
 
 ## Implemented in Beta 49 — installed Font Finder
 
@@ -179,7 +179,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 50.1 Windows build, all functional regressions, packaging and publication passed in [run 45368663583](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583). The tested source and release documentation are promoted to `main` as the development baseline. Beta 50.1 awaits user acceptance; Martyn accepted Beta 49 on 23 November 2026. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
+Status: Beta 51 Windows build, all functional regressions, packaging and publication passed in [run 45439998902](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902). The tested source and release documentation are promoted to `main`. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026, making it the accepted and development baseline. Beta 50.2 is the preceding accepted baseline.
 
 ## Remaining queue
 
