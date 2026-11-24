@@ -6,19 +6,21 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current accepted baseline is **[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49)**. Its full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source `bae79ec445f4af4a2f9514b24ac5a030777086f2`. **Martyn confirmed Beta 49 as a pass on 23 November 2026.**
+The current accepted functional baseline is **[Beta 50.1 (0.50.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.1-beta.50.1)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`. **Martyn reported it as all good on 24 November 2026, requesting the colour-icon cosmetic correction delivered in Beta 50.2.**
 
-The current development baseline is **[Beta 50.1 (0.50.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.1-beta.50.1)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`, including packaging and publication. **Beta 50.1 user acceptance is pending; Beta 49 remains accepted.**
+The current development baseline is **[Beta 50.2 (0.50.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.2-beta.50.2)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication. The final Windows toolbar screenshot confirms the original transparent pinwheel without a square surround. **Beta 50.2 user acceptance is pending.**
+
+[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49) was the preceding accepted baseline, confirmed by Martyn on 23 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) verified source `bae79ec445f4af4a2f9514b24ac5a030777086f2`.
 
 [Beta 48](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48) was the preceding accepted baseline, passed by Martyn on 22 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) verified source `0d630c7e8e260ece357abc4b01169c975ed210dc`. Beta 46.2 and Beta 45.1 were accepted on 22 and 21 November respectively. All later development builds forward from that work.
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 50.2 candidate — original transparent colour icon
+### Beta 50.2 — original transparent colour icon
 
 - Restore the original transparent Colour Picker pinwheel from the saved application icon resource; remove the opaque screenshot tile and crop.
 - Retain the same toolbar target, action and placement before Fields, with a rounded hover/pressed indication instead of square button chrome.
-- Windows release verification and the final toolbar visual check are in progress. Text-colour and font-preview behaviour is unchanged.
+- All Windows release checks passed, and the final toolbar screenshot was inspected. Text-colour and font-preview behaviour is unchanged.
 
 ### Beta 50.1 — preview clicks and text colour
 
@@ -32,7 +34,7 @@ The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes del
 - **Format → Find a Font… → Google Fonts…** browses 1,423 supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
 - Click a family to download its real preview, and review the actual source licence and notices before installation. Preview text stays local; search, AI and previews do not install fonts or edit the document.
 - Explicit installation is for the current Windows user and preserves existing registrations. Save and restart CtrlZed afterwards to refresh WPF's cached installed-font list, then apply through the existing finder.
-- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 49 remains the accepted baseline.
+- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 50.1 is the accepted functional baseline.
 
 ### Beta 49 — installed Font Finder
 
