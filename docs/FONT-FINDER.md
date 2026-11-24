@@ -28,7 +28,7 @@ Font discovery happens when the finder opens, not when a menu opens. Existing fo
 
 ## Later work
 
-Online catalogue discovery, licence-aware downloads, Windows font installation and experimental generated fonts remain queued. The low-priority Page Editing floating-picture display issue is tracked separately in [issue #30](https://github.com/martynwalker/CtrlZed/issues/30).
+Supported static Google Fonts discovery, licence review, downloads and per-user Windows installation are available in [Beta 50](ONLINE-FONTS.md). Broader catalogues, variable fonts and experimental generated fonts remain queued. The low-priority Page Editing floating-picture display issue is tracked separately in [issue #30](https://github.com/martynwalker/CtrlZed/issues/30).
 
 ## Release verification
 

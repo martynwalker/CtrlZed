@@ -1,10 +1,12 @@
-# CtrlZed — Beta 50 candidate and release record
+# CtrlZed — Beta 50 release record and remaining queue
 
-Updated 23 November 2026.
+Updated 24 November 2026.
 
 ## Baselines and acceptance
 
-Beta 49 (`0.49.0-beta.49`) is the current accepted baseline on GitHub `main`. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source commit `bae79ec445f4af4a2f9514b24ac5a030777086f2`, including packaging and prerelease publication. Martyn confirmed Beta 49 as a pass on 23 November 2026.
+Beta 50 (`0.50.0-beta.50`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) on source `26afca04def681354f61875b3e8361179519ecfd`, including packaging and publication on 24 November 2026. User acceptance of Beta 50 is pending; Beta 49 remains accepted.
+
+Beta 49 (`0.49.0-beta.49`) remains the current user-accepted baseline. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source commit `bae79ec445f4af4a2f9514b24ac5a030777086f2`, including packaging and prerelease publication. Martyn confirmed Beta 49 as a pass on 23 November 2026.
 
 Beta 48 (`0.48.0-beta.48`) was the preceding user-accepted baseline. The [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc`. The release ZIP comes from that source; baseline promotion adds release documentation. Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.
 
@@ -14,16 +16,16 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 50 candidate — Google Fonts
+## Implemented in Beta 50 — Google Fonts
 
-- [ ] Generate a pinned supported-static-font catalogue from the official source, retaining real face metadata, licence text and notices.
-- [ ] Local discovery and optional direct-provider AI ranking without sending the document sample.
-- [ ] Explicit download of a verified real private-file preview, with no document changes or installation during search/preview.
-- [ ] Explicit per-user installation, existing-registration protection, transaction rollback and source/licence receipts.
-- [ ] Honest restart guidance for WPF's cached installed-font list; continue applying ordinary installed family names through the accepted finder.
-- [ ] Windows catalogue/download/preview/UI/install checks alongside every accepted editing gate.
+- [x] Generate a pinned supported-static-font catalogue from the official source, retaining real face metadata, licence text and notices.
+- [x] Local discovery and optional direct-provider AI ranking without sending the document sample.
+- [x] Explicit download of a verified real private-file preview, with no document changes or installation during search/preview.
+- [x] Explicit per-user installation, existing-registration protection, transaction rollback and source/licence receipts.
+- [x] Honest restart guidance for WPF's cached installed-font list; continue applying ordinary installed family names through the accepted finder.
+- [x] Windows catalogue/download/preview/UI/install checks alongside every accepted editing gate.
 
-Candidate verification is in progress. Beta 49 remains the accepted baseline. The [Google Fonts guide](ONLINE-FONTS.md) records the workflow and static-font scope. Broader catalogues, variable fonts and generated fonts remain queued.
+All Windows release checks passed. The catalogue scans 2,042 source families and supplies 1,423 supported static families; 607 variable/unsupported families and 12 families without a recognised complete licence record are excluded. The source pin is `06bfe0d62a98375cb09c942fa18e68bd32cff057` of the official Google Fonts repository. Beta 49 remains the accepted baseline. The [Google Fonts guide](ONLINE-FONTS.md) records the workflow and static-font scope. Broader catalogues, variable fonts and generated fonts remain queued.
 
 ## Implemented in Beta 49 — installed Font Finder
 
@@ -134,14 +136,14 @@ On 21 November 2026, Martyn reported that normal Ctrl+V lost formatting when cop
 
 ## Verification and promotion
 
-The release gate includes the Windows build, self-contained publish, launch check, deterministic-provider Font Finder and sentence-completion regressions, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
+The release gate includes the Windows build, self-contained publish, launch check, online-font catalogue/download/preview/per-user-installation checks, deterministic-provider installed Font Finder and sentence-completion regressions, document-fidelity/filename self-tests, actual following-style keyboard checks, menu responsiveness, custom-style/native/DOCX persistence, rich/plain-text-paste checks and physical paged-editing/picture regressions. The last complete run must pass before publishing the release or promoting the GitHub baseline.
 
 The style checks exercise a renamed style in a copied set; paragraph settings on heading/body text and inside a table; native `.czd` save/reopen; custom DOCX style and layout round trips; and Return and macro insertion paths. The filename checks exercise heading/sentence precedence, abbreviations, Windows filename sanitisation, fallback names and length handling.
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 49 Windows build, all functional regressions, packaging and publication passed in [run 45196647649](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649). The tested source and release documentation are promoted to `main` as the accepted baseline. Martyn confirmed Beta 49 as a pass on 23 November 2026. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
+Status: Beta 50 Windows build, all functional regressions, packaging and publication passed in [run 45293288540](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540). The tested source and release documentation are promoted to `main` as the development baseline. Beta 50 awaits user acceptance; Martyn accepted Beta 49 on 23 November 2026. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
 
 ## Remaining queue
 
-The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, online font-catalogue discovery and the font installation workflow, experimental generated fonts, further SVG artwork support, Bitwarden integration or complete Word publishing fidelity.
+The wider Coming Soon work and remaining [language-intelligence backlog](https://github.com/martynwalker/CtrlZed/issues/17) remain separate. This release does not claim to deliver complete page-editing fidelity for fields/comments and advanced layout, broader online font-catalogues and variable-font support, experimental generated fonts, further SVG artwork support, Bitwarden integration or complete Word publishing fidelity.

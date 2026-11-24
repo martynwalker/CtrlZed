@@ -6,20 +6,20 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The preceding accepted baseline was **[Beta 48 (0.48.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48)**. The full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) on source commit `0d630c7e8e260ece357abc4b01169c975ed210dc` before publication and baseline promotion. **Martyn confirmed Beta 48 as a pass on 22 November 2026, reporting that it works extremely well.**
+The current accepted baseline is **[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49)**. Its full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source `bae79ec445f4af4a2f9514b24ac5a030777086f2`. **Martyn confirmed Beta 49 as a pass on 23 November 2026.**
 
-The current accepted baseline is **[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49)**. Its full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source commit `bae79ec445f4af4a2f9514b24ac5a030777086f2`, including packaging and publication. **Martyn confirmed Beta 49 as a pass on 23 November 2026.**
+The current development baseline is **[Beta 50 (0.50.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.0-beta.50)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) on source `26afca04def681354f61875b3e8361179519ecfd`, including packaging and publication. **Beta 50 user acceptance is pending; Beta 49 remains accepted.**
 
-**[Beta 46.2](https://github.com/martynwalker/CtrlZed/releases/tag/v0.46.2-beta.46.2) was the previous user-accepted baseline**, passed by Martyn on 22 November 2026. It built forward from the previously accepted [Beta 45.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.45.1-beta.45.1), passed on 21 November 2026, and retains the existing editing, style, clipboard, macro and document-protection features.
+[Beta 48](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48) was the preceding accepted baseline, passed by Martyn on 22 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) verified source `0d630c7e8e260ece357abc4b01169c975ed210dc`. Beta 46.2 and Beta 45.1 were accepted on 22 and 21 November respectively. All later development builds forward from that work.
 
-The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered Beta 45/45.1/46/46.1/46.2/47/48/49 work, verification and later ideas.
+The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 50 candidate — Google Fonts discovery and installation
+### Beta 50 — Google Fonts discovery and installation
 
-- **Format → Find a Font… → Google Fonts…** browses supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
+- **Format → Find a Font… → Google Fonts…** browses 1,423 supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
 - Read the actual source licence and notices before downloading a real preview. Preview text stays local; search, AI and previews do not install fonts or edit the document.
 - Explicit installation is for the current Windows user and preserves existing registrations. Save and restart CtrlZed afterwards to refresh WPF's cached installed-font list, then apply through the existing finder.
-- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. Windows candidate verification is in progress. Beta 49 remains the accepted baseline.
+- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 49 remains the accepted baseline.
 
 ### Beta 49 — installed Font Finder
 

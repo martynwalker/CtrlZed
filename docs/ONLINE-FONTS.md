@@ -1,6 +1,6 @@
 # Google Fonts — Beta 50
 
-Open **Format → Find a Font… → Google Fonts…**. This browser extends the installed-font finder with a supported selection of static fonts from the official Google Fonts repository.
+Open **Format → Find a Font… → Google Fonts…**. This browser extends the installed-font finder with 1,423 supported static font families from the official Google Fonts repository.
 
 ## Search and inspect
 
@@ -28,6 +28,8 @@ Existing named styles, macros and native documents continue to use ordinary font
 
 ## Verification and scope
 
-The release gate includes catalogue-generation checks; exact source, licence and font-byte validation; local and deterministic AI searches; private-file previews; stale-request handling; actual preview-window interaction; and per-user installation, collision, rollback and cleanup checks. It retains the accepted document, menu, style, rich/plain paste, page, vector-signature, sentence-completion and installed-font finder gates. Beta 50 remains a build candidate until those checks and publication complete.
+The release gate includes catalogue-generation checks; exact source, licence and font-byte validation; local and deterministic AI searches; private-file previews; stale-request handling; actual preview-window interaction; and per-user installation, collision, rollback and cleanup checks. It retains the accepted document, menu, style, rich/plain paste, page, vector-signature, sentence-completion and installed-font finder gates. The [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) passed on source `26afca04def681354f61875b3e8361179519ecfd`; packaging and publication completed on 24 November 2026. The gate includes a real download/private preview from the pinned source and actual per-user Windows installation/rollback/cleanup. AI transport in the tests is deterministic. Beta 50 awaits user acceptance; Beta 49 remains accepted.
 
 The low-priority Page Editing floating-picture display issue remains tracked separately in [issue #30](https://github.com/martynwalker/CtrlZed/issues/30).
+
+The supplied catalogue was generated on 23 November 2026 from 2,042 source families. It excludes 607 variable/unsupported families and 12 families without a recognised complete licence record. The generated catalogue is 7,784,743 bytes, SHA-256 `8b8a7d27adfd4e4757849aad3c14da63b1ef28812c776135b93c16f3553a286b`. Rebuilding preserves the pinned font/licence data, while the generation timestamp and catalogue digest change.
