@@ -146,10 +146,30 @@ public partial class MainWindow
         // WPF line-ending normalisation; no implicit boundary spaces are added.
         insertion = insertion.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\u2028', '\n').Replace('\u2029', '\n');
 
+        var replacementEnd = target.End;
+        if (target.IsReplacement && insertion.EndsWith("\n", StringComparison.Ordinal) &&
+            FindContainingParagraph(target.End) is Paragraph following &&
+            target.End.CompareTo(following.ContentStart) == 0)
+        {
+            // Keep the final existing paragraph separator in the document.
+            // Deleting it would merge the untouched following paragraph into
+            // the rewrite, then recreate it with the opening paragraph's
+            // defaults. Its original object, style and character defaults must
+            // survive. Any earlier selected blank paragraphs are still part of
+            // the replacement: remove exactly one final newline, not the rest.
+            var lastSelected = target.Paragraphs[^1].Paragraph;
+            if (lastSelected.ContentEnd.CompareTo(target.Start) >= 0 &&
+                lastSelected.ContentEnd.CompareTo(target.End) < 0)
+            {
+                replacementEnd = lastSelected.ContentEnd.GetPositionAtOffset(0, LogicalDirection.Backward)!;
+                insertion = insertion[..^1];
+            }
+        }
+
         Editor.BeginChange();
         try
         {
-            Editor.Selection.Select(target.Start, target.End);
+            Editor.Selection.Select(target.Start, replacementEnd);
             Editor.Selection.Text = "";
             // The text setter turns newlines into spaces inside a Hyperlink.
             // Existing plain-paste splitting preserves both untouched sides.

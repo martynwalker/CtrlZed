@@ -73,11 +73,11 @@ public partial class MainWindow
         options.Children.Add(Label("Author"));
         var authorQuery=Named("VoiceAuthorQuery",new TextBox{MaxLength=160,Padding=new Thickness(4),ToolTip="Search locally; use Find author with AI for other authors."});
         options.Children.Add(authorQuery);
-        var authors=Named("VoiceAuthors",new ListBox{DisplayMemberPath="Name",Height=105,Margin=new Thickness(0,5,0,0)});options.Children.Add(authors);
+        var authors=Named("VoiceAuthors",new ListBox{DisplayMemberPath="Name",Height=72,Margin=new Thickness(0,5,0,0)});options.Children.Add(authors);
         var findAuthor=Named("VoiceFindAuthor",Action("Find author with AI"));options.Children.Add(findAuthor);
         options.Children.Add(Label("In the voice of"));
         var voiceQuery=Named("VoiceQuery",new TextBox{MaxLength=160,Padding=new Thickness(4),ToolTip="Search the selected author's characters, including familiar names such as Jack."});options.Children.Add(voiceQuery);
-        var voices=Named("VoiceCharacters",new ListBox{DisplayMemberPath="Name",Height=120,Margin=new Thickness(0,5,0,0)});options.Children.Add(voices);
+        var voices=Named("VoiceCharacters",new ListBox{DisplayMemberPath="Name",Height=82,Margin=new Thickness(0,5,0,0)});options.Children.Add(voices);
         var findVoices=Named("VoiceFindCharacters",Action("Find voices with AI"));options.Children.Add(findVoices);
         options.Children.Add(Label("Delivery"));
         var delivery=Named("VoiceDelivery",new ComboBox{ItemsSource=CharacterVoiceService.Deliveries,SelectedIndex=0});options.Children.Add(delivery);
