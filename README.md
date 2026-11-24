@@ -6,7 +6,9 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current accepted and development baseline is **[Beta 51 (0.51.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication. **Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.**
+The current accepted baseline is **[Beta 51 (0.51.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication. **Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.**
+
+The current development baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Beta 52 user acceptance is pending; Beta 51 remains accepted.**
 
 [Beta 50.2 (0.50.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.2-beta.50.2) was the preceding accepted baseline, confirmed on 24 November 2026 after reviewing the original transparent colour icon. Its [Windows gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`.
 
@@ -16,13 +18,13 @@ The current accepted and development baseline is **[Beta 51 (0.51.0)](https://gi
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 52 candidate — Story Workshop
+### Beta 52 — Story Workshop
 
 - **Review → Story Workshop…** opens a guided planning conversation, normally in Novel mode, with editable cast, characterisation, five-stage arcs and a twist-aware storyboard.
 - The cast covers contrasting traits, body/environment/mind, triggers, moral code and voice. Plot notes, event cards, fair-play clues, open questions and continuity problems build alongside the conversation.
 - Author decisions and AI proposals are marked separately. Opening and local editing make no requests; explicit Send shares planning data and recent workshop conversation rather than the manuscript body.
 - Native `.czd` saves, password protection and recovery retain the plan. Explicit non-native Save As exports the body while preserving the working plan. A character can be opened in Character Voice using its personality notes.
-- Windows verification is in progress. See the [Story Workshop guide](docs/STORY-WORKSHOP.md). Beta 51 remains accepted.
+- The full Windows release gate passed, including metadata/recovery, strict proposals, real conversation/editing, exports, planning Undo and stale-response guards. See the [Story Workshop guide](docs/STORY-WORKSHOP.md). Beta 51 remains accepted.
 
 ### Beta 51 — Character Voice
 

@@ -1,10 +1,12 @@
-# CtrlZed — Beta 52 candidate and release record
+# CtrlZed — Beta 52 and release record
 
 Updated 24 November 2026.
 
 ## Baselines and acceptance
 
-Beta 51 (`0.51.0-beta.51`) is the current accepted and development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Windows dialogue screenshot was inspected. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.
+Beta 52 (`0.52.0-beta.52`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Story Workshop screenshot was inspected. Beta 52 user acceptance is pending; Beta 51 remains accepted.
+
+Beta 51 (`0.51.0-beta.51`) is the current accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Windows dialogue screenshot was inspected. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.
 
 Beta 50.2 (`0.50.2-beta.50.2`) was the preceding accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication on 24 November 2026. The release ZIP is built from that tested source; baseline promotion adds release documentation. The final Windows toolbar screenshot was inspected. Martyn accepted Beta 50.2 on 24 November 2026 after reviewing the original transparent icon.
 
@@ -22,15 +24,15 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 52 candidate — Story Workshop
+## Implemented in Beta 52 — Story Workshop
 
 - [x] Versioned, bounded per-document planning metadata for cast, characterisation, five arc stages, story logic, event cards, fair-play clues, questions and workshop conversation.
 - [x] Native and protected `.czd` capture/restore, recovery and document isolation; native Save and explicit body-only non-native export.
 - [x] Guided explicit-request conversation, strict proposal patches and confirmed-decision conflict protection.
 - [x] Editable structured character/storyboard views, planning Undo and own-character access to Character Voice.
-- [ ] Windows metadata, conversation, cancellation, native/recovery/export and existing release gates.
+- [x] Windows metadata, conversation, cancellation, native/recovery/export and existing release gates.
 
-Verification is in progress. Beta 51 remains the accepted baseline. Story Workshop is a planning conversation and reference board; live literary judgement remains the author's decision. The low-priority Page Editing floating-picture issue #30 stays deferred.
+All Windows release checks passed. They cover complete native/protected/recovery metadata, old-file/document isolation, body and print separation, body-export protection, explicit conversational requests, editable cast/arcs/storyboard, planning Undo, own-character voice profiles and late-response guards. Automated AI checks use a deterministic provider; live literary judgement remains the author's decision. Beta 51 remains the accepted baseline. The low-priority Page Editing floating-picture issue #30 stays deferred.
 
 ## Implemented in Beta 51 — Character Voice
 
@@ -189,7 +191,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 51 Windows build, all functional regressions, packaging and publication passed in [run 45439998902](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902). The tested source and release documentation are promoted to `main`. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026, making it the accepted and development baseline. Beta 50.2 is the preceding accepted baseline.
+Status: Beta 52 Windows build, all functional regressions, packaging and publication passed in [run 45457086330](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330). The tested source and release documentation are promoted to `main` as the development baseline. Beta 52 awaits user acceptance. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026; Beta 51 remains the accepted baseline.
 
 ## Remaining queue
 
