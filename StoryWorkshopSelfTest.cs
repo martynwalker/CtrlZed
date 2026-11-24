@@ -367,7 +367,8 @@ public partial class MainWindow
         send.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var responsive=false;Dispatcher.BeginInvoke(new Action(()=>responsive=true),System.Windows.Threading.DispatcherPriority.Input);
         WaitSentence(()=>responsive,"Story Workshop blocked dispatcher input while waiting for the provider.");
-        WaitSentence(()=>SnapshotStoryWorkshop().Conversation.Count==2 && send.IsEnabled,"A completed workshop turn did not commit both conversation messages.");
+        WaitSentence(()=>SnapshotStoryWorkshop().Conversation.Count==2 && !WorkshopControl<Button>(dialog,"WorkshopCancel").IsEnabled,
+            "A completed workshop turn did not commit both conversation messages and become idle.");
         var state=SnapshotStoryWorkshop();var character=state.Characters.Single();
         RequireWorkshop(calls==1 && prompts.Single().Contains(authorMessage,StringComparison.Ordinal) &&
             !prompts.Single().Contains(WorkshopBodyMarker,StringComparison.Ordinal) && state.WritingMode==WritingMode.Novel,
