@@ -176,7 +176,7 @@ public partial class MainWindow
         SentenceSetDocument(document,mode);
         var watched=new[]{(first,"Before "),(first,"target "),(first,"linked words"),(first," tail."),(second,"second target"),(after,"UNRELATED AFTER PARAGRAPH.")};
         var states=watched.Select(pair=>ColourCharacterState(SentenceFindText(pair.Item1,pair.Item2))).ToArray();
-        var layouts=new[]{first,second,after}.Select(FontFinderParagraphState).ToArray();
+        var layouts=new[]{first,second,after}.Select(ColourParagraphState).ToArray();
         var text=PagedDocumentText();
         Editor.Selection.Select(SentenceFindText(first,"target ").Start,SentenceFindText(second,"second target").End);
         ResetSentenceUndo();var target=CaptureTextColourTarget();ApplyTextColour(target,"#C22F6B");PumpInput();
@@ -188,7 +188,7 @@ public partial class MainWindow
         }
         foreach(var index in new[]{0,5})
             ColourRequire(ColourCharacterState(SentenceFindText(watched[index].Item1,watched[index].Item2))==states[index],"Unselected text formatting changed in "+mode+".");
-        ColourRequire(PagedDocumentText()==text && new[]{first,second,after}.Select(FontFinderParagraphState).SequenceEqual(layouts) &&
+        ColourRequire(PagedDocumentText()==text && new[]{first,second,after}.Select(ColourParagraphState).SequenceEqual(layouts) &&
             first.Inlines.OfType<Hyperlink>().Single().NavigateUri==link.NavigateUri && image.Source==picture && image.Width==16 && image.Height==11,
             "Colour changed paragraphs, text, hyperlink destination or picture geometry in "+mode+".");
         Editor.Undo();PumpInput();
@@ -361,6 +361,18 @@ public partial class MainWindow
             Value(TextElement.FontSizeProperty),omitColour?"":Value(TextElement.ForegroundProperty),Value(Inline.TextDecorationsProperty),Value(TextElement.FontStretchProperty),Value(Inline.BaselineAlignmentProperty)});
     }
     static string ColourWithoutForeground(string state){var parts=state.Split('|');parts[4]="";return string.Join("|",parts);}
+    static string ColourParagraphState(Paragraph paragraph)
+    {
+        // WPF's Auto margins/line height are NaN. Preserve that exact state
+        // independently of finite zero, rather than asking JSON to emit NaN.
+        static string Scalar(double value)=>value.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
+        return JsonSerializer.Serialize(new
+        {
+            Left=Scalar(paragraph.Margin.Left),Top=Scalar(paragraph.Margin.Top),Right=Scalar(paragraph.Margin.Right),Bottom=Scalar(paragraph.Margin.Bottom),
+            TextIndent=Scalar(paragraph.TextIndent),LineHeight=Scalar(paragraph.LineHeight),paragraph.LineStackingStrategy,
+            paragraph.KeepWithNext,paragraph.KeepTogether,paragraph.BreakPageBefore,paragraph.TextAlignment,paragraph.Tag
+        });
+    }
     static IEnumerable<DependencyObject> ColourAncestors(DependencyObject item)
     {for(var current=LogicalTreeHelper.GetParent(item)??VisualTreeHelper.GetParent(item);current!=null;current=LogicalTreeHelper.GetParent(current)??VisualTreeHelper.GetParent(current))yield return current;}
     static IEnumerable<DependencyObject> ColourDescendants(DependencyObject item)
