@@ -1,10 +1,12 @@
-# CtrlZed — Beta 50.1 candidate and release record
+# CtrlZed — Beta 50.1 release record and remaining queue
 
 Updated 24 November 2026.
 
 ## Baselines and acceptance
 
-Beta 50 (`0.50.0-beta.50`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) on source `26afca04def681354f61875b3e8361179519ecfd`, including packaging and publication on 24 November 2026. User acceptance of Beta 50 is pending; Beta 49 remains accepted.
+Beta 50.1 (`0.50.1-beta.50.1`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`, including packaging and publication on 24 November 2026. User acceptance is pending; Beta 49 remains accepted.
+
+Beta 50 (`0.50.0-beta.50`) was the preceding development release. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) on source `26afca04def681354f61875b3e8361179519ecfd`, including packaging and publication on 24 November 2026. User acceptance of Beta 50 is pending; Beta 49 remains accepted.
 
 Beta 49 (`0.49.0-beta.49`) remains the current user-accepted baseline. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source commit `bae79ec445f4af4a2f9514b24ac5a030777086f2`, including packaging and prerelease publication. Martyn confirmed Beta 49 as a pass on 23 November 2026.
 
@@ -16,15 +18,15 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 50.1 candidate — preview clicks and text colour
+## Implemented in Beta 50.1 — preview clicks and text colour
 
 - [x] Activate a clicked Google Fonts result immediately, open Preview while it downloads and reuse verified cached previews on repeated clicks.
 - [x] Keep programmatic first-result selection passive and installation explicitly gated by licence acknowledgement and an Install action.
 - [x] Add Format → Text Colour and the supplied colour-picker image in the toolbar before Fields, using the existing native Windows palette.
 - [x] Foreground-only selection editing and future-typing colour through the shared insertion bridge, preserving pending font choices and existing text formatting.
-- [ ] Windows physical-click, palette-routing, cancellation, rich editing/Undo, pending-choice composition and persistence checks alongside all existing gates.
+- [x] Windows physical-click, palette-routing, cancellation, rich editing/Undo, pending-choice composition and persistence checks alongside all existing gates.
 
-Candidate verification is in progress. Beta 49 remains the accepted baseline; the patch builds forward from the tested Beta 50 source.
+All Windows release checks passed. The product patch builds forward from the tested Beta 50 source; selected foreground is preserved in native, protected-native and DOCX saves, while unchanged character/paragraph properties and original letters remain intact. Beta 49 remains the accepted baseline pending the next user pass.
 
 ## Implemented in Beta 50 — Google Fonts
 
@@ -152,7 +154,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 50 Windows build, all functional regressions, packaging and publication passed in [run 45293288540](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540). The tested source and release documentation are promoted to `main` as the development baseline. Beta 50 awaits user acceptance; Martyn accepted Beta 49 on 23 November 2026. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
+Status: Beta 50.1 Windows build, all functional regressions, packaging and publication passed in [run 45368663583](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583). The tested source and release documentation are promoted to `main` as the development baseline. Beta 50.1 awaits user acceptance; Martyn accepted Beta 49 on 23 November 2026. Beta 46.2 user acceptance passed on 22 November 2026 after the Return/navigation retest; Martyn confirmed Beta 48 as a pass on 22 November 2026.
 
 ## Remaining queue
 

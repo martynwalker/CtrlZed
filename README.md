@@ -8,18 +8,18 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 The current accepted baseline is **[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49)**. Its full [Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) on source `bae79ec445f4af4a2f9514b24ac5a030777086f2`. **Martyn confirmed Beta 49 as a pass on 23 November 2026.**
 
-The current development baseline is **[Beta 50 (0.50.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.0-beta.50)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) on source `26afca04def681354f61875b3e8361179519ecfd`, including packaging and publication. **Beta 50 user acceptance is pending; Beta 49 remains accepted.**
+The current development baseline is **[Beta 50.1 (0.50.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.1-beta.50.1)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`, including packaging and publication. **Beta 50.1 user acceptance is pending; Beta 49 remains accepted.**
 
 [Beta 48](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48) was the preceding accepted baseline, passed by Martyn on 22 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) verified source `0d630c7e8e260ece357abc4b01169c975ed210dc`. Beta 46.2 and Beta 45.1 were accepted on 22 and 21 November respectively. All later development builds forward from that work.
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 50.1 candidate — preview clicks and text colour
+### Beta 50.1 — preview clicks and text colour
 
 - Clicking a Google Fonts result starts its preview and opens the Preview tab. Re-clicking and Enter/Space also activate it; automatic search selection stays passive.
 - **Format → Text Colour…** and the colour-picker icon immediately before **Fields** open the existing Windows palette. Selected text changes colour without changing its other formatting; a caret choice colours future typing.
 - Colour choices compose with pending font choices, preserve existing letters inside a word and use the existing native-input/Undo bridge. Cancel leaves the document unchanged.
-- Windows candidate checks are in progress. See the [text colour guide](docs/TEXT-COLOUR.md) and [Google Fonts guide](docs/ONLINE-FONTS.md).
+- The full Windows gate passed, including real result clicks, cached retry/keyboard activation, colour menu/toolbar routing, both editing views, rich Undo/Redo, pending font-and-colour choices and persistence. See the [text colour guide](docs/TEXT-COLOUR.md) and [Google Fonts guide](docs/ONLINE-FONTS.md).
 
 ### Beta 50 — Google Fonts discovery and installation
 
