@@ -6,22 +6,22 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The preceding accepted functional baseline is **[Beta 50.1 (0.50.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.1-beta.50.1)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`. **Martyn reported it as all good on 24 November 2026, requesting the colour-icon cosmetic correction delivered in Beta 50.2.**
+The current accepted baseline is **[Beta 50.2 (0.50.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.2-beta.50.2)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`. **Martyn accepted Beta 50.2 on 24 November 2026 after reviewing the original transparent colour icon.**
 
-The current development baseline is **[Beta 50.2 (0.50.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.2-beta.50.2)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication. The final Windows toolbar screenshot confirms the original transparent pinwheel without a square surround. **Martyn accepted Beta 50.2 on 24 November 2026, describing the corrected icon as beautiful.**
+The current development baseline is **[Beta 51 (0.51.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication. **Beta 51 user acceptance is pending.**
 
-[Beta 49 (0.49.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49) was the preceding accepted baseline, confirmed by Martyn on 23 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) verified source `bae79ec445f4af4a2f9514b24ac5a030777086f2`.
+[Beta 50.1](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.1-beta.50.1) was functionally accepted on 24 November, with the icon correction delivered and accepted in Beta 50.2. [Beta 49](https://github.com/martynwalker/CtrlZed/releases/tag/v0.49.0-beta.49) was accepted on 23 November after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45196647649) verified source `bae79ec445f4af4a2f9514b24ac5a030777086f2`.
 
 [Beta 48](https://github.com/martynwalker/CtrlZed/releases/tag/v0.48.0-beta.48) was the preceding accepted baseline, passed by Martyn on 22 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45036690638) verified source `0d630c7e8e260ece357abc4b01169c975ed210dc`. Beta 46.2 and Beta 45.1 were accepted on 22 and 21 November respectively. All later development builds forward from that work.
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 51 candidate — Character Voice
+### Beta 51 — Character Voice
 
 - **Review → Character Voice…** and the text context menu open a preview for selected or pasted prose, with author and character searches, editable voice notes and Spoken/Written/Reflection/Addressing crew delivery.
 - Patrick O'Brian's Captain Jack Aubrey and Dr Stephen Maturin are supplied alongside four voices from Austen and Conan Doyle. Local filtering handles partial names and aliases; explicit AI discovery can suggest other authors and characters.
 - Rewriting uses the current Writing Mode and an optional meaning/audience hint. Review and edit before applying or copying. A captured document destination protects against stale changes, and applying is one Undo operation.
-- Opening and filtering are local. AI lookup receives no passage text; a rewrite sends only the supplied passage, chosen voice and options through the configured direct provider with AI language services enabled. Windows verification is pending. See the [Character Voice guide](docs/CHARACTER-VOICE.md).
+- Opening and filtering are local. AI lookup receives no passage text; a rewrite sends only the supplied passage, chosen voice and options through the configured direct provider with AI language services enabled. The full Windows release gate passed, including both-view rich replacement/Undo, selection-boundary preservation, pasted insertion, explicit private discovery and late-response guards. See the [Character Voice guide](docs/CHARACTER-VOICE.md).
 
 ### Beta 50.2 — original transparent colour icon
 
@@ -41,7 +41,7 @@ The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes del
 - **Format → Find a Font… → Google Fonts…** browses 1,423 supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
 - Click a family to download its real preview, and review the actual source licence and notices before installation. Preview text stays local; search, AI and previews do not install fonts or edit the document.
 - Explicit installation is for the current Windows user and preserves existing registrations. Save and restart CtrlZed afterwards to refresh WPF's cached installed-font list, then apply through the existing finder.
-- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 50.1 is the accepted functional baseline.
+- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 50.2 is the accepted baseline.
 
 ### Beta 49 — installed Font Finder
 
