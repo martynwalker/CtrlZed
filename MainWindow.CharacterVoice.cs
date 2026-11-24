@@ -10,6 +10,7 @@ namespace CtrlZed;
 public partial class MainWindow
 {
     internal Window? characterVoiceWindow;
+    Action<VoiceAuthor,CharacterVoice,WritingMode?>? characterVoiceChooseProvidedVoice;
 
     void InstallCharacterVoice()
     {
@@ -33,10 +34,15 @@ public partial class MainWindow
     }
 
     /// <summary>Preview a character-led rewrite; no requests or document changes occur on opening.</summary>
-    public void ShowCharacterVoice()
+    public void ShowCharacterVoice()=>ShowCharacterVoice(null,null,null);
+
+    internal void ShowCharacterVoice(VoiceAuthor? providedAuthor,CharacterVoice? providedVoice,WritingMode? providedMode)
     {
         if(characterVoiceWindow!=null)
         {
+            if(providedAuthor!=null && providedVoice!=null)
+                (characterVoiceChooseProvidedVoice??throw new InvalidOperationException("Character Voice is still opening. Try selecting the story character again."))
+                    .Invoke(providedAuthor,providedVoice,providedMode);
             if(characterVoiceWindow.WindowState==WindowState.Minimized)characterVoiceWindow.WindowState=WindowState.Normal;
             characterVoiceWindow.Activate();return;
         }
@@ -115,11 +121,14 @@ public partial class MainWindow
         var additionalAuthors=new List<VoiceAuthor>();var additionalVoices=new List<CharacterVoice>();
         var initialising=true;var assigning=false;var closed=false;var busy=false;var applying=false;var validResult=false;
         long generation=0;CancellationTokenSource? cancellation=null;string configuration="";string resultConfiguration="";string? unavailable=null;
+        string? providedAuthorId=null;WritingMode? characterWritingMode=null;
         VoiceAuthor? Author()=>authors.SelectedItem as VoiceAuthor;
         CharacterVoice? Voice()=>voices.SelectedItem as CharacterVoice;
+        WritingMode EffectiveWritingMode()=>Author()?.Id==providedAuthorId && characterWritingMode.HasValue
+            ?characterWritingMode.Value:languageSettings.WritingMode;
         string Configuration()
         {
-            var language=$"{languageSettings.AllowAiLanguageServices}|{languageSettings.WritingMode}|{languageSettings.LanguageTag}|{languageSettings.CustomProfileName}";
+            var language=$"{languageSettings.AllowAiLanguageServices}|{languageSettings.WritingMode}|{languageSettings.LanguageTag}|{languageSettings.CustomProfileName}|{EffectiveWritingMode()}";
             if(CharacterVoiceService.GeneratorOverride!=null)return "Test provider|"+language;
             var provider=AiManager.GetDefaultProvider();var ai=AiDirectService.GetProfile(provider);
             return provider+"|"+ai.Model+"|"+ai.HasKey+"|"+language;
@@ -162,7 +171,7 @@ public partial class MainWindow
                 }
                 if(configuration.Length>0 && configuration!=current)Invalidate("AI or Writing Mode settings changed. Request a fresh rewrite.");
                 configuration=current;
-                information.Text=$"Writing mode: {WritingModeProfiles.Get(languageSettings.WritingMode).DisplayName}. Uses {provider}. Only Original, voice notes, delivery and your optional hint are sent when you choose Rewrite. No wider document text is read.";
+                information.Text=$"Writing mode: {WritingModeProfiles.Get(EffectiveWritingMode()).DisplayName}. Uses {provider}. Only Original, voice notes, delivery and your optional hint are sent when you choose Rewrite. No wider document text is read.";
                 UpdateButtons();
             }
             catch(Exception ex){unavailable="Could not read AI settings: "+ex.Message;Invalidate(unavailable);}
@@ -176,6 +185,24 @@ public partial class MainWindow
         {
             var previous=Author()?.Id;authors.ItemsSource=CharacterVoiceService.SearchAuthors(authorQuery.Text,additionalAuthors);
             authors.SelectedItem=authors.Items.Cast<VoiceAuthor>().FirstOrDefault(x=>x.Id==previous);
+        }
+        void ChooseProvidedVoice(VoiceAuthor author,CharacterVoice voice,WritingMode? mode)
+        {
+            if(voice.AuthorId!=author.Id)throw new InvalidOperationException("This character belongs to a different story.");
+            Invalidate("Story character selected. Review the voice notes before rewriting.");
+            assigning=true;
+            try
+            {
+                additionalAuthors.RemoveAll(item=>item.Id==author.Id);additionalAuthors.Add(author);
+                additionalVoices.RemoveAll(item=>item.Id==voice.Id);additionalVoices.Add(voice);
+                providedAuthorId=author.Id;characterWritingMode=mode;
+                authorQuery.Text="";voiceQuery.Text="";RefreshAuthors();
+                authors.SelectedItem=authors.Items.Cast<VoiceAuthor>().First(item=>item.Id==author.Id);
+                RefreshVoices();voices.SelectedItem=voices.Items.Cast<CharacterVoice>().First(item=>item.Id==voice.Id);
+                profile.Text=voice.Profile;
+            }
+            finally{assigning=false;}
+            RefreshConfiguration();status.Text=unavailable??"Story character selected. Review the voice notes before rewriting.";UpdateButtons();
         }
         async Task RequestAsync(string kind)
         {
@@ -209,7 +236,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    var request=new VoiceRewriteRequest(author!,voice! with{Profile=profile.Text},WritingModeProfiles.Get(languageSettings.WritingMode),source.Text,delivery.SelectedItem as string??"Spoken",hint.Text);
+                    var request=new VoiceRewriteRequest(author!,voice! with{Profile=profile.Text},WritingModeProfiles.Get(EffectiveWritingMode()),source.Text,delivery.SelectedItem as string??"Spoken",hint.Text);
                     var text=await CharacterVoiceService.RewriteAsync(request,token);
                     if(closed || token.IsCancellationRequested || requestGeneration!=generation)return;
                     RefreshConfiguration();if(configuration!=requestedConfiguration || requestGeneration!=generation)return;
@@ -281,10 +308,12 @@ public partial class MainWindow
         w.Closed+=(_,__)=>
         {
             closed=true;CancelRequest();timer.Stop();Editor.TextChanged-=documentChanged;readOnlyDescriptor?.RemoveValueChanged(Editor,availabilityChanged);
-            if(ReferenceEquals(characterVoiceWindow,w))characterVoiceWindow=null;
+            if(ReferenceEquals(characterVoiceWindow,w)){characterVoiceWindow=null;characterVoiceChooseProvidedVoice=null;}
         };
+        characterVoiceChooseProvidedVoice=ChooseProvidedVoice;
         RefreshAuthors();authors.SelectedItem=authors.Items.Cast<VoiceAuthor>().FirstOrDefault(x=>x.Name.Contains("O'Brian",StringComparison.OrdinalIgnoreCase))??authors.Items.Cast<VoiceAuthor>().FirstOrDefault();
         initialising=false;RefreshConfiguration();status.Text=unavailable??captureError??"Choose an author and character, then rewrite selected or pasted text. Nothing is requested automatically.";
+        if(providedAuthor!=null && providedVoice!=null)ChooseProvidedVoice(providedAuthor,providedVoice,providedMode);
         UpdateButtons();w.Show();
     }
 }

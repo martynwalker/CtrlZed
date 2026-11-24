@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--story-workshop-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunStoryWorkshopSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--character-voice-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunCharacterVoiceSelfTest());

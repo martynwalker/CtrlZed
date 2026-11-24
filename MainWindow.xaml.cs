@@ -78,6 +78,7 @@ public partial class MainWindow : Window
         public List<FloatingImagePlacementData> FloatingImages { get; set; } = new();
         public List<VectorImageData> VectorImages { get; set; } = new();
         public StyleDocumentState? Styles { get; set; }
+        public StoryWorkshopState? StoryWorkshop { get; set; }
     }
 
     sealed class DocumentCommentData
@@ -112,6 +113,7 @@ public partial class MainWindow : Window
         InitializeRichTextPaste();
         InstallSentenceCompletion();
         InstallCharacterVoice();
+        InstallStoryWorkshop();
         InstallFontFinder();
         InstallTextColour();
         InstallVectorClipboard();
@@ -182,6 +184,7 @@ public partial class MainWindow : Window
             {
                 if(!TryReadCzd(ProtectedRecoveryFile,out var recovered,out var password))return;
                 Editor.Document=recovered.Document;
+                if(recovered.Settings==null)ReplaceStoryWorkshopDocument(null);
                 SetDocumentPassword(password);
                 if(recovered.Settings!=null)ApplyRecoveredSettings(recovered.Settings,documentPassword!=null);
                 keepLockedRecovery=false;
@@ -192,6 +195,7 @@ public partial class MainWindow : Window
                 using(var source=File.OpenRead(recoveryFile))
                     new TextRange(recoveredDocument.ContentStart,recoveredDocument.ContentEnd).Load(source,DataFormats.Rtf);
                 Editor.Document=recoveredDocument;
+                ReplaceStoryWorkshopDocument(null);
                 if(File.Exists(recoverySettingsFile))
                 {
                     try
@@ -256,6 +260,7 @@ public partial class MainWindow : Window
         ClearFloatingImagePlacements();
         suppressDirty = true;
         Editor.Document = new FlowDocument();
+        ReplaceStoryWorkshopDocument(null);
         currentFile = null;
         SetDocumentPassword(null);
         headerText = footerText = "";
@@ -309,6 +314,7 @@ public partial class MainWindow : Window
 
     bool SaveCurrent()
     {
+        if(!EnsureStoryWorkshopNativeSavePath())return false;
         if(currentFile==null)
         {
             var d=new SaveFileDialog{Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,DefaultExt=".czd",AddExtension=true,FileName=SuggestedFirstSaveFileName()};
@@ -404,11 +410,14 @@ public partial class MainWindow : Window
             Comments=CaptureComments(),
             FloatingImages=CaptureFloatingImagePlacements(),
             VectorImages=VectorImageSupport.Capture(Editor.Document),
-            Styles=CaptureStyleDocumentState()
+            Styles=CaptureStyleDocumentState(),
+            StoryWorkshop=storyWorkshop.HasContent?SnapshotStoryWorkshop():null
         };
 
     void ApplyRecoveredSettings(CzdSettings v,bool isProtected=false)
     {
+        // Validate and detach the incoming plan before changing any live settings.
+        var workshop=v.StoryWorkshop?.DeepClone();
         RestoreStyleDocumentState(v.Styles);
         pageWidth=v.PageWidth;
         pageHeight=v.PageHeight;
@@ -440,6 +449,7 @@ public partial class MainWindow : Window
         RestoreComments(v.Comments);
         VectorImageSupport.Restore(Editor.Document,v.VectorImages);
         RestoreFloatingImagePlacements(v.FloatingImages);
+        ReplaceStoryWorkshopDocument(workshop);
 
     }
 
@@ -607,6 +617,7 @@ public partial class MainWindow : Window
 
     static void WriteCzdArchive(Stream output,Action<Stream> writeRtf,CzdSettings settings)
     {
+        settings.StoryWorkshop?.Validate();
         using var archive=new ZipArchive(output,ZipArchiveMode.Create,leaveOpen:true);
         using(var rtf=archive.CreateEntry("document.rtf").Open())writeRtf(rtf);
         using var metadata=archive.CreateEntry("settings.json").Open();
@@ -624,7 +635,10 @@ public partial class MainWindow : Window
         var settings=archive.GetEntry("settings.json");
         if(settings==null)return new CzdPackage(document,null);
         using var settingsStream=settings.Open();
-        return new CzdPackage(document,JsonSerializer.Deserialize<CzdSettings>(settingsStream));
+        var metadata=JsonSerializer.Deserialize<CzdSettings>(settingsStream);
+        // A malformed or unsupported plan cannot replace the current document.
+        metadata?.StoryWorkshop?.Validate();
+        return new CzdPackage(document,metadata);
     }
 
     static void ReplaceFile(string tmp,string path)
@@ -1785,41 +1799,57 @@ public partial class MainWindow : Window
         {
             var ext=Path.GetExtension(path).ToLowerInvariant();
             CzdPackage? package=null;
-            if(ext==".czd" && !TryReadCzd(path,out package,out password))return;
+            DocxLoadResult? imported=null;
+            FlowDocument incoming;
+            // Finish reading and validating the incoming file before replacing
+            // either the editor or its document-local Story Workshop.
+            if(ext==".czd")
+            {
+                if(!TryReadCzd(path,out package,out password))return;
+                incoming=package.Document;
+            }
+            else if(ext==".docx")
+            {
+                imported=DocxInterop.LoadWithLayout(path);
+                incoming=imported.Document;
+            }
+            else if(ext==".txt")incoming=new FlowDocument(new Paragraph(new Run(File.ReadAllText(path))));
+            else
+            {
+                incoming=new FlowDocument();
+                using var fs=File.OpenRead(path);
+                new TextRange(incoming.ContentStart,incoming.ContentEnd).Load(fs,DataFormats.Rtf);
+            }
             if(fieldValuesVisible)SetFieldValuesVisible(false);
             suppressDirty=true;
             ClearFloatingImagePlacements();
             headerText=footerText="";
             documentTitle=documentAuthor=documentSubject=documentKeywords="";
             documentVersion="1.0";
+            Editor.Document=incoming;
             if(package!=null)
             {
-                Editor.Document=package.Document;
                 SetDocumentPassword(password);
                 password=null;
                 if(package.Settings!=null)ApplyRecoveredSettings(package.Settings,documentPassword!=null);
+                else ReplaceStoryWorkshopDocument(null);
             }
-            else if(ext==".docx")
-            {
-                var imported=DocxInterop.LoadWithLayout(path);
-                Editor.Document=imported.Document;
-                AdoptImportedDocumentStyles();
-                headerText=imported.Header;footerText=imported.Footer;
-                if(imported.PageWidth>0)pageWidth=imported.PageWidth;
-                if(imported.PageHeight>0)pageHeight=imported.PageHeight;
-                if(imported.Margins!=null)pageMargins=imported.Margins.Value;
-                documentTitle=imported.Title;documentAuthor=imported.Author;
-                documentSubject=imported.Subject;documentKeywords=imported.Keywords;
-                ApplyPage();
-            }
-            else if(ext==".txt")Editor.Document=new FlowDocument(new Paragraph(new Run(File.ReadAllText(path))));
             else
             {
-                Editor.Document=new FlowDocument();
-                using var fs=File.OpenRead(path);
-                new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Load(fs,DataFormats.Rtf);
+                ReplaceStoryWorkshopDocument(null);
+                SetDocumentPassword(null);
+                if(imported!=null)
+                {
+                    AdoptImportedDocumentStyles();
+                    headerText=imported.Header;footerText=imported.Footer;
+                    if(imported.PageWidth>0)pageWidth=imported.PageWidth;
+                    if(imported.PageHeight>0)pageHeight=imported.PageHeight;
+                    if(imported.Margins!=null)pageMargins=imported.Margins.Value;
+                    documentTitle=imported.Title;documentAuthor=imported.Author;
+                    documentSubject=imported.Subject;documentKeywords=imported.Keywords;
+                    ApplyPage();
+                }
             }
-            if(package==null)SetDocumentPassword(null);
             WirePictureHandlers();RefreshFloatingImagePlacements();RefreshNavigation();
             currentFile=path;dirty=false;suppressDirty=false;
             EnsureDocumentPropertyDefaults();
@@ -1843,11 +1873,16 @@ public partial class MainWindow : Window
         var d=new SaveFileDialog
         {
             Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,
-            DefaultExt=old==null?".czd":Path.GetExtension(old),
-            FileName=old==null?SuggestedFirstSaveFileName():Path.GetFileName(old),
+            DefaultExt=old==null || storyWorkshop.HasContent?".czd":Path.GetExtension(old),
+            FileName=old==null?SuggestedFirstSaveFileName():storyWorkshop.HasContent?Path.GetFileNameWithoutExtension(old)+".czd":Path.GetFileName(old),
             AddExtension=true
         };
         if(d.ShowDialog()!=true)return;
+        if(storyWorkshop.HasContent && !string.Equals(Path.GetExtension(d.FileName),".czd",StringComparison.OrdinalIgnoreCase))
+        {
+            ExportStoryWorkshopBody(d.FileName);
+            return;
+        }
         currentFile=d.FileName;
         if(!SaveCurrent())currentFile=old;
     }

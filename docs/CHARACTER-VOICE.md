@@ -4,6 +4,8 @@ Select prose and choose **Review → Character Voice…**, or use the text right
 
 Search Author, select an author, then search In the voice of and select a character. Typing `Patrick O'` finds Patrick O'Brian; `Jack` finds Captain Jack Aubrey and `Maturin` finds Dr Stephen Maturin. The supplied catalogue also includes Arthur Conan Doyle's Holmes and Watson, and Jane Austen's Elizabeth Bennet and Darcy.
 
+Since Beta 52, **Story Workshop → Characters → Use in Character Voice…** also opens your own document character with its workshop Writing Mode. The stored personality notes are prepared locally; plot, clues and future arc milestones are excluded. Workshop edits or a document switch close that character preview to prevent using stale notes. Temporary edits in this rewrite preview do not change the saved workshop profile.
+
 The voice notes describe outlook, knowledge, limitations, humour and contrasting traits. Review or edit them to guide the interpretation. Choose Spoken, Written, Reflection or Addressing crew, and optionally explain your intended meaning or audience. The current Writing Mode supplies the purpose and register.
 
 Choose **Rewrite** to request a preview. The request asks for fresh wording that preserves the passage's meaning, setting, facts and intent; character voice need not turn every subject into a nautical comparison or a joke. Review the result and edit it before applying or copying. The AI's literary interpretation and factual fidelity still need your judgement.

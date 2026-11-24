@@ -1,4 +1,4 @@
-# CtrlZed — Beta 51 and release record
+# CtrlZed — Beta 52 candidate and release record
 
 Updated 24 November 2026.
 
@@ -21,6 +21,16 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 52 candidate — Story Workshop
+
+- [x] Versioned, bounded per-document planning metadata for cast, characterisation, five arc stages, story logic, event cards, fair-play clues, questions and workshop conversation.
+- [x] Native and protected `.czd` capture/restore, recovery and document isolation; native Save and explicit body-only non-native export.
+- [x] Guided explicit-request conversation, strict proposal patches and confirmed-decision conflict protection.
+- [x] Editable structured character/storyboard views, planning Undo and own-character access to Character Voice.
+- [ ] Windows metadata, conversation, cancellation, native/recovery/export and existing release gates.
+
+Verification is in progress. Beta 51 remains the accepted baseline. Story Workshop is a planning conversation and reference board; live literary judgement remains the author's decision. The low-priority Page Editing floating-picture issue #30 stays deferred.
 
 ## Implemented in Beta 51 — Character Voice
 

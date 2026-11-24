@@ -16,6 +16,14 @@ The current accepted and development baseline is **[Beta 51 (0.51.0)](https://gi
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
+### Beta 52 candidate — Story Workshop
+
+- **Review → Story Workshop…** opens a guided planning conversation, normally in Novel mode, with editable cast, characterisation, five-stage arcs and a twist-aware storyboard.
+- The cast covers contrasting traits, body/environment/mind, triggers, moral code and voice. Plot notes, event cards, fair-play clues, open questions and continuity problems build alongside the conversation.
+- Author decisions and AI proposals are marked separately. Opening and local editing make no requests; explicit Send shares planning data and recent workshop conversation rather than the manuscript body.
+- Native `.czd` saves, password protection and recovery retain the plan. Explicit non-native Save As exports the body while preserving the working plan. A character can be opened in Character Voice using its personality notes.
+- Windows verification is in progress. See the [Story Workshop guide](docs/STORY-WORKSHOP.md). Beta 51 remains accepted.
+
 ### Beta 51 — Character Voice
 
 - **Review → Character Voice…** and the text context menu open a preview for selected or pasted prose, with author and character searches, editable voice notes and Spoken/Written/Reflection/Addressing crew delivery.
