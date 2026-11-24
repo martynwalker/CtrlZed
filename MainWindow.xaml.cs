@@ -111,6 +111,7 @@ public partial class MainWindow : Window
         Editor.SelectionChanged += (_,__) => QueueFontBoxRefresh();
         InitializeRichTextPaste();
         InstallSentenceCompletion();
+        InstallCharacterVoice();
         InstallFontFinder();
         InstallTextColour();
         InstallVectorClipboard();
@@ -2436,6 +2437,7 @@ public partial class MainWindow : Window
     void AddMacroSubmenu(ContextMenu menu)
     {
         AddSentenceCompletionContextMenu(menu);
+        AddCharacterVoiceContextMenu(menu);
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta!=null && string.IsNullOrWhiteSpace(x.Meta.Path))

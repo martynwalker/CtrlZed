@@ -1,12 +1,12 @@
-# CtrlZed — Beta 50.2 and release record
+# CtrlZed — Beta 51 candidate and release record
 
 Updated 24 November 2026.
 
 ## Baselines and acceptance
 
-Beta 50.2 (`0.50.2-beta.50.2`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication on 24 November 2026. The release ZIP is built from that tested source; baseline promotion adds release documentation. The final Windows toolbar screenshot was inspected. Beta 50.2 user acceptance is pending.
+Beta 50.2 (`0.50.2-beta.50.2`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`, including packaging and publication on 24 November 2026. The release ZIP is built from that tested source; baseline promotion adds release documentation. The final Windows toolbar screenshot was inspected. Martyn accepted Beta 50.2 on 24 November 2026 after reviewing the original transparent icon.
 
-Beta 50.1 (`0.50.1-beta.50.1`) is the current accepted functional baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`, including packaging and publication on 24 November 2026. Martyn reported it as all good on 24 November, with the colour-icon square as a cosmetic follow-up addressed in Beta 50.2.
+Beta 50.1 (`0.50.1-beta.50.1`) was the preceding accepted functional baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45368663583) on source `6d12d8e503cd40fc8b11702df3af88a25923bf6d`, including packaging and publication on 24 November 2026. Martyn reported it as all good on 24 November, with the colour-icon square as a cosmetic follow-up addressed in Beta 50.2.
 
 Beta 50 (`0.50.0-beta.50`) was the preceding development release. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45293288540) on source `26afca04def681354f61875b3e8361179519ecfd`, including packaging and publication on 24 November 2026.
 
@@ -19,6 +19,17 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 51 candidate — Character Voice
+
+- [x] First-class Review/context-menu preview for selected or pasted prose, with author → character searches.
+- [x] Built-in original trait profiles for Aubrey, Maturin, Holmes, Watson, Elizabeth Bennet and Darcy; editable notes, four delivery modes and a meaning/audience hint.
+- [x] Local partial-name/alias filtering, with explicit AI discovery for further authors and characters; discovery receives no prose and suggestions are labelled for review.
+- [x] Separate explicit rewrite through the configured direct AI provider, current Writing Mode and AI language-service opt-in; strict bounded responses and cancellation/stale guards.
+- [x] Captured ordinary-text destination, multi-paragraph replacement or caret insertion, retained opening format and one native Undo.
+- [ ] Windows deterministic service, preview, cancellation, editing and existing release gates.
+
+Verification is in progress. Live interpretation and prose quality remain user acceptance checks; automated tests use a deterministic transport. No document text or generated profile/result is persisted by this feature. The low-priority Page Editing floating-picture issue #30 remains deferred.
 
 ## Corrected in Beta 50.2 — original colour-picker artwork
 
