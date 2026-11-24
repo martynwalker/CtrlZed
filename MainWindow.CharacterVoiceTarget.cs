@@ -128,7 +128,23 @@ public partial class MainWindow
         if (string.IsNullOrWhiteSpace(text) || text.Length > CharacterVoiceMaximumResult ||
             text.Any(c => (char.IsControl(c) && c is not ('\r' or '\n' or '\t')) || c == '\uFFFC'))
             throw new InvalidOperationException($"Use non-empty ordinary text of up to {CharacterVoiceMaximumResult:N0} characters, without embedded objects.");
-        var insertion = text.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\u2028', '\n').Replace('\u2029', '\n');
+        var insertion = text;
+        if (target.IsReplacement)
+        {
+            // AI responses and the editable preview can omit the selection's
+            // outer whitespace. That whitespace belongs to the document: a
+            // selected space separates neighbouring words, and a final CRLF
+            // can be the boundary preserving the following paragraph.
+            var original = target.OriginalText;
+            var leading = 0;
+            while (leading < original.Length && char.IsWhiteSpace(original[leading])) leading++;
+            var trailing = original.Length;
+            while (trailing > leading && char.IsWhiteSpace(original[trailing - 1])) trailing--;
+            insertion = original[..leading] + text.Trim() + original[trailing..];
+        }
+        // Pasted-source insertion at an empty caret remains exact apart from
+        // WPF line-ending normalisation; no implicit boundary spaces are added.
+        insertion = insertion.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\u2028', '\n').Replace('\u2029', '\n');
 
         Editor.BeginChange();
         try

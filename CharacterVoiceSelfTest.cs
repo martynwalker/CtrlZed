@@ -212,6 +212,37 @@ public partial class MainWindow
             "One Undo restored source text but lost its original mixed character formatting.");
         Editor.Redo();PumpInput();RequireVoice(PagedDocumentText()==after,"One Redo did not restore the rewrite.");
 
+        paragraph=new Paragraph(new Run("Left selected phrase right."));
+        SentenceSetDocument(new FlowDocument(paragraph),mode);
+        SentenceSelectText(paragraph," selected phrase ");
+        target=CaptureCharacterVoiceTarget();before=PagedDocumentText();ResetSentenceUndo();
+        ApplyCharacterVoiceRewrite(target,"rewritten wording");PumpInput();
+        RequireVoice(PagedDocumentText()==before.Replace(" selected phrase "," rewritten wording ",StringComparison.Ordinal),
+            "A rewrite lost captured selection-edge spaces and joined untouched neighbouring words in "+mode+".");
+        Editor.Undo();PumpInput();RequireVoice(PagedDocumentText()==before,
+            "One Undo did not restore the exact source and edge spaces in "+mode+".");
+
+        var selectedParagraph=new Paragraph(new Run("First paragraph to rewrite."));
+        var preservedParagraph=new Paragraph(new Run("FOLLOWING PARAGRAPH STAYS SEPARATE.")
+            {FontStyle=FontStyles.Italic,Foreground=Brushes.DarkGreen})
+            {Margin=new Thickness(13,17,19,23),TextAlignment=TextAlignment.Right};
+        document=new FlowDocument(selectedParagraph);document.Blocks.Add(preservedParagraph);
+        SentenceSetDocument(document,mode);
+        Editor.Selection.Select(selectedParagraph.ContentStart,preservedParagraph.ContentStart);
+        target=CaptureCharacterVoiceTarget();before=PagedDocumentText();ResetSentenceUndo();
+        RequireVoice(target.OriginalText.EndsWith("\r\n",StringComparison.Ordinal),
+            "The paragraph-separator regression did not capture its trailing paragraph boundary.");
+        ApplyCharacterVoiceRewrite(target,"The first paragraph is rewritten.");PumpInput();
+        var separated=EnumerateDocumentParagraphs().ToArray();
+        RequireVoice(PagedDocumentText()==before.Replace("First paragraph to rewrite.","The first paragraph is rewritten.",StringComparison.Ordinal) &&
+            separated.Length==2 && separated[1].Margin==new Thickness(13,17,19,23) && separated[1].TextAlignment==TextAlignment.Right &&
+            Equals(SentenceFindText(separated[1],"FOLLOWING PARAGRAPH STAYS SEPARATE.").GetPropertyValue(TextElement.FontStyleProperty),FontStyles.Italic) &&
+            SentenceFindText(separated[1],"FOLLOWING PARAGRAPH STAYS SEPARATE.").GetPropertyValue(TextElement.ForegroundProperty) is SolidColorBrush preservedInk &&
+            preservedInk.Color==Colors.DarkGreen,
+            "A selected paragraph separator was lost, or the following paragraph's layout/formatting changed in "+mode+".");
+        Editor.Undo();PumpInput();RequireVoice(PagedDocumentText()==before && EnumerateDocumentParagraphs().Count()==2,
+            "One Undo did not restore the exact source and paragraph separation in "+mode+".");
+
         var first=new Paragraph(new Run("First selected paragraph."));
         var second=new Paragraph(new Run("Second selected paragraph."));
         document=new FlowDocument(first);document.Blocks.Add(second);document.Blocks.Add(new Paragraph(new Run("KEEP AFTER MULTI-PARAGRAPH RANGE.")));
