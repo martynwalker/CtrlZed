@@ -229,11 +229,33 @@ public partial class MainWindow
         document=new FlowDocument(selectedParagraph);document.Blocks.Add(preservedParagraph);
         SentenceSetDocument(document,mode);
         Editor.Selection.Select(selectedParagraph.ContentStart,preservedParagraph.ContentStart);
+        report.AppendLine(mode+" separator before capture: selectionEndOffsetFromFollowingContentStart="+
+            preservedParagraph.ContentStart.GetOffsetToPosition(Editor.Selection.End)+"; followingPrefixPlainTextLength="+
+            new TextRange(preservedParagraph.ContentStart,Editor.Selection.End).Text.Length+
+            "; selectionEndParent="+Editor.Selection.End.Parent?.GetType().Name+
+            "; followingMargin="+preservedParagraph.Margin+"; followingAlignment="+preservedParagraph.TextAlignment+
+            "; selectionText="+JsonSerializer.Serialize(Editor.Selection.Text));
         target=CaptureCharacterVoiceTarget();before=PagedDocumentText();ResetSentenceUndo();
+        report.AppendLine(mode+" separator captured: targetParagraphs="+target.Paragraphs.Count+
+            "; targetEndParent="+target.End.Parent?.GetType().Name+
+            "; targetStartOffsetFromFirstContentStart="+selectedParagraph.ContentStart.GetOffsetToPosition(target.Start)+
+            "; targetEndOffsetFromFollowingContentStart="+preservedParagraph.ContentStart.GetOffsetToPosition(target.End)+
+            "; targetEndOffsetFromFollowingRunStart="+preservedParagraph.Inlines.OfType<Run>().First().ContentStart.GetOffsetToPosition(target.End)+
+            "; targetParagraphIdentities="+string.Join(",",target.Paragraphs.Select((state,index)=>
+                index+":first="+ReferenceEquals(state.Paragraph,selectedParagraph)+"/following="+ReferenceEquals(state.Paragraph,preservedParagraph))));
         RequireVoice(target.OriginalText.EndsWith("\r\n",StringComparison.Ordinal),
             "The paragraph-separator regression did not capture its trailing paragraph boundary.");
         ApplyCharacterVoiceRewrite(target,"The first paragraph is rewritten.");PumpInput();
         var separated=EnumerateDocumentParagraphs().ToArray();
+        var diagnosedFollowing=separated.FirstOrDefault(item=>new TextRange(item.ContentStart,item.ContentEnd).Text
+            .Contains("FOLLOWING PARAGRAPH STAYS SEPARATE.",StringComparison.Ordinal));
+        report.AppendLine(mode+" separator after apply: text="+JsonSerializer.Serialize(PagedDocumentText())+
+            "; paragraphCount="+separated.Length+"; followingSurvivedByReference="+ReferenceEquals(diagnosedFollowing,preservedParagraph)+
+            "; followingMargin="+diagnosedFollowing?.Margin+"; followingAlignment="+diagnosedFollowing?.TextAlignment+
+            "; followingItalic="+(diagnosedFollowing==null?"missing":new TextRange(diagnosedFollowing.ContentStart,diagnosedFollowing.ContentEnd)
+                .GetPropertyValue(TextElement.FontStyleProperty)?.ToString())+
+            "; followingForeground="+(diagnosedFollowing==null?"missing":new TextRange(diagnosedFollowing.ContentStart,diagnosedFollowing.ContentEnd)
+                .GetPropertyValue(TextElement.ForegroundProperty)?.ToString()));
         RequireVoice(PagedDocumentText()==before.Replace("First paragraph to rewrite.","The first paragraph is rewritten.",StringComparison.Ordinal) &&
             separated.Length==2 && separated[1].Margin==new Thickness(13,17,19,23) && separated[1].TextAlignment==TextAlignment.Right &&
             Equals(SentenceFindText(separated[1],"FOLLOWING PARAGRAPH STAYS SEPARATE.").GetPropertyValue(TextElement.FontStyleProperty),FontStyles.Italic) &&

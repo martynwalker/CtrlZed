@@ -49,6 +49,21 @@ jobs:
             throw "CtrlZed did not create a responsive main window within 10 seconds."
           }
           Stop-Process -Id $p.Id -Force
+      - name: Character voice discovery preview and editing regression
+        shell: pwsh
+        run: |
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--character-voice-test" -PassThru
+          if (-not $t.WaitForExit(150000)) {
+            Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
+            throw "Character voice regression timed out."
+          }
+          $report = Join-Path $env:TEMP "CtrlZed51CharacterVoice.txt"
+          if (Test-Path $report) { Get-Content $report }
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "Character voice regression failed with code $($t.ExitCode)"
+          }
       - name: Functional self-test
         shell: pwsh
         run: |
@@ -163,21 +178,6 @@ jobs:
             $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
             if (Test-Path $failure) { Get-Content $failure }
             throw "Sentence completion regression failed with code $($t.ExitCode)"
-          }
-      - name: Character voice discovery preview and editing regression
-        shell: pwsh
-        run: |
-          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--character-voice-test" -PassThru
-          if (-not $t.WaitForExit(150000)) {
-            Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
-            throw "Character voice regression timed out."
-          }
-          $report = Join-Path $env:TEMP "CtrlZed51CharacterVoice.txt"
-          if (Test-Path $report) { Get-Content $report }
-          if ($t.ExitCode -ne 0) {
-            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
-            if (Test-Path $failure) { Get-Content $failure }
-            throw "Character voice regression failed with code $($t.ExitCode)"
           }
       - name: Vector signature tracing and persistence
         shell: pwsh

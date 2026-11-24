@@ -149,7 +149,8 @@ public partial class MainWindow
         var replacementEnd = target.End;
         if (target.IsReplacement && insertion.EndsWith("\n", StringComparison.Ordinal) &&
             FindContainingParagraph(target.End) is Paragraph following &&
-            target.End.CompareTo(following.ContentStart) == 0)
+            target.End.CompareTo(following.ContentStart) >= 0 &&
+            new TextRange(following.ContentStart, target.End).Text.Length == 0)
         {
             // Keep the final existing paragraph separator in the document.
             // Deleting it would merge the untouched following paragraph into
@@ -157,9 +158,13 @@ public partial class MainWindow
             // defaults. Its original object, style and character defaults must
             // survive. Any earlier selected blank paragraphs are still part of
             // the replacement: remove exactly one final newline, not the rest.
-            var lastSelected = target.Paragraphs[^1].Paragraph;
-            if (lastSelected.ContentEnd.CompareTo(target.Start) >= 0 &&
-                lastSelected.ContentEnd.CompareTo(target.End) < 0)
+            // TextSelection may normalise ContentStart into an empty leading
+            // Run/Span. The following paragraph can therefore appear among the
+            // captured paragraph snapshots despite contributing no source text.
+            var lastSelected = target.Paragraphs.LastOrDefault(state =>
+                !ReferenceEquals(state.Paragraph, following) &&
+                state.Paragraph.ContentEnd.CompareTo(target.End) < 0)?.Paragraph;
+            if (lastSelected != null && lastSelected.ContentEnd.CompareTo(target.Start) >= 0)
             {
                 replacementEnd = lastSelected.ContentEnd.GetPositionAtOffset(0, LogicalDirection.Backward)!;
                 insertion = insertion[..^1];
