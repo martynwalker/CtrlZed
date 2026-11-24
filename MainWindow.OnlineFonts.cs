@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace CtrlZed;
@@ -186,7 +187,7 @@ public partial class MainWindow
         }
         void UpdateInformation()
         {
-            information.Text=$"Writing mode: {WritingModeProfiles.Get(languageSettings.WritingMode).DisplayName}. Search the supplied catalogue locally; download or install only when you choose.";
+            information.Text=$"Writing mode: {WritingModeProfiles.Get(languageSettings.WritingMode).DisplayName}. Click a catalogue font to download its preview. Installation is a separate choice.";
             var unavailable=AiUnavailableReason();
             aiInfo.Text=(unavailable??$"Ask AI uses {provider} only when requested.")+" Sample text is never sent.";
             askAi.ToolTip=unavailable??"Only your description, Writing Mode and catalogue entries are sent to the configured provider.";
@@ -315,6 +316,7 @@ public partial class MainWindow
         {
             if(closed || installing || catalogue==null || selectedFamily==null || SelectedFace() is not { } face || !validMatches)return;
             CancelOperation();ResetPreview();
+            tabs.SelectedItem=previewTab;
             var requestedCatalogue=catalogue;var requestedFamily=selectedFamily;var thisOperation=++operationId;
             operationCancellation=new CancellationTokenSource();var token=operationCancellation.Token;busy=true;
             status.Text=$"Downloading a verified preview of {requestedFamily.Name} — {face.DisplayName}. Nothing is being installed.";UpdateButtons();
@@ -378,6 +380,28 @@ public partial class MainWindow
         query.TextChanged+=(_,__)=>InvalidateMatches(loaded?"Request changed. Search again for fresh catalogue matches.":"Reading the supplied catalogue…");
         search.Click+=async (_,__)=>await SearchAsync(false);askAi.Click+=async (_,__)=>await SearchAsync(true);
         results.SelectionChanged+=(_,__)=>{if(!populating && !installing)SelectFamily(true);};
+        results.PreviewMouseLeftButtonDown+=async (_,args)=>
+        {
+            if(closed || installing || populating || args.ClickCount>1 ||
+                args.OriginalSource is not DependencyObject sourceElement ||
+                ItemsControl.ContainerFromElement(results,sourceElement) is not ListBoxItem item)
+                return;
+            // Activate only an actual result click. Search population selects
+            // the first row programmatically and must not start a download.
+            // Selecting here completes SelectFamily before PreviewAsync; the
+            // native ListBox click then sees the same row, so it cannot reset
+            // the newly started preview or queue a second download.
+            if(!ReferenceEquals(results.SelectedItem,item))results.SelectedItem=item;
+            await PreviewAsync();
+        };
+        results.PreviewKeyDown+=async (_,args)=>
+        {
+            if(args.Handled || args.IsRepeat || installing || Keyboard.Modifiers!=ModifierKeys.None ||
+                args.Key is not (Key.Enter or Key.Space) || results.SelectedItem is not ListBoxItem)
+                return;
+            args.Handled=true;
+            await PreviewAsync();
+        };
         faces.SelectionChanged+=(_,__)=>
         {
             if(changingFaces || closed || installing)return;

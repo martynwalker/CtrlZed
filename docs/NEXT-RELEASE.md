@@ -1,4 +1,4 @@
-# CtrlZed — Beta 50 release record and remaining queue
+# CtrlZed — Beta 50.1 candidate and release record
 
 Updated 24 November 2026.
 
@@ -15,6 +15,16 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 50.1 candidate — preview clicks and text colour
+
+- [x] Activate a clicked Google Fonts result immediately, open Preview while it downloads and reuse verified cached previews on repeated clicks.
+- [x] Keep programmatic first-result selection passive and installation explicitly gated by licence acknowledgement and an Install action.
+- [x] Add Format → Text Colour and the supplied colour-picker image in the toolbar before Fields, using the existing native Windows palette.
+- [x] Foreground-only selection editing and future-typing colour through the shared insertion bridge, preserving pending font choices and existing text formatting.
+- [ ] Windows physical-click, palette-routing, cancellation, rich editing/Undo, pending-choice composition and persistence checks alongside all existing gates.
+
+Candidate verification is in progress. Beta 49 remains the accepted baseline; the patch builds forward from the tested Beta 50 source.
 
 ## Implemented in Beta 50 — Google Fonts
 

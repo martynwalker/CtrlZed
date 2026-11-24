@@ -30,6 +30,10 @@ internal sealed class FontFinderTarget
     internal TextPointer SampleStart { get; }
     internal TextPointer SampleEnd { get; }
     internal IReadOnlyList<(DependencyProperty Property, object Value)> Formatting { get; }
+    // Deferred character choices are distinct from WPF's actual typing state.
+    // Keeping both lets a later colour/font choice compose without making the
+    // caret snapshot's staleness checks compare against an invented value.
+    internal IReadOnlyList<(DependencyProperty Property, object Value)> PendingFormatting { get; }
     internal bool Applied { get; set; }
     internal bool Invalidated { get; set; }
 
@@ -37,12 +41,14 @@ internal sealed class FontFinderTarget
         bool isCaret, string sampleText, TextPointer sampleStart, TextPointer sampleEnd,
         string familySource, bool bold, bool italic, long version, string setName,
         StyleSetStore.StyleSet styleSet,
-        IReadOnlyList<(DependencyProperty Property, object Value)> formatting)
+        IReadOnlyList<(DependencyProperty Property, object Value)> formatting,
+        IReadOnlyList<(DependencyProperty Property, object Value)>? pendingFormatting = null)
     {
         Document = document; Start = start; End = end; IsCaret = isCaret;
         SampleText = sampleText; SampleStart = sampleStart; SampleEnd = sampleEnd;
         FamilySource = familySource; Bold = bold; Italic = italic; Version = version;
         SetName = setName; StyleSet = styleSet; Formatting = formatting;
+        PendingFormatting = pendingFormatting ?? Array.Empty<(DependencyProperty, object)>();
         StartSymbolOffset = document.ContentStart.GetOffsetToPosition(start);
         EndSymbolOffset = document.ContentStart.GetOffsetToPosition(end);
     }
@@ -62,12 +68,12 @@ public partial class MainWindow
     {
         internal FontFinderTarget Target { get; }
         internal long Version { get; }
-        internal FontFamily Family { get; }
-        internal FontFinderMatch Match { get; }
+        internal IReadOnlyList<(DependencyProperty Property, object Value)> RequestedFormatting { get; }
         internal IReadOnlyList<(DependencyProperty Property, object Value)> ObservedFormatting { get; }
-        internal FontFinderCaretChoice(FontFinderTarget target, long version, FontFamily family,
-            FontFinderMatch match, IReadOnlyList<(DependencyProperty Property, object Value)> observedFormatting)
-        { Target = target; Version = version; Family = family; Match = match; ObservedFormatting = observedFormatting; }
+        internal FontFinderCaretChoice(FontFinderTarget target, long version,
+            IReadOnlyList<(DependencyProperty Property, object Value)> requestedFormatting,
+            IReadOnlyList<(DependencyProperty Property, object Value)> observedFormatting)
+        { Target = target; Version = version; RequestedFormatting = requestedFormatting; ObservedFormatting = observedFormatting; }
     }
 
     sealed class FontFinderInsertionProof
@@ -97,11 +103,18 @@ public partial class MainWindow
         // Author navigation or formatting commands discard the old font
         // choice. A later insertion proof always reads the author's live
         // typing state at its actual destination, rather than restoring it.
-        PreviewMouseDown += (_, _) => fontFinderCaretChoice = null;
+        PreviewMouseDown += (_, e) =>
+        {
+            // Opening Format, or choosing its colour command, is not an edit
+            // or caret movement. The command needs the pending font choice in
+            // order to combine it with the selected colour.
+            if (!IsTextColourFormattingInput(e.OriginalSource)) fontFinderCaretChoice = null;
+        };
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or
                 Key.LeftAlt or Key.RightAlt) return;
+            if (IsTextColourFormattingInput(e.OriginalSource) || Keyboard.Modifiers == ModifierKeys.Alt) return;
             if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != 0 ||
                 e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or
                     Key.PageDown or Key.Back or Key.Delete or Key.Enter or Key.Tab or Key.Escape)
@@ -113,12 +126,23 @@ public partial class MainWindow
     }
 
     internal FontFinderTarget CaptureFontFinderTarget()
+        => CaptureCharacterFormattingTarget(preservePendingChoice: true);
+
+    FontFinderTarget CaptureCharacterFormattingTarget(bool preservePendingChoice)
     {
         EnsureFontFinderEditable();
         InstallFontFinderTargetTracking();
-        fontFinderCaretChoice = null;
-        fontFinderTypingBridgeDocument = null;
-        fontFinderInsertionProof = null;
+        var pending = fontFinderCaretChoice;
+        var inherited = pending != null && FontFinderCaretChoiceCurrent(pending) &&
+            FontFinderTypingFormatMatches(pending.ObservedFormatting)
+                ? pending.RequestedFormatting.ToArray()
+                : Array.Empty<(DependencyProperty Property, object Value)>();
+        if (!preservePendingChoice)
+        {
+            fontFinderCaretChoice = null;
+            fontFinderTypingBridgeDocument = null;
+            fontFinderInsertionProof = null;
+        }
         var selection = Editor.Selection;
         var isCaret = selection.IsEmpty;
         var start = selection.Start.GetPositionAtOffset(0, LogicalDirection.Backward)!;
@@ -147,7 +171,7 @@ public partial class MainWindow
         var set = ActiveParagraphStyleSet;
         return new FontFinderTarget(Editor.Document, start, end, isCaret, sample, sampleStart, sampleEnd,
             family?.Source ?? Editor.FontFamily.Source, bold, italic, fontFinderDocumentVersion,
-            activeStyleSet, set, formatting);
+            activeStyleSet, set, formatting, inherited);
     }
 
     IReadOnlyList<(DependencyProperty Property, object Value)> CaptureFontFinderFormatting()
@@ -231,6 +255,12 @@ public partial class MainWindow
         if (!IsFontFinderTargetCurrent(target))
             throw new InvalidOperationException("The original selection or caret has changed, or another document is open. Close FontFinder and open it again at the intended text.");
         var family = FontFinderInstalledFamily(match, catalog);
+        var requested = target.PendingFormatting.ToDictionary(item => item.Property, item => item.Value);
+        requested[TextElement.FontFamilyProperty] = family;
+        if (match.Bold is bool requestedBold)
+            requested[TextElement.FontWeightProperty] = requestedBold ? FontWeights.Bold : FontWeights.Normal;
+        if (match.Italic is bool requestedItalic)
+            requested[TextElement.FontStyleProperty] = requestedItalic ? FontStyles.Italic : FontStyles.Normal;
         fontFinderCaretChoice = null;
         fontFinderTypingBridgeDocument = null;
         fontFinderInsertionProof = null;
@@ -251,7 +281,7 @@ public partial class MainWindow
                 // conservative boundary check rules that behaviour out.
                 foreach (var (property, value) in target.Formatting)
                     Editor.Selection.ApplyPropertyValue(property, value);
-                ApplyFontFinderFont(Editor.Selection, family, match);
+                foreach (var (property, value) in requested) Editor.Selection.ApplyPropertyValue(property, value);
             }
             target.Applied = true;
         }
@@ -259,8 +289,8 @@ public partial class MainWindow
         if (target.IsCaret)
         {
             fontFinderTypingBridgeDocument = Editor.Document;
-            fontFinderCaretChoice = new FontFinderCaretChoice(target, fontFinderDocumentVersion, family,
-                match, CaptureFontFinderFormatting());
+            fontFinderCaretChoice = new FontFinderCaretChoice(target, fontFinderDocumentVersion,
+                requested.Select(item => (item.Key, item.Value)).ToArray(), CaptureFontFinderFormatting());
         }
         RefreshFontBox();
         RefreshParagraphStyleBox();
@@ -313,11 +343,7 @@ public partial class MainWindow
         if (choice != null && FontFinderCaretChoiceCurrent(choice) &&
             FontFinderTypingFormatMatches(choice.ObservedFormatting))
         {
-            formatting[TextElement.FontFamilyProperty] = choice.Family;
-            if (choice.Match.Bold is bool bold)
-                formatting[TextElement.FontWeightProperty] = bold ? FontWeights.Bold : FontWeights.Normal;
-            if (choice.Match.Italic is bool italic)
-                formatting[TextElement.FontStyleProperty] = italic ? FontStyles.Italic : FontStyles.Normal;
+            foreach (var (property, value) in choice.RequestedFormatting) formatting[property] = value;
         }
         fontFinderCaretChoice = null;
         // Keep outward pointers separate. Constructing an empty TextRange now

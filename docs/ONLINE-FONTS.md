@@ -6,13 +6,13 @@ Open **Format → Find a Font… → Google Fonts…**. This browser extends the
 
 The catalogue ships with CtrlZed, so searching family names and supported descriptions needs no Google API key or network connection. It is a snapshot of actual source metadata, not a claim to include every font on Google Fonts. The window identifies its scope and catalogue count. Variable fonts and unsupported faces remain later work.
 
-Select a result to inspect its designer, available faces, source and complete licence/notice text. Available faces are actual regular/bold and normal/italic records in the catalogue; the browser does not invent a missing face.
+Click a result to start downloading its preview and open the Preview tab. Its designer, available faces and source remain visible; the complete licence and notices are available in the Licence and notices tab. Available faces are actual regular/bold and normal/italic records in the catalogue; the browser does not invent a missing face.
 
 **Ask AI** is optional and separate from local search. It uses the configured direct provider and requires AI language services to be enabled. Only the request, Writing Mode and bounded catalogue data are supplied. Suggestions must identify a real supplied family; AI cannot choose an arbitrary font-download address. Live provider configuration and suggestion quality require manual acceptance.
 
 ## Download a preview
 
-Choose a face and **Download preview**. CtrlZed downloads that font from its recorded official source, checks its bytes and renders a real local preview. Downloading a preview does not install the font or edit the document. Editing the sample changes the preview only. The sample stays on the computer; it is not sent to Google, a subsetting service or an AI provider.
+Click a family result, or choose a face and use **Download preview**. Enter and Space also activate the selected result. Re-clicking a result reopens its verified cached preview; the button remains available to retry a download. CtrlZed downloads that font from its recorded official source, checks its bytes and renders a real local preview. Automatic selection of the first search result does not download anything. Activating a result downloads a preview; it does not install the font or edit the document. Editing the sample changes the preview only. The sample stays on the computer; it is not sent to Google, a subsetting service or an AI provider.
 
 Requests use the pinned source revision `06bfe0d62a98375cb09c942fa18e68bd32cff057` of [google/fonts](https://github.com/google/fonts/tree/06bfe0d62a98375cb09c942fa18e68bd32cff057). The corresponding licence and notices are retained with installed files. Catalogue updates are part of a later CtrlZed build.
 

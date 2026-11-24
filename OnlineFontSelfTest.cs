@@ -90,6 +90,8 @@ public partial class MainWindow
                 {
                     var editor = window;
                     Phase("real online search, licence review and explicit private preview", () => editor.VerifyOnlineFontWindow(data, report));
+                    Phase("native result clicks, cached repeat and keyboard preview activation", () => editor.VerifyOnlineFontResultActivation(data, report));
+                    Phase("native result change supersedes an unfinished valid download", () => editor.VerifyOnlineFontResultReplacement(data, report));
                     Phase("explicit AI permission and document-sample privacy", () => editor.VerifyOnlineFontAiWindow(data, report));
                     foreach (var kind in new[] { "query", "mode", "close" })
                     {
@@ -458,6 +460,164 @@ public partial class MainWindow
             report.AppendLine("The real window searched its bundled catalogue without network access, showed complete source/licence details first, rendered an explicitly requested private font and kept document/registry unchanged. Both licence acknowledgement and a current verified preview were required for Install.");
         }
         finally { onlineFontWindow?.Close(); OnlineFontService.DownloadOverride = original; }
+    }
+
+    void VerifyOnlineFontResultActivation(OnlineFontFixture fixture, StringBuilder report)
+    {
+        var original = OnlineFontService.DownloadOverride;
+        var originalRoot = OnlineFontService.CacheRootOverride;
+        var completion = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        try
+        {
+            OnlineFontService.CacheRootOverride = Path.Combine(originalRoot!, "Result activation");
+            OnlineFontService.DownloadOverride = (_, _) => { calls++; return completion.Task; };
+            var registry = OnlineRegistrySnapshot();
+            var dialog = OpenOnlineFixtureWindow(fixture);
+            var document = OnlineDocumentState();
+            var results = OnlineControl<ListBox>(dialog, "OnlineFontResults");
+            var row = results.Items.OfType<ListBoxItem>().Single(item => (item.Tag as FontFinderMatch)?.Source == fixture.Family.Id);
+            var tabs = OnlineControl<TabControl>(dialog, "OnlineFontTabs");
+            var sample = OnlineControl<TextBox>(dialog, "OnlineFontSample");
+            var accept = OnlineControl<CheckBox>(dialog, "OnlineFontAcceptLicence");
+            var install = OnlineControl<Button>(dialog, "OnlineFontInstall");
+            OnlineRequire(calls == 0 && tabs.SelectedIndex == 1 && sample.Visibility != Visibility.Visible,
+                "Programmatic first-result selection downloaded a font or bypassed the initial licence view.");
+
+            OnlineNativeClick(dialog, row);
+            OnlineWait(() => calls == 1, "A physical click on the selected font row did not start its preview download.");
+            OnlineRequire(tabs.SelectedIndex == 0 && sample.Visibility != Visibility.Visible && !completion.Task.IsCompleted && !install.IsEnabled,
+                "The result click did not open Preview immediately while its controlled download remained unfinished.");
+            completion.SetResult(fixture.Bytes.ToArray());
+            OnlineWait(() => sample.Visibility == Visibility.Visible, "The clicked result's valid private-font preview did not finish.");
+            var cached = OnlineFontService.CachedFilePath(fixture.Catalogue, fixture.Family, fixture.Face);
+            OnlineRequire(OnlineFamilyUsesFile(sample.FontFamily, cached) && calls == 1,
+                "The clicked result preview did not use its verified downloaded file.");
+
+            // Clicking another physical target resets the native double-click
+            // sequence before exercising an ordinary click on the same row.
+            accept.IsChecked = false; PumpInput();
+            OnlineNativeClick(dialog, (TabItem)tabs.Items[1]);
+            OnlineRequire(tabs.SelectedIndex == 1, "The licence tab did not receive the physical repeat-preview setup click.");
+            OnlineNativeClick(dialog, row);
+            OnlineWait(() => tabs.SelectedIndex == 0 && sample.Visibility == Visibility.Visible,
+                "Clicking the already-selected row did not return from Licence to its cached Preview.");
+            OnlineRequire(calls == 1 && accept.IsChecked != true && !install.IsEnabled,
+                "Repeating a result click fetched an already-verified font again or retained installation consent.");
+
+            foreach (var key in new ushort[] { 0x0D, 0x20 })
+            {
+                tabs.SelectedIndex = 1;
+                dialog.Activate(); SetForegroundWindow(new WindowInteropHelper(dialog).Handle);
+                row.Focus(); PumpInput();
+                SendKeys(new[] { KeyInput(key), KeyInput(key, true) });
+                OnlineWait(() => tabs.SelectedIndex == 0 && sample.Visibility == Visibility.Visible,
+                    "The selected result did not activate its preview using " + (key == 0x0D ? "Enter" : "Space") + ".");
+                OnlineRequire(calls == 1 && accept.IsChecked != true && !install.IsEnabled,
+                    "Keyboard preview activation bypassed the verified cache or licence acknowledgement.");
+            }
+            OnlineRequire(OnlineDocumentState() == document && !dirty && OnlineRegistryEqual(registry, OnlineRegistrySnapshot()),
+                "Result-click or keyboard preview activation edited the source or installed a font.");
+            dialog.Close();
+            report.AppendLine("Actual native mouse clicks downloaded a result and opened Preview before the pending transfer finished. Re-clicking the same row reopened its verified cached preview; native Enter and Space also activated it. Programmatic first-result selection stayed download-free, and every preview retained explicit installation consent and unchanged document/registry state.");
+        }
+        finally
+        {
+            completion.TrySetResult(fixture.Bytes.ToArray()); onlineFontWindow?.Close();
+            OnlineFontService.DownloadOverride = original; OnlineFontService.CacheRootOverride = originalRoot;
+        }
+    }
+
+    void VerifyOnlineFontResultReplacement(OnlineFontFixture fixture, StringBuilder report)
+    {
+        var originalDownload = OnlineFontService.DownloadOverride;
+        var originalGenerator = OnlineFontService.GeneratorOverride;
+        var originalRoot = OnlineFontService.CacheRootOverride;
+        var originalPermission = languageSettings.AllowAiLanguageServices;
+        var completion = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstCalls = 0; var secondCalls = 0; var firstReturned = false;
+        var nextFamily = fixture.Catalogue.Families.Single(family => family.Name == "Lato");
+        var nextFace = nextFamily.Faces.Single(face => !face.Italic && face.Weight == 400);
+        var nextBytes = File.ReadAllBytes(Path.Combine(Path.GetTempPath(), "CtrlZed50FontFixture", Path.GetFileName(nextFace.Path)));
+        OnlineRequire(OnlineGitBlobHash(nextBytes) == nextFace.BlobSha,
+            "The second clickable catalogue result does not have its authentic static font fixture.");
+        try
+        {
+            OnlineFontService.CacheRootOverride = Path.Combine(originalRoot!, "Result replacement");
+            OnlineFontService.DownloadOverride = async (uri, _) =>
+            {
+                if (uri.AbsolutePath.EndsWith("/" + fixture.Face.Path, StringComparison.Ordinal))
+                {
+                    firstCalls++; var value = await completion.Task; firstReturned = true; return value;
+                }
+                if (uri.AbsolutePath.EndsWith("/" + nextFace.Path, StringComparison.Ordinal))
+                { secondCalls++; return nextBytes.ToArray(); }
+                throw new InvalidOperationException("The result-click regression requested an unexpected face.");
+            };
+            OnlineFontService.GeneratorOverride = (_, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.FromResult(OnlineResponse((fixture.Family.Id, null, null, "First real clickable family."),
+                    (nextFamily.Id, null, null, "Second real clickable family.")));
+            };
+            languageSettings.AllowAiLanguageServices = true;
+            var registry = OnlineRegistrySnapshot();
+            var dialog = OpenOnlineFixtureWindow(fixture);
+            var document = OnlineDocumentState();
+            OnlineControl<TextBox>(dialog, "OnlineFontQuery").Text = fixture.Family.Name + " and " + nextFamily.Name + " for clicking";
+            OnlineWait(() => OnlineControl<Button>(dialog, "OnlineFontAskAi").IsEnabled,
+                "The deterministic two-family search did not become available.");
+            OnlineClick(dialog, "OnlineFontAskAi");
+            var results = OnlineControl<ListBox>(dialog, "OnlineFontResults");
+            OnlineWait(() => results.Items.Count == 2, "The deterministic provider did not expose both real clickable results.");
+            var first = results.Items.OfType<ListBoxItem>().Single(item => (item.Tag as FontFinderMatch)?.Source == fixture.Family.Id);
+            var second = results.Items.OfType<ListBoxItem>().Single(item => (item.Tag as FontFinderMatch)?.Source == nextFamily.Id);
+            OnlineRequire(firstCalls == 0 && secondCalls == 0,
+                "Populating two provider results automatically downloaded a font.");
+            OnlineNativeClick(dialog, first);
+            OnlineWait(() => firstCalls == 1, "The first physical result click did not reach its controlled download.");
+            OnlineControl<CheckBox>(dialog, "OnlineFontAcceptLicence").IsChecked = true;
+            OnlineNativeClick(dialog, second);
+            OnlineRequire(ReferenceEquals(results.SelectedItem, second) &&
+                OnlineControl<TabControl>(dialog, "OnlineFontTabs").SelectedIndex == 0 &&
+                OnlineControl<CheckBox>(dialog, "OnlineFontAcceptLicence").IsChecked != true &&
+                !OnlineControl<Button>(dialog, "OnlineFontInstall").IsEnabled,
+                "Clicking a later result kept the old selection/consent or failed to open its Preview tab.");
+            completion.SetResult(fixture.Bytes.ToArray());
+            var sample = OnlineControl<TextBox>(dialog, "OnlineFontSample");
+            var nextPath = OnlineFontService.CachedFilePath(fixture.Catalogue, nextFamily, nextFace);
+            OnlineWait(() => firstReturned && secondCalls == 1 && sample.Visibility == Visibility.Visible &&
+                OnlineFamilyUsesFile(sample.FontFamily, nextPath),
+                "The later clicked result did not replace the valid but obsolete unfinished download.");
+            OnlineRequire(firstCalls == 1 && OnlineControl<CheckBox>(dialog, "OnlineFontAcceptLicence").IsChecked != true &&
+                !OnlineControl<Button>(dialog, "OnlineFontInstall").IsEnabled &&
+                OnlineDocumentState() == document && !dirty && OnlineRegistryEqual(registry, OnlineRegistrySnapshot()),
+                "The old valid result escaped cancellation, retained consent or edited/installed while the newer preview was selected.");
+            dialog.Close();
+            report.AppendLine("Two actual supplied families were returned by the deterministic provider without automatic downloads. Native clicks switched from an unfinished authentic Aclonica transfer to Lato Regular; the old transfer ignored cancellation, but only the later clicked family's verified preview appeared and neither font was installed.");
+        }
+        finally
+        {
+            completion.TrySetResult(fixture.Bytes.ToArray()); onlineFontWindow?.Close();
+            OnlineFontService.DownloadOverride = originalDownload; OnlineFontService.GeneratorOverride = originalGenerator;
+            OnlineFontService.CacheRootOverride = originalRoot; languageSettings.AllowAiLanguageServices = originalPermission;
+        }
+    }
+
+    static void OnlineNativeClick(Window dialog, FrameworkElement target)
+    {
+        dialog.Activate(); SetForegroundWindow(new WindowInteropHelper(dialog).Handle);
+        target.BringIntoView(); dialog.UpdateLayout(); PumpInput();
+        OnlineRequire(target.IsVisible && target.ActualWidth > 0 && target.ActualHeight > 0,
+            "The physical online-font click target has no visible extent.");
+        var screen = target.PointToScreen(new Point(Math.Min(40, target.ActualWidth / 2), Math.Min(15, target.ActualHeight / 2)));
+        SetPagedCursor((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
+        SendKeys(new[]
+        {
+            new NativeInput { Type = 0, Data = new InputUnion { Mouse = new MouseInput { Flags = 2 } } },
+            new NativeInput { Type = 0, Data = new InputUnion { Mouse = new MouseInput { Flags = 4 } } }
+        });
+        PumpInput();
     }
 
     void VerifyOnlineFontAiWindow(OnlineFontFixture fixture, StringBuilder report)

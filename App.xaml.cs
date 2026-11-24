@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--text-colour-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunTextColourSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--online-font-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunOnlineFontSelfTest());

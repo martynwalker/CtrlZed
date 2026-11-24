@@ -100,6 +100,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        TextColourToolbarImage.Source=TextColourIcon.Create();
+        TextColourMenuImage.Source=TextColourIcon.Create();
         Icon=Branding.CreateIconImageSource();
         RefreshStyleSetBox();
         FontBox.ItemsSource = Fonts.SystemFontFamilies.OrderBy(f => f.Source);
@@ -110,6 +112,7 @@ public partial class MainWindow : Window
         InitializeRichTextPaste();
         InstallSentenceCompletion();
         InstallFontFinder();
+        InstallTextColour();
         InstallVectorClipboard();
         Editor.PreviewKeyDown += Editor_FollowingStylePreviewKeyDown;
         Editor.AddHandler(CommandManager.PreviewExecutedEvent,new ExecutedRoutedEventHandler(Editor_FollowingStylePreviewExecuted));

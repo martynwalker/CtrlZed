@@ -14,10 +14,17 @@ The current development baseline is **[Beta 50 (0.50.0)](https://github.com/mart
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
+### Beta 50.1 candidate — preview clicks and text colour
+
+- Clicking a Google Fonts result starts its preview and opens the Preview tab. Re-clicking and Enter/Space also activate it; automatic search selection stays passive.
+- **Format → Text Colour…** and the colour-picker icon immediately before **Fields** open the existing Windows palette. Selected text changes colour without changing its other formatting; a caret choice colours future typing.
+- Colour choices compose with pending font choices, preserve existing letters inside a word and use the existing native-input/Undo bridge. Cancel leaves the document unchanged.
+- Windows candidate checks are in progress. See the [text colour guide](docs/TEXT-COLOUR.md) and [Google Fonts guide](docs/ONLINE-FONTS.md).
+
 ### Beta 50 — Google Fonts discovery and installation
 
 - **Format → Find a Font… → Google Fonts…** browses 1,423 supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
-- Read the actual source licence and notices before downloading a real preview. Preview text stays local; search, AI and previews do not install fonts or edit the document.
+- Click a family to download its real preview, and review the actual source licence and notices before installation. Preview text stays local; search, AI and previews do not install fonts or edit the document.
 - Explicit installation is for the current Windows user and preserves existing registrations. Save and restart CtrlZed afterwards to refresh WPF's cached installed-font list, then apply through the existing finder.
 - The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 49 remains the accepted baseline.
 
@@ -175,7 +182,8 @@ A release must pass:
 10. `--vector-signature-test`, covering tracing and SVG fidelity, live preview/threshold interaction, atomic Undo/Redo, named-image macros, native/profile/recovery persistence, compatibility fallbacks and vector print sources
 11. `--font-finder-test`, covering installed/local search, strict response contracts, privacy, real asynchronous previews, stale guards, rich font application/Undo and style persistence with a deterministic provider
 12. `--online-font-test`, covering pinned catalogue/licences, real font downloads and private previews, explicit UI consent, stale results, per-user installation, collisions, rollback and cleanup
-13. packaging and prerelease publication
+13. `--text-colour-test`, covering Format/toolbar routing, cancellation, foreground-only formatting/Undo, caret typing, pending-font composition and native/protected/DOCX persistence
+14. packaging and prerelease publication
 
 The filename automation checks the naming rules. The native Save dialogue's suggested name, editing and cancellation are manual acceptance checks. Automated verification is recorded separately from user acceptance.
 
