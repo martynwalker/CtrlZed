@@ -1,4 +1,4 @@
-# CtrlZed — Beta 50.1 release record and remaining queue
+# CtrlZed — Beta 50.2 candidate and release record
 
 Updated 24 November 2026.
 
@@ -17,6 +17,16 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 50.2 candidate — original colour-picker artwork
+
+Martyn reported Beta 50.1 as functionally all good on 24 November 2026 and requested removal of the square around the colour icon.
+
+- [x] Recover and use the original 32×32 transparent pinwheel from the saved ColourPicker v1.0.0 icon resource, with no screenshot background or crop.
+- [x] Remove square button chrome while retaining the same 26×24 clickable target, action and accessible name, with rounded hover/pressed feedback.
+- [ ] Retain all existing Windows release checks and inspect the toolbar at rest.
+
+Candidate verification is in progress. The patch changes presentation only.
 
 ## Implemented in Beta 50.1 — preview clicks and text colour
 

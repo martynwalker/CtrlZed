@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451, beta46, beta461, beta462, beta47, beta48, beta49, beta50, beta501 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451, beta46, beta461, beta462, beta47, beta48, beta49, beta50, beta501, beta502 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -259,5 +259,5 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 50.1 adds click-to-preview for Google Fonts results: clicking a family starts its preview download and opens Preview; Enter and Space also activate a result, while automatic search selection remains passive. Format > Text Colour and the matching colour-picker toolbar icon before Fields open the existing Windows palette. Selected text changes colour in one Undo operation; a caret choice applies to future typing while retaining font, size and emphasis. Previewing never installs fonts, and installation still requires explicit licence acknowledgement and an Install action. Windows checks cover real result clicks, cache/retry, stale downloads, text-colour menu/toolbar/cancel, rich formatting/Undo and caret composition alongside the existing release gates. Beta 49 remains the accepted baseline pending user acceptance of the newer builds. Page Editing floating-picture issue #30 remains deferred."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 50.2 replaces the screen-captured text-colour image with the original transparent Colour Picker pinwheel resource, without an opaque square background. The toolbar button retains its position, size, palette action and accessible name, with a rounded hover/pressed indication in place of square button chrome. All text-colour, preview-click, font-installation, formatting, Undo and existing editing release gates are retained. The accepted functional behaviour of Beta 50.1 is preserved; the low-priority Page Editing floating-picture issue #30 remains deferred."
 

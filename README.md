@@ -14,6 +14,12 @@ The current development baseline is **[Beta 50.1 (0.50.1)](https://github.com/ma
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
+### Beta 50.2 candidate — original transparent colour icon
+
+- Restore the original transparent Colour Picker pinwheel from the saved application icon resource; remove the opaque screenshot tile and crop.
+- Retain the same toolbar target, action and placement before Fields, with a rounded hover/pressed indication instead of square button chrome.
+- Windows release verification and the final toolbar visual check are in progress. Text-colour and font-preview behaviour is unchanged.
+
 ### Beta 50.1 — preview clicks and text colour
 
 - Clicking a Google Fonts result starts its preview and opens the Preview tab. Re-clicking and Enter/Space also activate it; automatic search selection stays passive.

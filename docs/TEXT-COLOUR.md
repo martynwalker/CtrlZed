@@ -1,6 +1,6 @@
-# Text Colour — Beta 50.1
+# Text Colour — Beta 50.2
 
-Choose **Format → Text Colour…**, or click the coloured picker icon immediately before **Fields** in the small toolbar. Both controls open the existing standard Windows colour palette and share its custom swatches.
+Choose **Format → Text Colour…**, or click the coloured picker icon immediately before **Fields** in the small toolbar. Both controls open the existing standard Windows colour palette and share its custom swatches. The pinwheel uses the original transparent Colour Picker artwork, without an opaque square tile; the toolbar retains a subtle rounded hover indication.
 
 Select text first to change its foreground colour. Font family, point size, bold, italic, underline and paragraph layout are retained. The colour change is one Undo operation.
 

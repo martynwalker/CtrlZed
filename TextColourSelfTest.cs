@@ -317,6 +317,10 @@ public partial class MainWindow
         second.Inlines.Add(new Run(" while the rest retains its formatting."){FontSize=22});
         var document=new FlowDocument(first);document.Blocks.Add(second);
         SentenceSetDocument(document,EditorViewMode.Continuous);Editor.CaretPosition=second.ContentEnd;UpdateLayout();PumpInput();
+        // Show the resting icon instead of the hover state left by the last
+        // native toolbar click; no document or caret operation is performed.
+        var neutral=Status.PointToScreen(new Point(4,Math.Max(1,Status.ActualHeight/2)));
+        SetPagedCursor((int)Math.Round(neutral.X),(int)Math.Round(neutral.Y));PumpInput();
         var bitmap=new RenderTargetBitmap((int)Math.Ceiling(ActualWidth),(int)Math.Ceiling(ActualHeight),96,96,PixelFormats.Pbgra32);
         bitmap.Render(this);bitmap.Freeze();var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
         var path=Path.Combine(Path.GetTempPath(),"CtrlZed501TextColour.png");using(var file=File.Create(path))encoder.Save(file);
