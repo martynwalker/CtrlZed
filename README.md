@@ -8,7 +8,7 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 The current accepted baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.**
 
-The current development baseline is **[Beta 53 (0.53.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.53.0-beta.53)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528) on source `799eb1cb1b2f4de135a8b441da64d21cf76276d1`, including packaging and publication. **Beta 53 user acceptance is pending; Beta 52 remains accepted.**
+The current development baseline is **[Beta 53.1 (0.53.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.53.1-beta.53.1)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3`, including packaging and publication. **Beta 53.1 user acceptance is pending; Beta 52 remains accepted.**
 
 [Beta 51](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51) was the preceding accepted baseline, confirmed on 24 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) verified source `da6f33cbb2ba01b11a894e48d972e949a139aadc`.
 
@@ -20,12 +20,12 @@ The current development baseline is **[Beta 53 (0.53.0)](https://github.com/mart
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 53.1 candidate — workshop activity and reply reliability
+### Beta 53.1 — workshop activity and reply reliability
 
 - Both workshops show an animated activity bar and elapsed time while awaiting AI, with green success, red errors, blue busy and grey neutral/cancel messages.
 - Workshop requests to OpenAI now specify strict structured output instead of relying only on a JSON instruction in a plain-text prompt. Refused, incomplete, failed and empty replies are distinguished before parsing.
 - A single whole JSON code fence or BOM is accepted for compatibility; arbitrary prose, truncated replies and invalid source/metadata remain rejected. Other providers and ordinary free-text AI features retain their existing transport.
-- Invalid local edits cancel unfinished work before validation, and a late reply cannot overwrite a newer request or stop its activity display. Windows verification is in progress; Beta 52 remains accepted.
+- Invalid local edits cancel unfinished work before validation, and a late reply cannot overwrite a newer request or stop its activity display. The full Windows gate passed, including deterministic HTTP outcomes, repeated requests, real activity/colour/cancellation checks and all existing editing regressions. The workshop screenshots were inspected; live-provider creative quality remains a manual check. Beta 52 remains accepted.
 
 ### Beta 53 — Wordplay Workshop
 

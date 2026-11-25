@@ -1,10 +1,12 @@
-# CtrlZed — Beta 53.1 candidate and release record
+# CtrlZed — Beta 53.1 release record and queue
 
 Updated 25 November 2026.
 
 ## Baselines and acceptance
 
-Beta 53 (`0.53.0-beta.53`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528) on source `799eb1cb1b2f4de135a8b441da64d21cf76276d1`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Wordplay Workshop screenshot was inspected. Beta 53 user acceptance is pending; Beta 52 remains accepted.
+Beta 53.1 (`0.53.1-beta.53.1`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. Busy, success and error workshop screenshots were inspected. Beta 53.1 user acceptance is pending; Beta 52 remains accepted.
+
+Beta 53 (`0.53.0-beta.53`) was the preceding development baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528) on source `799eb1cb1b2f4de135a8b441da64d21cf76276d1`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Wordplay Workshop screenshot was inspected. Beta 53 user acceptance is pending; Beta 52 remains accepted.
 
 Beta 52 (`0.52.0-beta.52`) is the current accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Story Workshop screenshot was inspected. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.
 
@@ -26,7 +28,7 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 53.1 candidate — workshop activity and reply reliability
+## Implemented in Beta 53.1 — workshop activity and reply reliability
 
 On 25 November, Wordplay Workshop reported an unreadable association reply after an initial successful exploration. That exact error occurs at JSON syntax parsing. Beta 53 requested plain text and relied on prompt instructions for the response format. The screenshot does not establish whether the unreadable reply was wrapped, incomplete or otherwise non-JSON; no raw reply was retained. Repeated requests do not carry old results or favourites into the prompt.
 
@@ -35,9 +37,9 @@ On 25 November, Wordplay Workshop reported an unreadable association reply after
 - [x] Conservative whole-document JSON fence/BOM compatibility, retaining all semantic, size, identity and source-anchor validation.
 - [x] Activity bars and elapsed time, green success/red errors, immediate cancellation/close stop and generation-owned late-reply guards.
 - [x] Invalid local input cancels before validation so an old request cannot commit against changed visible input.
-- [ ] Windows native HTTP fixtures, repeated requests, gauge/colour/cancellation, existing persistence and editing release gates.
+- [x] Windows native HTTP fixtures, repeated requests, gauge/colour/cancellation, existing persistence and editing release gates.
 
-Verification is in progress. No saved file format changes; Beta 52 remains the accepted baseline. The low-priority Page Editing floating-picture issue #30 stays deferred.
+All Windows release checks passed. Deterministic HTTP/model fixtures cover complete and wrapped replies, unreadable/refused/incomplete/failed/empty replies, timeout and cancellation, repeated successful requests, retained favourites/planning, invalid local edits and old-completion guards. The activity indicators, elapsed time and green/red status were checked in real windows and the diagnostic screenshots were inspected. These checks make no live AI calls. No saved file format changes; Beta 52 remains the accepted baseline. The low-priority Page Editing floating-picture issue #30 stays deferred.
 
 ## Implemented in Beta 53 — Wordplay Workshop
 
@@ -215,7 +217,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 53 Windows build, all functional regressions, packaging and publication passed in [run 45589758528](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528). The tested source and release documentation are promoted to `main` as the development baseline. Beta 53 awaits user acceptance. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026; Beta 52 remains the accepted baseline.
+Status: Beta 53.1 Windows build, all functional regressions, packaging and publication passed in [run 45615954830](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830). The tested source and release documentation are promoted to `main` as the development baseline. Beta 53.1 awaits user acceptance. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026; Beta 52 remains the accepted baseline.
 
 ## Remaining queue
 
