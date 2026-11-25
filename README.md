@@ -6,9 +6,9 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current accepted baseline is **[Beta 51 (0.51.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication. **Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.**
+The current accepted and development baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.**
 
-The current development baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Beta 52 user acceptance is pending; Beta 51 remains accepted.**
+[Beta 51](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51) was the preceding accepted baseline, confirmed on 24 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) verified source `da6f33cbb2ba01b11a894e48d972e949a139aadc`.
 
 [Beta 50.2 (0.50.2)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.50.2-beta.50.2) was the preceding accepted baseline, confirmed on 24 November 2026 after reviewing the original transparent colour icon. Its [Windows gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45408843008) on source `c4c225e2108d70032bc125e7ee721a0d32b6541b`.
 
@@ -24,7 +24,7 @@ The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes del
 - The cast covers contrasting traits, body/environment/mind, triggers, moral code and voice. Plot notes, event cards, fair-play clues, open questions and continuity problems build alongside the conversation.
 - Author decisions and AI proposals are marked separately. Opening and local editing make no requests; explicit Send shares planning data and recent workshop conversation rather than the manuscript body.
 - Native `.czd` saves, password protection and recovery retain the plan. Explicit non-native Save As exports the body while preserving the working plan. A character can be opened in Character Voice using its personality notes.
-- The full Windows release gate passed, including metadata/recovery, strict proposals, real conversation/editing, exports, planning Undo and stale-response guards. See the [Story Workshop guide](docs/STORY-WORKSHOP.md). Beta 51 remains accepted.
+- The full Windows release gate passed, including metadata/recovery, strict proposals, real conversation/editing, exports, planning Undo and stale-response guards. See the [Story Workshop guide](docs/STORY-WORKSHOP.md). Beta 52 is accepted.
 
 ### Beta 51 — Character Voice
 
@@ -51,7 +51,7 @@ The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes del
 - **Format → Find a Font… → Google Fonts…** browses 1,423 supported static families from a pinned official catalogue, with local search and an optional, explicitly requested AI ranking.
 - Click a family to download its real preview, and review the actual source licence and notices before installation. Preview text stays local; search, AI and previews do not install fonts or edit the document.
 - Explicit installation is for the current Windows user and preserves existing registrations. Save and restart CtrlZed afterwards to refresh WPF's cached installed-font list, then apply through the existing finder.
-- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 51 is the accepted baseline.
+- The [Google Fonts guide](docs/ONLINE-FONTS.md) explains catalogue scope, actual faces, installation and availability. The full Windows gate passed, including a real official download/private preview, explicit UI consent, stale face requests, per-user installation, conflict protection, rollback and cleanup. Beta 52 is the accepted baseline.
 
 ### Beta 49 — installed Font Finder
 
