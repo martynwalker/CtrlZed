@@ -1,10 +1,12 @@
-# CtrlZed — Beta 54 candidate and release record
+# CtrlZed — Beta 54 release record and queue
 
 Updated 25 November 2026.
 
 ## Baselines and acceptance
 
-Beta 53.1 (`0.53.1-beta.53.1`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. Busy, success and error workshop screenshots were inspected. Beta 53.1 user acceptance is pending; Beta 52 remains accepted.
+Beta 54 (`0.54.0-beta.54`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45652237595) on source `1fe1371e1180f8ca416992e3c8dddc8eff38649a`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. AI Settings and both provider-selector screenshots were inspected. Beta 54 user acceptance is pending; Beta 52 remains accepted.
+
+Beta 53.1 (`0.53.1-beta.53.1`) was the preceding development baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. Busy, success and error workshop screenshots were inspected. Beta 53.1 user acceptance is pending; Beta 52 remains accepted.
 
 Beta 53 (`0.53.0-beta.53`) was the preceding development baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528) on source `799eb1cb1b2f4de135a8b441da64d21cf76276d1`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Wordplay Workshop screenshot was inspected. Beta 53 user acceptance is pending; Beta 52 remains accepted.
 
@@ -28,15 +30,15 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 54 candidate — AI Settings and workshop providers
+## Implemented in Beta 54 — AI Settings and workshop providers
 
 - [x] Dedicated provider/model/direct-key settings with a saved default, existing credential retention, per-provider drafts, explicit key removal and Cancel without writes.
 - [x] Wordplay and Story provider selectors initialised from the default, with local choices outside document metadata.
 - [x] Explicit provider routing, provider/model/key-change cancellation and late-response guards.
 - [x] AI settings entry points open configuration directly; ordinary writing and macro assistants remain available separately.
-- [ ] Windows settings persistence, protected-key handling, provider routing, cancellation and all existing release gates.
+- [x] Windows settings persistence, protected-key handling, provider routing, cancellation and all existing release gates.
 
-Verification is in progress. Opening, switching and saving make no AI requests. Direct API keys remain protected with Windows-user DPAPI; named macro secrets are separate. No document format changes. Beta 52 remains accepted and floating-picture issue #30 stays deferred.
+All Windows release checks passed. Real settings windows exercised existing configuration, per-provider drafts, Save/Cancel/Close, blank-key retention, explicit removal/replacement and failed-save rollback. Synthetic HTTP/model fixtures verified explicit provider/model routing, absence of implicit requests, local/default isolation and late replies after provider/model/key changes. AI Settings and both workshop provider-selector screenshots were inspected. Opening, switching and saving make no AI requests. Direct API keys remain protected with Windows-user DPAPI; named macro secrets are separate. No document format changes. Beta 52 remains accepted and floating-picture issue #30 stays deferred.
 
 ## Implemented in Beta 53.1 — workshop activity and reply reliability
 
@@ -227,7 +229,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 53.1 Windows build, all functional regressions, packaging and publication passed in [run 45615954830](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830). The tested source and release documentation are promoted to `main` as the development baseline. Beta 53.1 awaits user acceptance. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026; Beta 52 remains the accepted baseline.
+Status: Beta 54 Windows build, all functional regressions, packaging and publication passed in [run 45652237595](https://github.com/martynwalker/CtrlZed/actions/runs/45652237595). The tested source and release documentation are promoted to `main` as the development baseline. Beta 54 awaits user acceptance. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026; Beta 52 remains the accepted baseline.
 
 ## Remaining queue
 

@@ -1,4 +1,4 @@
-# Wordplay Workshop — Beta 53.1
+# Wordplay Workshop — Beta 54
 
 Choose **Review → Wordplay Workshop…**, or use the text right-click menu. Pile words, images, sentences or unfinished fragments into the source box. There is no required list syntax. A fresh workshop can show the current selection as a starting point without making a document edit; **Use current selection** explicitly takes a new selection. Opening and editing make no AI requests.
 
@@ -35,3 +35,5 @@ For OpenAI, the workshop now requests a strict JSON response schema directly. A 
 The source pile supports up to 12,000 characters and the target up to 1,000. Each generated phrase supports up to 1,000 characters. The document holds up to 40 favourites and 256,000 characters across this workshop record. Oversized or malformed saved records are rejected instead of silently discarding existing notes. Windows release checks use deterministic responses to verify the requested axes, source links, editing, persistence and stale-response guards; they do not assess a live model's wordplay.
 
 The [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) passed on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3` on 25 November 2026, including packaging and publication. Deterministic HTTP/model examples verified successive requests, refusal/incomplete/error handling, activity/elapsed time, green/red status, cancellation and retention of saved work, alongside all existing editing checks. Busy, success and error workshop screenshots were inspected. No live provider calls were made by these tests. Beta 53.1 awaits user acceptance; Beta 52 remains accepted.
+
+The Beta 54 [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45652237595) passed on source `1fe1371e1180f8ca416992e3c8dddc8eff38649a` on 25 November 2026, including packaging and publication. Deterministic fixtures checked the saved default, per-window provider choices, direct settings routes, model/key routing, no implicit requests and late-reply cancellation, alongside all existing persistence and editing checks. The final provider-selector screenshots were inspected. No live AI calls were made by these tests. Beta 54 awaits user acceptance; Beta 52 remains accepted.

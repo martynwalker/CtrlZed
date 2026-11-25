@@ -13,3 +13,5 @@ Changing provider cancels an unfinished workshop request immediately. Changing i
 Direct API keys are encrypted using Windows DPAPI for the current Windows user. They are not included in documents or portable profile archives. Named secrets used by compiled macros remain separately managed under **Macro Library → Secrets…**; this release does not copy credentials between the two stores. Macros using `CtrlZedAi.GetModel` continue to read the central model choice.
 
 The automated Windows release gate uses synthetic provider responses and temporary test keys to check settings persistence, cancellation, routing and existing document behaviour. It does not make live AI requests or certify a provider's current model availability.
+
+The [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45652237595) passed on source `1fe1371e1180f8ca416992e3c8dddc8eff38649a` on 25 November 2026, including packaging and publication. The settings and both workshop screenshots were inspected. Beta 54 awaits user acceptance; Beta 52 remains accepted.

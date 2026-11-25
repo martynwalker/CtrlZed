@@ -8,7 +8,7 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 The current accepted baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.**
 
-The current development baseline is **[Beta 53.1 (0.53.1)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.53.1-beta.53.1)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3`, including packaging and publication. **Beta 53.1 user acceptance is pending; Beta 52 remains accepted.**
+The current development baseline is **[Beta 54 (0.54.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.54.0-beta.54)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45652237595) on source `1fe1371e1180f8ca416992e3c8dddc8eff38649a`, including packaging and publication. **Beta 54 user acceptance is pending; Beta 52 remains accepted.**
 
 [Beta 51](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51) was the preceding accepted baseline, confirmed on 24 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) verified source `da6f33cbb2ba01b11a894e48d972e949a139aadc`.
 
@@ -20,12 +20,12 @@ The current development baseline is **[Beta 53.1 (0.53.1)](https://github.com/ma
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 54 candidate — AI Settings and workshop providers
+### Beta 54 — AI Settings and workshop providers
 
 - **Tools → AI Settings…** manages ChatGPT, Claude and Gemini model IDs, direct API keys and the saved application default. Existing direct credentials are retained; blank key fields preserve them, and key removal is explicit. Changes are staged until Save.
 - Wordplay and Story Workshops begin with the saved default and offer a per-window provider dropdown with model/key status. A local choice leaves the global default and document metadata unchanged.
 - Changing provider or its configuration cancels unfinished work; a late response cannot commit across that change. Other assistant configuration buttons open the same dedicated settings screen.
-- Opening, editing and saving settings make no AI calls. Direct keys remain encrypted for the current Windows user; named macro secrets remain separate. Windows verification is pending; Beta 52 remains accepted. See the [AI Settings guide](docs/AI-SETTINGS.md).
+- Opening, editing and saving settings make no AI calls. Direct keys remain encrypted for the current Windows user; named macro secrets remain separate. The full Windows gate passed, including settings persistence and failed-save recovery, encrypted-key handling, explicit provider routing, local-choice isolation and late replies, alongside the existing release checks. The settings/workshop screenshots were inspected; Beta 52 remains accepted. See the [AI Settings guide](docs/AI-SETTINGS.md).
 
 ### Beta 53.1 — workshop activity and reply reliability
 

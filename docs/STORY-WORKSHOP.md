@@ -1,4 +1,4 @@
-# Story Workshop — Beta 53.1
+# Story Workshop — Beta 54
 
 Choose **Review → Story Workshop…** to plan the current document. Select its workshop writing mode, normally Novel. The conversation begins with **How can I help you?** You can describe a character, an incomplete plot, a twist, or the difficulty you want help with. Opening the workshop and selecting a mode do not make an AI request.
 
@@ -32,3 +32,5 @@ This first version is a planning conversation and reference board. It does not a
 The [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) passed on source `9a14abbacfcc5218660767463c557ff336987ad6` on 24 November 2026, including packaging and publication. Windows tests used a deterministic planning provider; the final workshop screenshot was inspected. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.
 
 The Beta 53.1 [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45615954830) passed on source `43e6ff8a3f3e0ed55732f3d3039e0883b9665bc3` on 25 November 2026, including packaging and publication. Deterministic HTTP/model fixtures checked strict OpenAI requests, refusal/incomplete/error outcomes, repeated turns, retained planning, activity/elapsed time, green/red status and cancellation, alongside the existing editing and persistence checks. Workshop screenshots were inspected. No live provider calls were made by these tests. Beta 53.1 awaits user acceptance; Beta 52 remains accepted.
+
+The Beta 54 [full Windows release gate](https://github.com/martynwalker/CtrlZed/actions/runs/45652237595) passed on source `1fe1371e1180f8ca416992e3c8dddc8eff38649a` on 25 November 2026, including packaging and publication. Deterministic fixtures checked the saved default, per-window provider choices, direct settings routes, model/key routing, no implicit requests and late-reply cancellation, alongside all existing persistence and editing checks. The final provider-selector screenshots were inspected. No live AI calls were made by these tests. Beta 54 awaits user acceptance; Beta 52 remains accepted.
