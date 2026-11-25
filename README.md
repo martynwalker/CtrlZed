@@ -18,6 +18,13 @@ The current accepted and development baseline is **[Beta 52 (0.52.0)](https://gi
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
+### Beta 53 candidate — Wordplay Workshop
+
+- **Review → Wordplay Workshop…** and the text context menu open a word-pile workbench. Form, style, comic flavour, device, subject/target and situation all default independently to General.
+- Explicit Explore requests six source-linked association directions and two fresh examples per direction. Review the connections, edit wording, copy it, keep a favourite or explicitly apply it to a captured manuscript destination.
+- The pile, settings, current results and favourite provenance save in native/protected `.czd` files and recovery, alongside the separate Story Workshop. Local work makes no AI requests; Explore sends the supplied pile and choices rather than the manuscript or other planning data.
+- Windows verification is in progress. See the [Wordplay Workshop guide](docs/WORDPLAY-WORKSHOP.md). Beta 52 is the accepted baseline.
+
 ### Beta 52 — Story Workshop
 
 - **Review → Story Workshop…** opens a guided planning conversation, normally in Novel mode, with editable cast, characterisation, five-stage arcs and a twist-aware storyboard.

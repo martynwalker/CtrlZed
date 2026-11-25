@@ -1,4 +1,4 @@
-# CtrlZed — Beta 52 and release record
+# CtrlZed — Beta 53 candidate and release record
 
 Updated 25 November 2026.
 
@@ -23,6 +23,15 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 53 candidate — Wordplay Workshop
+
+- [x] Independent General-default axes for form, style, comic flavour, device, subject/target and physical/situational wordplay.
+- [x] Bounded per-document pile, options, generated directions and independent favourites, including native/protected/recovery support alongside Story Workshop.
+- [x] Explicit source-linked AI exploration, editable examples, favourite bank, Copy and guarded manuscript application.
+- [ ] Windows taxonomy, source evidence, UI, cancellation, native/recovery/export and existing release gates.
+
+Verification is in progress. Suggestions are creative possibilities; live wordplay quality remains the writer's judgement. Beta 52 is accepted. The low-priority Page Editing floating-picture issue #30 remains deferred.
 
 ## Implemented in Beta 52 — Story Workshop
 

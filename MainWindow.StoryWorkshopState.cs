@@ -48,7 +48,7 @@ public partial class MainWindow
 
     bool EnsureStoryWorkshopNativeSavePath()
     {
-        if(!storyWorkshop.HasContent || currentFile!=null &&
+        if(!HasDocumentWorkshopData || currentFile!=null &&
             string.Equals(Path.GetExtension(currentFile),".czd",StringComparison.OrdinalIgnoreCase))return true;
         string? selected;
         if(storyWorkshopNativePathOverride!=null)selected=storyWorkshopNativePathOverride();
@@ -56,7 +56,7 @@ public partial class MainWindow
         {
             var dialog=new SaveFileDialog
             {
-                Title="Save Document and Story Workshop",Filter=NativeDocumentFilter,
+                Title="Save Document and Workshops",Filter=NativeDocumentFilter,
                 DefaultExt=".czd",AddExtension=true,
                 FileName=currentFile==null?SuggestedFirstSaveFileName():Path.GetFileNameWithoutExtension(currentFile)+".czd"
             };
@@ -67,8 +67,8 @@ public partial class MainWindow
         if(!string.Equals(Path.GetExtension(selected),".czd",StringComparison.OrdinalIgnoreCase))
         {
             if(storyWorkshopNativePathOverride==null)MessageBox.Show(this,
-                "Use a .czd filename to save the document with its Story Workshop. Use Save As to export the body separately.",
-                "Save Document and Story Workshop",MessageBoxButton.OK,MessageBoxImage.Information);
+                "Use a .czd filename to save the document with its workshop notes. Use Save As to export the body separately.",
+                "Save Document and Workshops",MessageBoxButton.OK,MessageBoxImage.Information);
             return false;
         }
         currentFile=selected;
@@ -87,7 +87,7 @@ public partial class MainWindow
             return false;
         }
         var accepted=storyWorkshopExportConfirmationOverride?.Invoke(path)??(MessageBox.Show(this,
-            "This format exports the document body only. The characters, arcs, storyboard and workshop conversation are stored in .czd files and will not be included.\n\nExport the body and keep the current document open?",
+            "This format exports the document body only. Story and wordplay workshop notes, results, favourites and conversations are stored in .czd files and will not be included.\n\nExport the body and keep the current document open?",
             "Export Document Body",MessageBoxButton.YesNo,MessageBoxImage.Question)==MessageBoxResult.Yes);
         if(!accepted)return false;
         var previousFile=currentFile;var wasDirty=dirty;var restoreFields=fieldValuesVisible;
@@ -119,7 +119,7 @@ public partial class MainWindow
             }
             else SaveRtf(path);
             AddRecentFile(path);
-            Status.Text="Exported document body to "+path+". Story Workshop remains in the current document; save it as .czd.";
+            Status.Text="Exported document body to "+path+". Workshop notes remain in the current document; save it as .czd.";
             return true;
         }
         catch(Exception ex)

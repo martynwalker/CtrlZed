@@ -79,6 +79,7 @@ public partial class MainWindow : Window
         public List<VectorImageData> VectorImages { get; set; } = new();
         public StyleDocumentState? Styles { get; set; }
         public StoryWorkshopState? StoryWorkshop { get; set; }
+        public WordplayWorkshopState? WordplayWorkshop { get; set; }
     }
 
     sealed class DocumentCommentData
@@ -114,6 +115,7 @@ public partial class MainWindow : Window
         InstallSentenceCompletion();
         InstallCharacterVoice();
         InstallStoryWorkshop();
+        InstallWordplayWorkshop();
         InstallFontFinder();
         InstallTextColour();
         InstallVectorClipboard();
@@ -184,7 +186,11 @@ public partial class MainWindow : Window
             {
                 if(!TryReadCzd(ProtectedRecoveryFile,out var recovered,out var password))return;
                 Editor.Document=recovered.Document;
-                if(recovered.Settings==null)ReplaceStoryWorkshopDocument(null);
+                if(recovered.Settings==null)
+                {
+                    ReplaceStoryWorkshopDocument(null);
+                    ReplaceWordplayWorkshopDocument(null);
+                }
                 SetDocumentPassword(password);
                 if(recovered.Settings!=null)ApplyRecoveredSettings(recovered.Settings,documentPassword!=null);
                 keepLockedRecovery=false;
@@ -196,6 +202,7 @@ public partial class MainWindow : Window
                     new TextRange(recoveredDocument.ContentStart,recoveredDocument.ContentEnd).Load(source,DataFormats.Rtf);
                 Editor.Document=recoveredDocument;
                 ReplaceStoryWorkshopDocument(null);
+                ReplaceWordplayWorkshopDocument(null);
                 if(File.Exists(recoverySettingsFile))
                 {
                     try
@@ -261,6 +268,7 @@ public partial class MainWindow : Window
         suppressDirty = true;
         Editor.Document = new FlowDocument();
         ReplaceStoryWorkshopDocument(null);
+        ReplaceWordplayWorkshopDocument(null);
         currentFile = null;
         SetDocumentPassword(null);
         headerText = footerText = "";
@@ -411,13 +419,15 @@ public partial class MainWindow : Window
             FloatingImages=CaptureFloatingImagePlacements(),
             VectorImages=VectorImageSupport.Capture(Editor.Document),
             Styles=CaptureStyleDocumentState(),
-            StoryWorkshop=storyWorkshop.HasContent?SnapshotStoryWorkshop():null
+            StoryWorkshop=storyWorkshop.HasContent?SnapshotStoryWorkshop():null,
+            WordplayWorkshop=wordplayWorkshop.HasContent?SnapshotWordplayWorkshop():null
         };
 
     void ApplyRecoveredSettings(CzdSettings v,bool isProtected=false)
     {
         // Validate and detach the incoming plan before changing any live settings.
         var workshop=v.StoryWorkshop?.DeepClone();
+        var wordplay=v.WordplayWorkshop?.DeepClone();
         RestoreStyleDocumentState(v.Styles);
         pageWidth=v.PageWidth;
         pageHeight=v.PageHeight;
@@ -450,6 +460,7 @@ public partial class MainWindow : Window
         VectorImageSupport.Restore(Editor.Document,v.VectorImages);
         RestoreFloatingImagePlacements(v.FloatingImages);
         ReplaceStoryWorkshopDocument(workshop);
+        ReplaceWordplayWorkshopDocument(wordplay);
 
     }
 
@@ -618,6 +629,7 @@ public partial class MainWindow : Window
     static void WriteCzdArchive(Stream output,Action<Stream> writeRtf,CzdSettings settings)
     {
         settings.StoryWorkshop?.Validate();
+        settings.WordplayWorkshop?.Validate();
         using var archive=new ZipArchive(output,ZipArchiveMode.Create,leaveOpen:true);
         using(var rtf=archive.CreateEntry("document.rtf").Open())writeRtf(rtf);
         using var metadata=archive.CreateEntry("settings.json").Open();
@@ -638,6 +650,7 @@ public partial class MainWindow : Window
         var metadata=JsonSerializer.Deserialize<CzdSettings>(settingsStream);
         // A malformed or unsupported plan cannot replace the current document.
         metadata?.StoryWorkshop?.Validate();
+        metadata?.WordplayWorkshop?.Validate();
         return new CzdPackage(document,metadata);
     }
 
@@ -1832,11 +1845,16 @@ public partial class MainWindow : Window
                 SetDocumentPassword(password);
                 password=null;
                 if(package.Settings!=null)ApplyRecoveredSettings(package.Settings,documentPassword!=null);
-                else ReplaceStoryWorkshopDocument(null);
+                else
+                {
+                    ReplaceStoryWorkshopDocument(null);
+                    ReplaceWordplayWorkshopDocument(null);
+                }
             }
             else
             {
                 ReplaceStoryWorkshopDocument(null);
+                ReplaceWordplayWorkshopDocument(null);
                 SetDocumentPassword(null);
                 if(imported!=null)
                 {
@@ -1873,12 +1891,12 @@ public partial class MainWindow : Window
         var d=new SaveFileDialog
         {
             Filter=documentPassword==null?DocumentSaveFilter:NativeDocumentFilter,
-            DefaultExt=old==null || storyWorkshop.HasContent?".czd":Path.GetExtension(old),
-            FileName=old==null?SuggestedFirstSaveFileName():storyWorkshop.HasContent?Path.GetFileNameWithoutExtension(old)+".czd":Path.GetFileName(old),
+            DefaultExt=old==null || HasDocumentWorkshopData?".czd":Path.GetExtension(old),
+            FileName=old==null?SuggestedFirstSaveFileName():HasDocumentWorkshopData?Path.GetFileNameWithoutExtension(old)+".czd":Path.GetFileName(old),
             AddExtension=true
         };
         if(d.ShowDialog()!=true)return;
-        if(storyWorkshop.HasContent && !string.Equals(Path.GetExtension(d.FileName),".czd",StringComparison.OrdinalIgnoreCase))
+        if(HasDocumentWorkshopData && !string.Equals(Path.GetExtension(d.FileName),".czd",StringComparison.OrdinalIgnoreCase))
         {
             ExportStoryWorkshopBody(d.FileName);
             return;
@@ -2473,6 +2491,7 @@ public partial class MainWindow : Window
     {
         AddSentenceCompletionContextMenu(menu);
         AddCharacterVoiceContextMenu(menu);
+        AddWordplayWorkshopContextMenu(menu);
         var entries=GetMacroSources()
             .Select(m=>(Macro:m,Meta:GetMacroMenuMetadata(m.Source,Path.GetExtension(m.Name))))
             .Where(x=>x.Meta!=null && string.IsNullOrWhiteSpace(x.Meta.Path))
