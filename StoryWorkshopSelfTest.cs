@@ -184,7 +184,13 @@ public partial class MainWindow
         RequireWorkshop(result.NextState.Characters.Single().Name=="Jock Stone" && result.DeferredChangeCount>0,
             "A Jock/John contradiction silently renamed or merged an established character.");
 
-        foreach(var malformed in new[]{"{}","```json\n"+response+"\n```",response+" trailing",WorkshopResponse(questions:new[]{"First question?\nA second question?"}),response.Replace("\"reply\":","\"extra\":true,\"reply\":",StringComparison.Ordinal),
+        foreach(var wrapper in new[]{"```json\n"+response+"\n```","\uFEFF \r\n```JSON\n"+response+"\n```\r\n","```\n"+response+"\n```"})
+        {
+            var wrapped=StoryWorkshopService.ParseResponse(fresh,message,wrapper);
+            RequireWorkshop(wrapped.NextState.Characters.Single().Name=="Jock Stone" && wrapped.NextState.Conversation.Count==2,
+                "A complete enclosing JSON fence changed or rejected a valid planning response.");
+        }
+        foreach(var malformed in new[]{"{}","Here is the result:\n"+response,"```json\n"+response+"\n``` trailing prose","```json\n"+response,response+" trailing",WorkshopResponse(questions:new[]{"First question?\nA second question?"}),response.Replace("\"reply\":","\"extra\":true,\"reply\":",StringComparison.Ordinal),
             response.Replace("\"kind\":\"character\"","\"kind\":\"execute\"",StringComparison.Ordinal),
             response.Replace("\"field\":\""+name+"\"","\"field\":\"unknown-field\"",StringComparison.Ordinal)})
             RejectWorkshop(()=>StoryWorkshopService.ParseResponse(fresh,message,malformed),"A malformed or unknown-operation planning response was accepted.");

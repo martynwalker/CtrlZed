@@ -115,6 +115,13 @@ public partial class MainWindow
         var saveQuestions=Named("WorkshopSaveQuestions",Button("Save questions"));var saveContradictions=Named("WorkshopSaveContradictions",Button("Save continuity notes"));
         var footer=new StackPanel{Margin=new Thickness(0,10,0,0)};
         var status=Named("WorkshopStatus",new TextBlock{TextWrapping=TextWrapping.Wrap,MinHeight=32,Foreground=Brushes.DimGray});footer.Children.Add(status);
+        var activityRow=new Grid();activityRow.ColumnDefinitions.Add(new ColumnDefinition());activityRow.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+        var progress=Named("WorkshopProgress",new ProgressBar{Height=7,Minimum=0,Maximum=100,Foreground=Brushes.RoyalBlue,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,2,10,6)});
+        var elapsed=Named("WorkshopElapsed",new TextBlock{Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,4),VerticalAlignment=VerticalAlignment.Center});
+        Grid.SetColumn(elapsed,1);activityRow.Children.Add(progress);activityRow.Children.Add(elapsed);footer.Children.Add(activityRow);
+        var activity=new WorkshopActivity(status,progress,elapsed);
+        void SetStatus(string message,WorkshopStatusKind kind=WorkshopStatusKind.Neutral)=>activity.Set(message,kind);
+
         var footerActions=new DockPanel();
         var settings=new WrapPanel();var languageSetup=Button("Language settings…");var aiSetup=Button("AI settings…");
         settings.Children.Add(languageSetup);settings.Children.Add(aiSetup);DockPanel.SetDock(settings,Dock.Left);footerActions.Children.Add(settings);
@@ -134,10 +141,10 @@ public partial class MainWindow
         StoryWorkshopEntry? Resolve(StoryWorkshopState value,StoryWorkshopEntryKind kind)
         {var id=Selected(kind)?.Id;return Entries(value,kind).FirstOrDefault(entry=>entry.Id==id);}
 
-        void CancelRequest(string? message=null)
+        void CancelRequest(string? message=null,WorkshopStatusKind kind=WorkshopStatusKind.Neutral)
         {
-            generation++;var old=cancellation;cancellation=null;old?.Cancel();old?.Dispose();busy=false;
-            if(message!=null)status.Text=message;
+            generation++;var old=cancellation;cancellation=null;old?.Cancel();old?.Dispose();busy=false;activity.Stop();
+            if(message!=null)SetStatus(message,kind);
         }
         void UpdateButtons()
         {
@@ -229,14 +236,14 @@ public partial class MainWindow
             if(!Editable())return false;
             try
             {
-                next.Validate();CancelRequest();var before=SnapshotStoryWorkshop();
+                CancelRequest();next.Validate();var before=SnapshotStoryWorkshop();
                 committing=true;CommitStoryWorkshop(next,message);state=SnapshotStoryWorkshop();
                 if(state.Revision!=before.Revision && remember){undo.Add(before);while(undo.Count>20)undo.RemoveAt(0);}
                 if(refresh)RefreshAll();else RefreshOverview();
-                status.Text=message+" Saved in this document's planning record; save the document to keep it on disk.";UpdateButtons();return true;
+                SetStatus(message+" Saved in this document's planning record; save the document to keep it on disk.",WorkshopStatusKind.Success);UpdateButtons();return true;
             }
             catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or InvalidDataException)
-            {status.Text=ex.Message;return false;}
+            {SetStatus(ex.Message,WorkshopStatusKind.Error);return false;}
             finally{committing=false;}
         }
 
@@ -412,35 +419,35 @@ public partial class MainWindow
                     else if(!AiDirectService.GetProfile(provider).HasKey)unavailable=$"Configure a {provider} API key in AI settings before sending a message.";
                 }
             }
-            catch(Exception ex){unavailable="AI settings could not be read: "+ex.Message;CancelRequest(unavailable);}
+            catch(Exception ex){unavailable="AI settings could not be read: "+ex.Message;CancelRequest(unavailable,WorkshopStatusKind.Error);}
             questions.IsReadOnly=!Editable();contradictions.IsReadOnly=!Editable();UpdateButtons();
         }
         async Task SendAsync()
         {
             if(closed || busy || !Editable())return;RefreshAvailability();
-            if(unavailable!=null){status.Text=unavailable;return;}var message=input.Text;if(string.IsNullOrWhiteSpace(message))return;
+            if(unavailable!=null){SetStatus(unavailable,WorkshopStatusKind.Error);return;}var message=input.Text;if(string.IsNullOrWhiteSpace(message))return;
             var requested=SnapshotStoryWorkshop();var requestedRevision=storyWorkshopRevision;var requestedConfiguration=configuration;
-            CancelRequest();var requestGeneration=++generation;cancellation=new CancellationTokenSource();var token=cancellation.Token;busy=true;UpdateButtons();status.Text="Building the story with you…";
+            CancelRequest();var requestGeneration=++generation;cancellation=new CancellationTokenSource();var token=cancellation.Token;busy=true;UpdateButtons();activity.Start("Building the story with you…");
             try
             {
                 var result=await StoryWorkshopService.GenerateAsync(requested,message,token);
                 if(closed || token.IsCancellationRequested || requestGeneration!=generation)return;RefreshAvailability();
                 if(!Editable() || requestGeneration!=generation || configuration!=requestedConfiguration || storyWorkshopRevision!=requestedRevision || SnapshotStoryWorkshop().Id!=requested.Id)
-                {status.Text="The planning record or AI settings changed. Your message is still here; send it again when ready.";return;}
+                {SetStatus("The planning record or AI settings changed. Your message is still here; send it again when ready.");return;}
                 committing=true;
                 try
                 {
                     CommitStoryWorkshop(result.NextState,"Story Workshop updated.");undo.Add(requested);while(undo.Count>20)undo.RemoveAt(0);
                     RefreshAll();if(input.Text==message)input.Text="";
-                    status.Text=$"Story updated: {result.AppliedChangeCount} notes added or revised; {result.DeferredChangeCount} possible conflicts kept for review. Proposed ideas remain marked in the storyboard.";
+                    SetStatus($"Story updated: {result.AppliedChangeCount} notes added or revised; {result.DeferredChangeCount} possible conflicts kept for review. Proposed ideas remain marked in the storyboard.",WorkshopStatusKind.Success);
                 }
                 finally{committing=false;}
             }
-            catch(OperationCanceledException){if(!closed && requestGeneration==generation)status.Text="Request cancelled. Your message is still here.";}
-            catch(Exception ex){if(!closed && requestGeneration==generation)status.Text="Could not continue the workshop: "+ex.Message;}
+            catch(OperationCanceledException){if(!closed && requestGeneration==generation)SetStatus("Request cancelled. Your message is still here.");}
+            catch(Exception ex){if(!closed && requestGeneration==generation)SetStatus("Could not continue the workshop: "+ex.Message,WorkshopStatusKind.Error);}
             finally
             {
-                if(!closed && requestGeneration==generation){busy=false;cancellation?.Dispose();cancellation=null;UpdateButtons();}
+                if(!closed && requestGeneration==generation){busy=false;activity.Stop();cancellation?.Dispose();cancellation=null;UpdateButtons();}
             }
         }
         send.Click+=async (_,__)=>await SendAsync();cancel.Click+=(_,__)=>{CancelRequest("Request cancelled. Your message is still here.");UpdateButtons();};
@@ -473,11 +480,11 @@ public partial class MainWindow
         var timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromSeconds(1)};timer.Tick+=(_,__)=>RefreshAvailability();timer.Start();w.Activated+=(_,__)=>RefreshAvailability();
         w.Closed+=(_,__)=>
         {
-            closed=true;CancelRequest();timer.Stop();StoryWorkshopChanged-=MetadataChanged;StoryWorkshopDocumentChanged-=DocumentChanged;readOnlyDescriptor?.RemoveValueChanged(Editor,readOnlyChanged);Editor.IsEnabledChanged-=enabledChanged;
+            closed=true;CancelRequest();activity.Dispose();timer.Stop();StoryWorkshopChanged-=MetadataChanged;StoryWorkshopDocumentChanged-=DocumentChanged;readOnlyDescriptor?.RemoveValueChanged(Editor,readOnlyChanged);Editor.IsEnabledChanged-=enabledChanged;
             if(ReferenceEquals(storyWorkshopWindow,w))storyWorkshopWindow=null;
         };
         RefreshAll();assigning=false;RefreshAvailability();
-        status.Text=Editor.IsReadOnly?"Read-only document: use the workshop as a reference.":unavailable??"How can I help you? Send a premise, a character, an ending or the question you are trying to solve.";
+        SetStatus(Editor.IsReadOnly?"Read-only document: use the workshop as a reference.":unavailable??"How can I help you? Send a premise, a character, an ending or the question you are trying to solve.",!Editor.IsReadOnly && unavailable!=null?WorkshopStatusKind.Error:WorkshopStatusKind.Neutral);
         w.Show();
     }
 

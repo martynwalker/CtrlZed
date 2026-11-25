@@ -1,4 +1,4 @@
-# CtrlZed — Beta 53 and release record
+# CtrlZed — Beta 53.1 candidate and release record
 
 Updated 25 November 2026.
 
@@ -25,6 +25,19 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 53.1 candidate — workshop activity and reply reliability
+
+On 25 November, Wordplay Workshop reported an unreadable association reply after an initial successful exploration. That exact error occurs at JSON syntax parsing. Beta 53 requested plain text and relied on prompt instructions for the response format. The screenshot does not establish whether the unreadable reply was wrapped, incomplete or otherwise non-JSON; no raw reply was retained. Repeated requests do not carry old results or favourites into the prompt.
+
+- [x] Explicit OpenAI JSON-schema output for both workshops, without changing the chosen model/provider or ordinary free-text AI calls.
+- [x] Provider refusal/incomplete/failure/empty-response diagnostics and a timeout distinct from user cancellation; no automatic retries or raw-reply logging.
+- [x] Conservative whole-document JSON fence/BOM compatibility, retaining all semantic, size, identity and source-anchor validation.
+- [x] Activity bars and elapsed time, green success/red errors, immediate cancellation/close stop and generation-owned late-reply guards.
+- [x] Invalid local input cancels before validation so an old request cannot commit against changed visible input.
+- [ ] Windows native HTTP fixtures, repeated requests, gauge/colour/cancellation, existing persistence and editing release gates.
+
+Verification is in progress. No saved file format changes; Beta 52 remains the accepted baseline. The low-priority Page Editing floating-picture issue #30 stays deferred.
 
 ## Implemented in Beta 53 — Wordplay Workshop
 

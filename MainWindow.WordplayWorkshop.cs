@@ -130,6 +130,13 @@ public partial class MainWindow
         var footer=new StackPanel{Margin=new Thickness(0,9,0,0)};
         var destinationText=Named("WordplayDestination",new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,5)});footer.Children.Add(destinationText);
         var status=Named("WordplayStatus",new TextBlock{TextWrapping=TextWrapping.Wrap,MinHeight=30,Foreground=Brushes.DimGray});footer.Children.Add(status);
+        var activityRow=new Grid();activityRow.ColumnDefinitions.Add(new ColumnDefinition());activityRow.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+        var progress=Named("WordplayProgress",new ProgressBar{Height=7,Minimum=0,Maximum=100,Foreground=Brushes.RoyalBlue,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,2,10,6)});
+        var elapsed=Named("WordplayElapsed",new TextBlock{Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,4),VerticalAlignment=VerticalAlignment.Center});
+        Grid.SetColumn(elapsed,1);activityRow.Children.Add(progress);activityRow.Children.Add(elapsed);footer.Children.Add(activityRow);
+        var activity=new WorkshopActivity(status,progress,elapsed);
+        void SetStatus(string message,WorkshopStatusKind kind=WorkshopStatusKind.Neutral)=>activity.Set(message,kind);
+
         var footerActions=new DockPanel();var settings=new WrapPanel();var languageSetup=Button("Language settings…");var aiSetup=Button("AI settings…");settings.Children.Add(languageSetup);settings.Children.Add(aiSetup);DockPanel.SetDock(settings,Dock.Left);footerActions.Children.Add(settings);
         var generationActions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};var explore=Named("WordplayExplore",Button("Explore"));var cancel=Named("WordplayCancel",Button("Cancel request"));var close=Button("Close");close.IsCancel=true;
         generationActions.Children.Add(explore);generationActions.Children.Add(cancel);generationActions.Children.Add(close);footerActions.Children.Add(generationActions);footer.Children.Add(footerActions);Grid.SetRow(footer,3);root.Children.Add(footer);w.Content=root;
@@ -143,8 +150,8 @@ public partial class MainWindow
         WordplayWorkshopOptions Choices()=>new(){Form=form.SelectedItem as string??"General",Style=style.SelectedItem as string??"General",
             ComicFlavour=comic.SelectedItem as string??"General",Device=device.SelectedItem as string??"General",SubjectTarget=subject.SelectedItem as string??"General",Situation=situation.SelectedItem as string??"General"};
         static bool SameOptions(WordplayWorkshopOptions left,WordplayWorkshopOptions right)=>left.Form==right.Form && left.Style==right.Style && left.ComicFlavour==right.ComicFlavour && left.Device==right.Device && left.SubjectTarget==right.SubjectTarget && left.Situation==right.Situation;
-        void CancelRequest(string? message=null)
-        {generation++;var previous=cancellation;cancellation=null;previous?.Cancel();previous?.Dispose();busy=false;if(message!=null)status.Text=message;}
+        void CancelRequest(string? message=null,WorkshopStatusKind kind=WorkshopStatusKind.Neutral)
+        {generation++;var previous=cancellation;cancellation=null;previous?.Cancel();previous?.Dispose();busy=false;activity.Stop();if(message!=null)SetStatus(message,kind);}
         void UpdateButtons()
         {
             var editable=Editable();var phrase=HasOrigin() && !string.IsNullOrWhiteSpace(edit.Text);
@@ -209,11 +216,11 @@ public partial class MainWindow
             if(!Editable())return false;
             try
             {
-                next.Validate();if(cancelPending)CancelRequest();committing=true;CommitWordplayWorkshop(next,message);state=SnapshotWordplayWorkshop();
-                RefreshViews(refreshInputs);status.Text=message+" Save the .czd document to keep the workshop on disk.";return true;
+                if(cancelPending)CancelRequest();next.Validate();committing=true;CommitWordplayWorkshop(next,message);state=SnapshotWordplayWorkshop();
+                RefreshViews(refreshInputs);SetStatus(message+" Save the .czd document to keep the workshop on disk.",WorkshopStatusKind.Success);return true;
             }
             catch(Exception error) when(error is InvalidDataException or InvalidOperationException or ArgumentException)
-            {status.Text=error.Message;return false;}
+            {SetStatus(error.Message,WorkshopStatusKind.Error);return false;}
             finally{committing=false;UpdateButtons();}
         }
         bool PersistInputs()
@@ -245,29 +252,29 @@ public partial class MainWindow
                     else if(!AiDirectService.GetProfile(provider).HasKey)unavailable=$"Configure a {provider} API key in AI settings before exploring.";
                 }
             }
-            catch(Exception error){unavailable="AI settings could not be read: "+error.Message;CancelRequest(unavailable);}UpdateButtons();
+            catch(Exception error){unavailable="AI settings could not be read: "+error.Message;CancelRequest(unavailable,WorkshopStatusKind.Error);}UpdateButtons();
         }
         async Task ExploreAsync()
         {
-            if(closed || busy || !Editable())return;RefreshAvailability();if(unavailable!=null){status.Text=unavailable;return;}
+            if(closed || busy || !Editable())return;RefreshAvailability();if(unavailable!=null){SetStatus(unavailable,WorkshopStatusKind.Error);return;}
             if(!PersistInputs())return;
             var requested=SnapshotWordplayWorkshop();var requestedRevision=wordplayWorkshopRevision;var requestedConfiguration=configuration;
-            CancelRequest();var requestGeneration=++generation;cancellation=new CancellationTokenSource();var token=cancellation.Token;busy=true;UpdateButtons();status.Text="Finding connections and fresh examples…";
+            CancelRequest();var requestGeneration=++generation;cancellation=new CancellationTokenSource();var token=cancellation.Token;busy=true;UpdateButtons();activity.Start("Finding connections and fresh examples…");
             try
             {
                 var result=await WordplayWorkshopService.GenerateAsync(requested,token);
                 if(closed || token.IsCancellationRequested || requestGeneration!=generation)return;RefreshAvailability();
                 if(!Editable() || generation!=requestGeneration || configuration!=requestedConfiguration || wordplayWorkshopRevision!=requestedRevision || SnapshotWordplayWorkshop().Id!=requested.Id)
-                {status.Text="The word pile, choices or AI settings changed. Explore again when ready.";return;}
+                {SetStatus("The word pile, choices or AI settings changed. Explore again when ready.");return;}
                 var next=SnapshotWordplayWorkshop();next.Results=result.Select(item=>item.DeepClone()).ToList();
                 if(Commit(next,"Six connections are ready. Choose an example, edit it, then copy or keep it.",false,false))
                 {
                     tabs.SelectedIndex=0;connections.SelectedIndex=0;examples.SelectedIndex=0;ShowIdea();
                 }
             }
-            catch(OperationCanceledException){if(!closed && requestGeneration==generation)status.Text="Exploration cancelled. The word pile and kept ideas are unchanged.";}
-            catch(Exception error){if(!closed && requestGeneration==generation)status.Text="Could not explore the word pile: "+error.Message;}
-            finally{if(!closed && requestGeneration==generation){busy=false;cancellation?.Dispose();cancellation=null;UpdateButtons();}}
+            catch(OperationCanceledException){if(!closed && requestGeneration==generation)SetStatus("Exploration cancelled. The word pile and kept ideas are unchanged.");}
+            catch(Exception error){if(!closed && requestGeneration==generation)SetStatus("Could not explore the word pile: "+error.Message,WorkshopStatusKind.Error);}
+            finally{if(!closed && requestGeneration==generation){busy=false;activity.Stop();cancellation?.Dispose();cancellation=null;UpdateButtons();}}
         }
         foreach(var box in new[]{form,style,comic,device,subject,situation})box.SelectionChanged+=(_,__)=>{if(!assigning)PersistInputs();};
         seed.TextChanged+=(_,__)=>{if(!assigning)PersistInputs();UpdateButtons();};target.TextChanged+=(_,__)=>{if(!assigning)PersistInputs();};
@@ -292,13 +299,13 @@ public partial class MainWindow
                 if(selected.OriginalText.Length>12000)throw new InvalidOperationException("Use a selection of up to 12,000 characters. Nothing has been copied or shortened.");
                 seed.Text=selected.OriginalText;PersistInputs();
             }
-            catch(InvalidOperationException error){status.Text=error.Message;}
+            catch(InvalidOperationException error){SetStatus(error.Message,WorkshopStatusKind.Error);}
         };
         useDestination.Click+=(_,__)=>
         {
             if(!Editable())return;
-            try{destination=CaptureCharacterVoiceTarget();status.Text="Manuscript destination captured. Review the Apply description before using it.";}
-            catch(InvalidOperationException error){destination=null;status.Text=error.Message;}UpdateButtons();
+            try{destination=CaptureCharacterVoiceTarget();SetStatus("Manuscript destination captured. Review the Apply description before using it.",WorkshopStatusKind.Success);}
+            catch(InvalidOperationException error){destination=null;SetStatus(error.Message,WorkshopStatusKind.Error);}UpdateButtons();
         };
         copy.Click+=(_,__)=>
         {
@@ -306,10 +313,10 @@ public partial class MainWindow
             try
             {
                 WordplayWorkshopState.ValidateText(edit.Text,WordplayWorkshopState.MaximumPhraseLength,"edited idea",false);
-                Clipboard.SetText(edit.Text);status.Text="Edited idea copied as plain text. The manuscript is unchanged.";
+                Clipboard.SetText(edit.Text);SetStatus("Edited idea copied as plain text. The manuscript is unchanged.",WorkshopStatusKind.Success);
             }
-            catch(InvalidDataException error){status.Text=error.Message;}
-            catch(System.Runtime.InteropServices.ExternalException){status.Text="The clipboard is busy. Try Copy again.";}
+            catch(InvalidDataException error){SetStatus(error.Message,WorkshopStatusKind.Error);}
+            catch(System.Runtime.InteropServices.ExternalException){SetStatus("The clipboard is busy. Try Copy again.",WorkshopStatusKind.Error);}
         };
         keep.Click+=(_,__)=>
         {
@@ -331,7 +338,7 @@ public partial class MainWindow
                 // phrase with the original generated example before Copy/Apply.
                 if(kept){edit.Text=wording;UpdateButtons();}
             }
-            catch(Exception error) when(error is InvalidDataException or InvalidOperationException or ArgumentException){status.Text=error.Message;}
+            catch(Exception error) when(error is InvalidDataException or InvalidOperationException or ArgumentException){SetStatus(error.Message,WorkshopStatusKind.Error);}
         };
         useFavourite.Click+=(_,__)=>{if(Favourite()!=null){tabs.SelectedIndex=1;ShowIdea();edit.Focus();}};
         removeFavourite.Click+=(_,__)=>
@@ -350,9 +357,9 @@ public partial class MainWindow
             try
             {
                 WordplayWorkshopState.ValidateText(edit.Text,WordplayWorkshopState.MaximumPhraseLength,"edited idea",false);
-                applying=true;ApplyCharacterVoiceRewrite(destination,edit.Text);destination=null;status.Text="Idea applied. Ctrl+Z restores the original manuscript. The workshop and favourites are retained.";
+                applying=true;ApplyCharacterVoiceRewrite(destination,edit.Text);destination=null;SetStatus("Idea applied. Ctrl+Z restores the original manuscript. The workshop and favourites are retained.",WorkshopStatusKind.Success);
             }
-            catch(Exception error) when(error is InvalidDataException or InvalidOperationException or ArgumentException){status.Text=error.Message;}
+            catch(Exception error) when(error is InvalidDataException or InvalidOperationException or ArgumentException){SetStatus(error.Message,WorkshopStatusKind.Error);}
             finally{applying=false;UpdateButtons();}
         };
         languageSetup.Click+=(_,__)=>{CancelRequest("Language settings opened. Existing ideas remain available.");LanguageSettings_Click(languageSetup,new RoutedEventArgs());RefreshAvailability();};
@@ -362,7 +369,7 @@ public partial class MainWindow
         void DocumentChanged(){if(!closed)w.Close();}
         WordplayWorkshopChanged+=MetadataChanged;WordplayWorkshopDocumentChanged+=DocumentChanged;
         TextChangedEventHandler manuscriptChanged=(_,__)=>
-        {if(closed || applying)return;destination=null;status.Text="The manuscript changed. Wordplay ideas remain available; capture a new destination before applying one.";UpdateButtons();};
+        {if(closed || applying)return;destination=null;SetStatus("The manuscript changed. Wordplay ideas remain available; capture a new destination before applying one.");UpdateButtons();};
         Editor.TextChanged+=manuscriptChanged;
         var readOnlyDescriptor=DependencyPropertyDescriptor.FromProperty(TextBoxBase.IsReadOnlyProperty,typeof(RichTextBox));
         EventHandler readOnlyChanged=(_,__)=>{if(!Editable())CancelRequest("Read-only document: saved ideas remain available to view and copy.");RefreshAvailability();};readOnlyDescriptor?.AddValueChanged(Editor,readOnlyChanged);
@@ -370,12 +377,12 @@ public partial class MainWindow
         var timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromSeconds(1)};timer.Tick+=(_,__)=>RefreshAvailability();timer.Start();w.Activated+=(_,__)=>RefreshAvailability();
         w.Closed+=(_,__)=>
         {
-            closed=true;CancelRequest();timer.Stop();WordplayWorkshopChanged-=MetadataChanged;WordplayWorkshopDocumentChanged-=DocumentChanged;Editor.TextChanged-=manuscriptChanged;
+            closed=true;CancelRequest();activity.Dispose();timer.Stop();WordplayWorkshopChanged-=MetadataChanged;WordplayWorkshopDocumentChanged-=DocumentChanged;Editor.TextChanged-=manuscriptChanged;
             readOnlyDescriptor?.RemoveValueChanged(Editor,readOnlyChanged);Editor.IsEnabledChanged-=enabledChanged;
             if(ReferenceEquals(wordplayWorkshopWindow,w))wordplayWorkshopWindow=null;
         };
         RefreshViews(false);assigning=false;ShowIdea();RefreshAvailability();
-        status.Text=Editor.IsReadOnly?"Read-only document: view and copy saved ideas.":captureError??unavailable??"Add words and fragments, combine the choices, then Explore. You decide which connections are worth keeping.";
+        SetStatus(Editor.IsReadOnly?"Read-only document: view and copy saved ideas.":captureError??unavailable??"Add words and fragments, combine the choices, then Explore. You decide which connections are worth keeping.",!Editor.IsReadOnly && (captureError!=null || unavailable!=null)?WorkshopStatusKind.Error:WorkshopStatusKind.Neutral);
         UpdateButtons();w.Show();
     }
 }

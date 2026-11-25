@@ -1,7 +1,7 @@
 name: Windows beta build
 on:
   push:
-    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451, beta46, beta461, beta462, beta47, beta48, beta49, beta50, beta501, beta502, beta51, beta52, beta53 ]
+    branches: [ main, beta29, beta30, beta31, beta32, beta33, beta34, beta341, beta342, beta35, beta36, beta37, beta38, beta39, beta40, beta401, beta402, beta403, beta41, beta42, beta43, beta431, beta432, beta44, beta441, beta442, beta443, beta444, beta445, beta45, beta451, beta46, beta461, beta462, beta47, beta48, beta49, beta50, beta501, beta502, beta51, beta52, beta53, beta531 ]
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -49,6 +49,21 @@ jobs:
             throw "CtrlZed did not create a responsive main window within 10 seconds."
           }
           Stop-Process -Id $p.Id -Force
+      - name: Workshop structured responses activity and repeated requests
+        shell: pwsh
+        run: |
+          $t = Start-Process -FilePath "artifacts/CtrlZed/CtrlZed.exe" -ArgumentList "--workshop-reliability-test" -PassThru
+          if (-not $t.WaitForExit(180000)) {
+            Stop-Process -Id $t.Id -Force -ErrorAction SilentlyContinue
+            throw "Workshop reliability regression timed out."
+          }
+          $report = Join-Path $env:TEMP "CtrlZed531WorkshopReliability.txt"
+          if (Test-Path $report) { Get-Content $report }
+          if ($t.ExitCode -ne 0) {
+            $failure = Join-Path $env:TEMP "CtrlZedSelfTestFailure.txt"
+            if (Test-Path $failure) { Get-Content $failure }
+            throw "Workshop reliability regression failed with code $($t.ExitCode)"
+          }
       - name: Wordplay Workshop associations favourites and document regression
         shell: pwsh
         run: |
@@ -243,7 +258,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          foreach ($name in @("CtrlZed46Layout.png", "CtrlZed46Page2.png", "CtrlZed47SignaturePreview.png", "CtrlZed48SentenceCompletion.png", "CtrlZed49FontFinder.png", "CtrlZed50OnlineFonts.png", "CtrlZed501TextColour.png", "CtrlZed51CharacterVoice.png", "CtrlZed52StoryWorkshop.png", "CtrlZed53WordplayWorkshop.png")) {
+          foreach ($name in @("CtrlZed46Layout.png", "CtrlZed46Page2.png", "CtrlZed47SignaturePreview.png", "CtrlZed48SentenceCompletion.png", "CtrlZed49FontFinder.png", "CtrlZed50OnlineFonts.png", "CtrlZed501TextColour.png", "CtrlZed51CharacterVoice.png", "CtrlZed52StoryWorkshop.png", "CtrlZed53WordplayWorkshop.png", "CtrlZed531WordplayBusy.png", "CtrlZed531StoryBusy.png", "CtrlZed531WorkshopError.png", "CtrlZed531WorkshopSuccess.png")) {
             $path = Join-Path $env:TEMP $name
             if (Test-Path $path) {
               $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
@@ -304,4 +319,4 @@ jobs:
             gh release delete $tag --yes --cleanup-tag
           }
           $display = $version -replace '-beta\.', ' beta '
-          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 53 adds Review > Wordplay Workshop for exploring associations between words, images and fragments. Independent form, style, comic flavour, device, subject/target and situation choices all start at General. Explicit Explore produces six source-linked directions with two original examples each; edit, copy, keep favourites or explicitly apply a phrase. Word piles, settings, results and favourite provenance travel with native .czd files, password protection and recovery alongside Story Workshop. No AI request occurs on opening or local editing; requests send only the supplied pile, options and optional target. Captured manuscript destinations and asynchronous generations reject stale changes. All earlier release gates are retained. Beta 52 is the accepted baseline; Page Editing floating-picture issue #30 remains deferred."
+          gh release create $tag "artifacts/$base.zip" "artifacts/$base.sha256" --prerelease --target "${{ github.sha }}" --title "CtrlZed $display" --notes "Beta 53.1 adds animated activity bars and elapsed-time displays to Story Workshop and Wordplay Workshop, with explicit green success and red error messages. Both workshops now request native schema-constrained OpenAI output, recognise refused/incomplete/failed replies before parsing and retain all existing data-integrity checks. A complete enclosing JSON code fence/BOM is accepted without extracting arbitrary prose or repairing truncated JSON. Ordinary free-text AI features and other providers retain their existing transport. Cancellation, invalid local input and late replies cannot overwrite newer work or stop a newer gauge. No saved file format changes. All existing release checks are retained. Beta 52 remains the accepted baseline; Page Editing floating-picture issue #30 stays deferred."

@@ -138,7 +138,14 @@ public partial class MainWindow
         invalid=state.DeepClone();invalid.SeedText=new string('x',12001);invalid.Results.Clear();RejectWordplay(()=>invalid.Validate(),"An oversized word pile was accepted or truncated.");
         invalid=state.DeepClone();invalid.Results[0].Anchors[0]="NOT_IN_THIS_SOURCE";RejectWordplay(()=>invalid.Validate(),"A fabricated source anchor entered saved results.");
         var response=WordplayFixtureResponse();
-        foreach(var malformed in new[]{"{}","```json\n"+response+"\n```",response+" trailing",
+        foreach(var wrapper in new[]{"```json\n"+response+"\n```","\uFEFF \r\n```JSON\n"+response+"\n```\r\n","```\n"+response+"\n```"})
+        {
+            var wrapped=WordplayWorkshopService.ParseResponse(state,wrapper);
+            RequireWordplay(wrapped.Count==6 && wrapped.SelectMany(value=>value.Examples).Select(value=>value.Text)
+                .SequenceEqual(connections.SelectMany(value=>value.Examples).Select(value=>value.Text)),
+                "A complete enclosing JSON fence changed or rejected a valid exploration.");
+        }
+        foreach(var malformed in new[]{"{}","Here is the result:\n"+response,"```json\n"+response+"\n``` trailing prose","```json\n"+response,response+" trailing",
             response.Replace("\"connections\":","\"extra\":true,\"connections\":",StringComparison.Ordinal),
             response.Replace("\"connections\":","\"connections\":[],\"connections\":",StringComparison.Ordinal),
             response.Replace("\"clock\"","\"NOT_IN_THIS_SOURCE\"",StringComparison.Ordinal),

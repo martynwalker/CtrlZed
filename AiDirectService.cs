@@ -14,7 +14,7 @@ public sealed class AiProviderProfile
     public bool HasKey { get; set; }
 }
 
-public static class AiDirectService
+public static partial class AiDirectService
 {
     static readonly HttpClient Http = new(){Timeout=TimeSpan.FromMinutes(3)};
     static readonly string Root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");

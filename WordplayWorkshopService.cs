@@ -22,7 +22,7 @@ public static class WordplayWorkshopService
         if(transport==null)
         {
             var provider=AiManager.GetDefaultProvider();
-            transport=(text,token)=>AiDirectService.GenerateAsync(provider,text,false,token);
+            transport=(text,token)=>AiDirectService.GenerateJsonAsync(provider,text,"ctrlzed_wordplay",WorkshopResponseSchemas.Wordplay,token);
         }
         var response=await transport(prompt,cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();return ParseResponse(snapshot,response);
@@ -73,8 +73,8 @@ Exactly six connection objects and exactly two example objects per connection. T
         if(string.IsNullOrWhiteSpace(response) || response.Length>MaximumResponseLength)
             throw InvalidResponse("The response was empty or too long.");
         JsonDocument document;
-        try{document=JsonDocument.Parse(response,new JsonDocumentOptions{MaxDepth=8});}
-        catch(JsonException error){throw new InvalidOperationException("Wordplay Workshop did not return the required association JSON. Explore again.",error);}
+        try{document=JsonDocument.Parse(WorkshopJson.UnwrapDocument(response),new JsonDocumentOptions{MaxDepth=8});}
+        catch(JsonException error){throw new InvalidOperationException("The AI returned an unreadable association reply. Nothing from this reply was saved or applied. Existing favourites and manuscript text are unchanged. Explore again.",error);}
         using(document)
         {
             RequireProperties(document.RootElement,"connections");

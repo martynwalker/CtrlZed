@@ -40,7 +40,7 @@ public static class StoryWorkshopService
         if(transport==null)
         {
             var provider=AiManager.GetDefaultProvider();
-            transport=(text,token)=>AiDirectService.GenerateAsync(provider,text,false,token);
+            transport=(text,token)=>AiDirectService.GenerateJsonAsync(provider,text,"ctrlzed_story",WorkshopResponseSchemas.Story,token);
         }
         var response=await transport(prompt,cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
@@ -120,8 +120,8 @@ Mark a field confirmed ONLY for a direct quotation/extraction from the NEW autho
         if(string.IsNullOrWhiteSpace(response) || response.Length>MaximumResponseLength)
             throw InvalidResponse("The response was empty or too long.");
         JsonDocument document;
-        try{document=JsonDocument.Parse(response,new JsonDocumentOptions{MaxDepth=10});}
-        catch(JsonException error){throw new InvalidOperationException("Story Workshop did not return the required planning JSON. Send the message again.",error);}
+        try{document=JsonDocument.Parse(WorkshopJson.UnwrapDocument(response),new JsonDocumentOptions{MaxDepth=10});}
+        catch(JsonException error){throw new InvalidOperationException("The AI returned an unreadable planning reply. Nothing from this reply was saved or applied. Existing planning notes and manuscript text are unchanged. Send the message again.",error);}
         using(document)
         {
             var root=document.RootElement;

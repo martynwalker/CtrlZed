@@ -20,6 +20,13 @@ The current development baseline is **[Beta 53 (0.53.0)](https://github.com/mart
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
+### Beta 53.1 candidate — workshop activity and reply reliability
+
+- Both workshops show an animated activity bar and elapsed time while awaiting AI, with green success, red errors, blue busy and grey neutral/cancel messages.
+- Workshop requests to OpenAI now specify strict structured output instead of relying only on a JSON instruction in a plain-text prompt. Refused, incomplete, failed and empty replies are distinguished before parsing.
+- A single whole JSON code fence or BOM is accepted for compatibility; arbitrary prose, truncated replies and invalid source/metadata remain rejected. Other providers and ordinary free-text AI features retain their existing transport.
+- Invalid local edits cancel unfinished work before validation, and a late reply cannot overwrite a newer request or stop its activity display. Windows verification is in progress; Beta 52 remains accepted.
+
 ### Beta 53 — Wordplay Workshop
 
 - **Review → Wordplay Workshop…** and the text context menu open a word-pile workbench. Form, style, comic flavour, device, subject/target and situation all default independently to General.
