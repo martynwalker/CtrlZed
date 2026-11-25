@@ -8,6 +8,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if(e.Args.Any(a=>a.Equals("--ai-settings-test",StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(CtrlZed.MainWindow.RunAiSettingsSelfTest());
+            return;
+        }
+
         if(e.Args.Any(a=>a.Equals("--workshop-reliability-test",StringComparison.OrdinalIgnoreCase)))
         {
             Shutdown(CtrlZed.MainWindow.RunWorkshopReliabilitySelfTest());

@@ -1666,6 +1666,16 @@ public partial class MainWindow : Window
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(20,0,0,18)
         });
         panel.Children.Add(new Separator());
+        panel.Children.Add(new TextBlock{Text="AI",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
+        var aiSettingsButton=new Button{Content="AI Settings…",Width=120,HorizontalAlignment=HorizontalAlignment.Left};
+        aiSettingsButton.Click+=AiSettings_Click;
+        panel.Children.Add(aiSettingsButton);
+        panel.Children.Add(new TextBlock
+        {
+            Text="Choose the default AI provider and configure provider models and direct API keys.",
+            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,6,0,12)
+        });
+        panel.Children.Add(new Separator());
         panel.Children.Add(new TextBlock{Text="Fonts",FontSize=18,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
         var fontFinder=new Button{Content="Find a Font…",Width=120,HorizontalAlignment=HorizontalAlignment.Left};
         fontFinder.Click+=(_,__)=>{w.Close();ShowFontFinder();};
@@ -1721,7 +1731,7 @@ public partial class MainWindow : Window
         };
         close.Click+=(_,__)=>w.Close();
         buttons.Children.Add(apply);buttons.Children.Add(close);panel.Children.Add(buttons);
-        w.Content=panel;w.ShowDialog();
+        w.Content=new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};w.ShowDialog();
     }
 
     void ComingSoon_Click(object s,RoutedEventArgs e)=>ShowComingSoon(this,null);

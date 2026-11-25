@@ -1,4 +1,4 @@
-# CtrlZed — Beta 53.1 release record and queue
+# CtrlZed — Beta 54 candidate and release record
 
 Updated 25 November 2026.
 
@@ -27,6 +27,16 @@ Beta 47 was the preceding development release. Its vector creation was reported 
 Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 22 November 2026 after retesting Return/navigation. Beta 48 builds forward from Beta 47 and retains that accepted work.
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
+
+## Beta 54 candidate — AI Settings and workshop providers
+
+- [x] Dedicated provider/model/direct-key settings with a saved default, existing credential retention, per-provider drafts, explicit key removal and Cancel without writes.
+- [x] Wordplay and Story provider selectors initialised from the default, with local choices outside document metadata.
+- [x] Explicit provider routing, provider/model/key-change cancellation and late-response guards.
+- [x] AI settings entry points open configuration directly; ordinary writing and macro assistants remain available separately.
+- [ ] Windows settings persistence, protected-key handling, provider routing, cancellation and all existing release gates.
+
+Verification is in progress. Opening, switching and saving make no AI requests. Direct API keys remain protected with Windows-user DPAPI; named macro secrets are separate. No document format changes. Beta 52 remains accepted and floating-picture issue #30 stays deferred.
 
 ## Implemented in Beta 53.1 — workshop activity and reply reliability
 

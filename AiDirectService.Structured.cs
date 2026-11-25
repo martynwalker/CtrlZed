@@ -29,7 +29,7 @@ public static partial class AiDirectService
         var profile=GetProfile(provider);
         var key=GetApiKey(provider);
         if(string.IsNullOrWhiteSpace(key))
-            throw new InvalidOperationException($"No API key is configured for {provider}. Use Configure Direct AI.");
+            throw new InvalidOperationException($"No API key is configured for {provider}. Open AI Settings.");
         return GenerateOpenAiJsonAsync(profile.Model,key,prompt,schemaName,schema,cancellationToken);
     }
 

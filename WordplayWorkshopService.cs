@@ -13,16 +13,25 @@ public static class WordplayWorkshopService
     public const int MaximumResponseLength=180000;
     static readonly JsonSerializerOptions JsonOptions=new(){Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping};
     internal static Func<string,CancellationToken,Task<string>>? GeneratorOverride { get; set; }
+    internal static Func<string,string,CancellationToken,Task<string>>? ProviderGeneratorOverride { get; set; }
 
-    public static async Task<IReadOnlyList<WordplayConnection>> GenerateAsync(WordplayWorkshopState state,
+    public static Task<IReadOnlyList<WordplayConnection>> GenerateAsync(WordplayWorkshopState state,
         CancellationToken cancellationToken=default)
+        =>GenerateAsync(state,AiManager.GetDefaultProvider(),cancellationToken);
+
+    public static async Task<IReadOnlyList<WordplayConnection>> GenerateAsync(WordplayWorkshopState state,string provider,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();ArgumentNullException.ThrowIfNull(state);
+        if(!AiManager.DirectProviders.Contains(provider,StringComparer.Ordinal))
+            throw new ArgumentException("Choose ChatGPT, Claude or Gemini for direct workshop requests.",nameof(provider));
         var snapshot=state.DeepClone();var prompt=BuildPrompt(snapshot);var transport=GeneratorOverride;
         if(transport==null)
         {
-            var provider=AiManager.GetDefaultProvider();
-            transport=(text,token)=>AiDirectService.GenerateJsonAsync(provider,text,"ctrlzed_wordplay",WorkshopResponseSchemas.Wordplay,token);
+            var providerTransport=ProviderGeneratorOverride;
+            transport=providerTransport==null
+                ?(text,token)=>AiDirectService.GenerateJsonAsync(provider,text,"ctrlzed_wordplay",WorkshopResponseSchemas.Wordplay,token)
+                :(text,token)=>providerTransport(provider,text,token);
         }
         var response=await transport(prompt,cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();return ParseResponse(snapshot,response);

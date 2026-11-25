@@ -22,16 +22,23 @@ public static class StoryWorkshopService
         Converters={new JsonStringEnumConverter()}
     };
     internal static Func<string,CancellationToken,Task<string>>? GeneratorOverride { get; set; }
+    internal static Func<string,string,CancellationToken,Task<string>>? ProviderGeneratorOverride { get; set; }
 
     sealed record Change(string Kind,string Id,string Name,string Field,string Value,
         StoryWorkshopValueStatus Status,string Evidence,IReadOnlyList<string> CharacterIds);
     sealed record Resolution(string Text,string Evidence);
 
-    public static async Task<StoryWorkshopTurnResult> GenerateAsync(StoryWorkshopState state,string message,
+    public static Task<StoryWorkshopTurnResult> GenerateAsync(StoryWorkshopState state,string message,
         CancellationToken cancellationToken=default)
+        =>GenerateAsync(state,message,AiManager.GetDefaultProvider(),cancellationToken);
+
+    public static async Task<StoryWorkshopTurnResult> GenerateAsync(StoryWorkshopState state,string message,string provider,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(state);
+        if(!AiManager.DirectProviders.Contains(provider,StringComparer.Ordinal))
+            throw new ArgumentException("Choose ChatGPT, Claude or Gemini for direct workshop requests.",nameof(provider));
         // Freeze all source data before an asynchronous provider can yield to a
         // document switch or an edit in the modeless workshop.
         var snapshot=state.DeepClone();
@@ -39,8 +46,10 @@ public static class StoryWorkshopService
         var transport=GeneratorOverride;
         if(transport==null)
         {
-            var provider=AiManager.GetDefaultProvider();
-            transport=(text,token)=>AiDirectService.GenerateJsonAsync(provider,text,"ctrlzed_story",WorkshopResponseSchemas.Story,token);
+            var providerTransport=ProviderGeneratorOverride;
+            transport=providerTransport==null
+                ?(text,token)=>AiDirectService.GenerateJsonAsync(provider,text,"ctrlzed_story",WorkshopResponseSchemas.Story,token)
+                :(text,token)=>providerTransport(provider,text,token);
         }
         var response=await transport(prompt,cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();

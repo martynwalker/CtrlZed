@@ -192,8 +192,7 @@ public partial class MainWindow
             if(SentenceCompletionService.GeneratorOverride!=null)return "Test provider|"+languageConfiguration;
             try
             {
-                var profile=AiDirectService.GetProfile(provider);
-                return provider+"|"+profile.Model+"|"+profile.HasKey+"|"+languageConfiguration;
+                return AiDirectService.ConfigurationFingerprint(provider)+"|"+languageConfiguration;
             }
             catch{return provider+"|Unavailable|"+languageConfiguration;}
         }
@@ -459,7 +458,7 @@ public partial class MainWindow
         providerSetup.Click+=(_,__)=>
         {
             Invalidate("AI settings opened. Generate fresh suggestions after configuring the provider.");
-            AiManager_Click(providerSetup,new RoutedEventArgs());
+            AiSettings_Click(providerSetup,new RoutedEventArgs());
         };
         close.Click+=(_,__)=>w.Close();
         void RefreshAvailability()

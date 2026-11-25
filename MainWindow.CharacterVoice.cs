@@ -130,8 +130,8 @@ public partial class MainWindow
         {
             var language=$"{languageSettings.AllowAiLanguageServices}|{languageSettings.WritingMode}|{languageSettings.LanguageTag}|{languageSettings.CustomProfileName}|{EffectiveWritingMode()}";
             if(CharacterVoiceService.GeneratorOverride!=null)return "Test provider|"+language;
-            var provider=AiManager.GetDefaultProvider();var ai=AiDirectService.GetProfile(provider);
-            return provider+"|"+ai.Model+"|"+ai.HasKey+"|"+language;
+            var provider=AiManager.GetDefaultProvider();
+            return AiDirectService.ConfigurationFingerprint(provider)+"|"+language;
         }
         void CancelRequest()
         {
@@ -294,7 +294,7 @@ public partial class MainWindow
             catch(System.Runtime.InteropServices.ExternalException){status.Text="The clipboard is busy. Try Copy again.";}
         };
         languageSetup.Click+=(_,__)=>{Invalidate("Language settings opened. Request a fresh rewrite afterwards.");LanguageSettings_Click(languageSetup,new RoutedEventArgs());RefreshConfiguration();};
-        aiSetup.Click+=(_,__)=>{Invalidate("AI settings opened. Request a fresh rewrite afterwards.");AiManager_Click(aiSetup,new RoutedEventArgs());RefreshConfiguration();};
+        aiSetup.Click+=(_,__)=>{Invalidate("AI settings opened. Request a fresh rewrite afterwards.");AiSettings_Click(aiSetup,new RoutedEventArgs());RefreshConfiguration();};
         close.Click+=(_,__)=>w.Close();
         TextChangedEventHandler documentChanged=(_,__)=>
         {

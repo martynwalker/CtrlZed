@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,6 +10,7 @@ namespace CtrlZed;
 
 public static class AiManager
 {
+    public static IReadOnlyList<string> DirectProviders { get; }=Array.AsReadOnly(new[]{"ChatGPT","Claude","Gemini"});
     sealed class Settings
     {
         public string Provider { get; set; } = "ChatGPT";
@@ -27,7 +29,6 @@ public static class AiManager
         get
         {
             var root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"CtrlZed");
-            Directory.CreateDirectory(root);
             return Path.Combine(root,"ai-settings.json");
         }
     }
@@ -35,7 +36,21 @@ public static class AiManager
     public static string GetDefaultProvider()
     {
         var settings=Load();
-        return Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT";
+        return DirectProviders.FirstOrDefault(provider=>provider.Equals(settings.Provider,StringComparison.OrdinalIgnoreCase))??"ChatGPT";
+    }
+
+    public static void SetDefaultProvider(string provider)
+    {
+        var canonical=DirectProviders.FirstOrDefault(name=>name.Equals(provider,StringComparison.OrdinalIgnoreCase))
+            ??throw new ArgumentException("Choose ChatGPT, Claude or Gemini as the default direct AI provider.",nameof(provider));
+        AiDirectService.WriteConfigurationFiles(new Dictionary<string,byte[]>{{SettingsPath,Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new Settings{Provider=canonical}))}});
+    }
+
+    internal static void SaveConfiguration(IReadOnlyList<AiProviderEdit> edits,string defaultProvider)
+    {
+        var canonical=DirectProviders.FirstOrDefault(name=>name.Equals(defaultProvider,StringComparison.OrdinalIgnoreCase))
+            ??throw new ArgumentException("Choose ChatGPT, Claude or Gemini as the default direct AI provider.",nameof(defaultProvider));
+        AiDirectService.SaveProfiles(edits,new Dictionary<string,byte[]>{{SettingsPath,Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new Settings{Provider=canonical}))}});
     }
 
     public static void ShowForMacro(Window owner,string macroExtension,string macroReference,string existingCode,Action<string,string> applyResult,string? initialInstruction=null)
@@ -53,7 +68,6 @@ public static class AiManager
         string selectedText,string documentText,
         Action<string,string>? applyMacro,Action<string,bool>? applyDocument,string? initialInstruction=null)
     {
-        var settings=Load();
         var w=new Window
         {
             Title=macroMode?"CtrlZed AI Macro Assistant":"CtrlZed AI Manager",
@@ -81,7 +95,7 @@ public static class AiManager
 
         var providerRow=new WrapPanel{Margin=new Thickness(0,0,0,10)};
         providerRow.Children.Add(Label("Provider"));
-        var provider=new ComboBox{Width=160,ItemsSource=Providers.Keys.ToList(),SelectedItem=Providers.ContainsKey(settings.Provider)?settings.Provider:"ChatGPT",Margin=new Thickness(5,0,12,0)};
+        var provider=new ComboBox{Width=160,ItemsSource=Providers.Keys.ToList(),SelectedItem=GetDefaultProvider(),Margin=new Thickness(5,0,12,0)};
         providerRow.Children.Add(provider);
         ComboBox? macroTarget=null;
         if(macroMode)
@@ -93,7 +107,7 @@ public static class AiManager
         }
         var liveWeb=new CheckBox{Content="Use live web/search when available",Foreground=Brushes.White,IsChecked=!macroMode,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(5,0,12,0)};
         providerRow.Children.Add(liveWeb);
-        var configure=new Button{Content="Configure Direct AI…",Margin=new Thickness(5,0,0,0)};
+        var configure=new Button{Content="AI settings…",Margin=new Thickness(5,0,0,0)};
         providerRow.Children.Add(configure);
         Grid.SetRow(providerRow,1);root.Children.Add(providerRow);
 
@@ -257,10 +271,13 @@ public static class AiManager
         configure.Click+=(_,__)=>ConfigureProvider(w,provider.SelectedItem?.ToString()??"ChatGPT");
         saveDefault.Click+=(_,__)=>
         {
-            settings.Provider=provider.SelectedItem?.ToString()??"ChatGPT";
-            Save(settings);
-            heading.Text=(macroMode?"AI Macro Assistant":"AI Writing & Research Assistant")+" — default saved";
-            SetMessage("Default AI provider saved.");
+            try
+            {
+                SetDefaultProvider(provider.SelectedItem?.ToString()??"ChatGPT");
+                heading.Text=(macroMode?"AI Macro Assistant":"AI Writing & Research Assistant")+" — default saved";
+                SetMessage("Default AI provider saved.");
+            }
+            catch(Exception error){SetMessage(error.Message,true);}
         };
 
         void OpenBrowser(bool privateMode,bool login)
@@ -338,54 +355,7 @@ public static class AiManager
 
     static void ConfigureProvider(Window owner,string provider)
     {
-        if(provider=="Copilot")
-        {
-            MessageBox.Show(
-                "Copilot Chat does not expose a general consumer chat API. CtrlZed therefore uses the browser handoff for Copilot.",
-                "Copilot direct integration",MessageBoxButton.OK,MessageBoxImage.Information);
-            return;
-        }
-
-        var profile=AiDirectService.GetProfile(provider);
-        var w=new Window
-        {
-            Title=$"Configure {provider} Direct AI",
-            Owner=owner,Width=520,Height=300,
-            WindowStartupLocation=WindowStartupLocation.CenterOwner,
-            ResizeMode=ResizeMode.NoResize,
-            Icon=Branding.CreateIconImageSource()
-        };
-        var p=new StackPanel{Margin=new Thickness(18)};
-        p.Children.Add(new TextBlock{Text="Model"});
-        var model=new TextBox{Text=profile.Model,Margin=new Thickness(0,4,0,12)};
-        p.Children.Add(model);
-        p.Children.Add(new TextBlock{Text=profile.HasKey?"API key (stored securely; leave blank to keep current key)":"API key"});
-        var key=new PasswordBox{Margin=new Thickness(0,4,0,10)};
-        p.Children.Add(key);
-        p.Children.Add(new TextBlock
-        {
-            Text="The key is encrypted with Windows DPAPI for the current Windows user. It is never stored in CtrlZed documents.",
-            TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,0,0,12)
-        });
-        var buttons=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
-        var clear=new Button{Content="Clear Key",Width=85,Margin=new Thickness(4)};
-        var save=new Button{Content="Save",Width=85,Margin=new Thickness(4)};
-        var cancel=new Button{Content="Cancel",Width=85,Margin=new Thickness(4)};
-        buttons.Children.Add(clear);buttons.Children.Add(save);buttons.Children.Add(cancel);
-        p.Children.Add(buttons);
-
-        clear.Click+=(_,__)=>
-        {
-            AiDirectService.SaveProfile(provider,model.Text,"");
-            w.DialogResult=true;
-        };
-        save.Click+=(_,__)=>
-        {
-            AiDirectService.SaveProfile(provider,model.Text,string.IsNullOrWhiteSpace(key.Password)?null:key.Password);
-            w.DialogResult=true;
-        };
-        cancel.Click+=(_,__)=>w.Close();
-        w.Content=p;w.ShowDialog();
+        new AiSettingsWindow(owner,provider).ShowDialog();
     }
 
     static Settings Load()
@@ -397,11 +367,6 @@ public static class AiManager
         }
         catch{}
         return new Settings();
-    }
-
-    static void Save(Settings settings)
-    {
-        try{File.WriteAllText(SettingsPath,JsonSerializer.Serialize(settings));}catch{}
     }
 
     static void OpenProvider(string provider,bool privateMode,bool login=false)

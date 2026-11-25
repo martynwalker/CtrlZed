@@ -20,6 +20,13 @@ The current development baseline is **[Beta 53.1 (0.53.1)](https://github.com/ma
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
+### Beta 54 candidate — AI Settings and workshop providers
+
+- **Tools → AI Settings…** manages ChatGPT, Claude and Gemini model IDs, direct API keys and the saved application default. Existing direct credentials are retained; blank key fields preserve them, and key removal is explicit. Changes are staged until Save.
+- Wordplay and Story Workshops begin with the saved default and offer a per-window provider dropdown with model/key status. A local choice leaves the global default and document metadata unchanged.
+- Changing provider or its configuration cancels unfinished work; a late response cannot commit across that change. Other assistant configuration buttons open the same dedicated settings screen.
+- Opening, editing and saving settings make no AI calls. Direct keys remain encrypted for the current Windows user; named macro secrets remain separate. Windows verification is pending; Beta 52 remains accepted. See the [AI Settings guide](docs/AI-SETTINGS.md).
+
 ### Beta 53.1 — workshop activity and reply reliability
 
 - Both workshops show an animated activity bar and elapsed time while awaiting AI, with green success, red errors, blue busy and grey neutral/cancel messages.

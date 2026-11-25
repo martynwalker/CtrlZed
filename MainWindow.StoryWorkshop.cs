@@ -69,7 +69,16 @@ public partial class MainWindow
         var mode=Named("WorkshopMode",new ComboBox{ItemsSource=WritingModeProfiles.All,DisplayMemberPath="DisplayName",MinWidth=170,
             SelectedItem=WritingModeProfiles.Get(state.WritingMode),VerticalAlignment=VerticalAlignment.Center});
         editableControls.Add(mode);modePanel.Children.Add(mode);DockPanel.SetDock(modePanel,Dock.Right);heading.Children.Add(modePanel);
-        heading.Children.Add(new TextBlock{Text="Story Workshop",FontSize=23,FontWeight=FontWeights.SemiBold});root.Children.Add(heading);
+        heading.Children.Add(new TextBlock{Text="Story Workshop",FontSize=23,FontWeight=FontWeights.SemiBold});
+        var header=new StackPanel();header.Children.Add(heading);
+        var providerRow=new WrapPanel{Margin=new Thickness(0,7,0,0)};
+        providerRow.Children.Add(new TextBlock{Text="AI provider",VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,8,0)});
+        var provider=Named("WorkshopProvider",new ComboBox{ItemsSource=AiManager.DirectProviders,SelectedItem=AiManager.GetDefaultProvider(),
+            Width=145,VerticalAlignment=VerticalAlignment.Center,ToolTip="Use this provider in this workshop. The application default is unchanged."});
+        providerRow.Children.Add(provider);
+        var providerDetails=Named("WorkshopProviderDetails",new TextBlock{Foreground=Brushes.DimGray,VerticalAlignment=VerticalAlignment.Center,
+            TextWrapping=TextWrapping.Wrap,MaxWidth=620,Margin=new Thickness(12,3,0,3)});
+        providerRow.Children.Add(providerDetails);header.Children.Add(providerRow);root.Children.Add(header);
         var information=new TextBlock{Text="Plan the story through conversation, then review its cast, arcs and storyboard. Notes and conversation are saved with this .czd document; they are separate from the manuscript.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,8,0,10)};
         Grid.SetRow(information,1);root.Children.Add(information);
@@ -123,7 +132,7 @@ public partial class MainWindow
         void SetStatus(string message,WorkshopStatusKind kind=WorkshopStatusKind.Neutral)=>activity.Set(message,kind);
 
         var footerActions=new DockPanel();
-        var settings=new WrapPanel();var languageSetup=Button("Language settings…");var aiSetup=Button("AI settings…");
+        var settings=new WrapPanel();var languageSetup=Button("Language settings…");var aiSetup=Named("WorkshopAiSettings",Button("AI settings…"));
         settings.Children.Add(languageSetup);settings.Children.Add(aiSetup);DockPanel.SetDock(settings,Dock.Left);footerActions.Children.Add(settings);
         var remaining=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
         var undoPlanning=Named("WorkshopUndo",Button("Undo planning edit"));var close=Button("Close");close.IsCancel=true;
@@ -131,6 +140,8 @@ public partial class MainWindow
         Grid.SetRow(footer,3);root.Children.Add(footer);w.Content=root;
 
         bool Editable()=>!closed && ReferenceEquals(Editor.Document,document) && !Editor.IsReadOnly && Editor.IsEnabled;
+        string Provider()=>provider.SelectedItem as string??AiManager.DirectProviders[0];
+        bool TestTransport()=>StoryWorkshopService.GeneratorOverride!=null || StoryWorkshopService.ProviderGeneratorOverride!=null;
         List<StoryWorkshopEntry> Entries(StoryWorkshopState value,StoryWorkshopEntryKind kind)=>kind switch
         {StoryWorkshopEntryKind.Character=>value.Characters,StoryWorkshopEntryKind.Beat=>value.Beats,_=>value.Clues};
         ListBox EntryList(StoryWorkshopEntryKind kind)=>kind switch
@@ -402,8 +413,7 @@ public partial class MainWindow
         string Configuration()
         {
             var language=$"{languageSettings.AllowAiLanguageServices}|{languageSettings.LanguageTag}|{languageSettings.WritingMode}|{languageSettings.CustomProfileName}";
-            if(StoryWorkshopService.GeneratorOverride!=null)return "Test provider|"+language;
-            var provider=AiManager.GetDefaultProvider();var profile=AiDirectService.GetProfile(provider);return provider+"|"+profile.Model+"|"+profile.HasKey+"|"+language;
+            return AiDirectService.ConfigurationFingerprint(Provider())+"|"+language;
         }
         void RefreshAvailability()
         {
@@ -411,12 +421,12 @@ public partial class MainWindow
             try
             {
                 var next=Configuration();if(configuration.Length>0 && configuration!=next)CancelRequest("AI settings changed; send again when ready.");configuration=next;
+                var selectedProvider=Provider();var profile=AiDirectService.GetProfile(selectedProvider);
+                providerDetails.Text=profile.Model+" · "+(profile.HasKey?"API key configured":"API key not configured");
                 unavailable=!languageSettings.AllowAiLanguageServices?"Enable AI language services in Language settings before sending a message.":null;
-                if(StoryWorkshopService.GeneratorOverride==null)
+                if(!TestTransport())
                 {
-                    var provider=AiManager.GetDefaultProvider();
-                    if(provider=="Copilot")unavailable="Choose ChatGPT, Claude or Gemini in AI settings for direct planning requests.";
-                    else if(!AiDirectService.GetProfile(provider).HasKey)unavailable=$"Configure a {provider} API key in AI settings before sending a message.";
+                    if(!profile.HasKey)unavailable=$"Configure a {selectedProvider} API key in AI settings before sending a message.";
                 }
             }
             catch(Exception ex){unavailable="AI settings could not be read: "+ex.Message;CancelRequest(unavailable,WorkshopStatusKind.Error);}
@@ -426,11 +436,11 @@ public partial class MainWindow
         {
             if(closed || busy || !Editable())return;RefreshAvailability();
             if(unavailable!=null){SetStatus(unavailable,WorkshopStatusKind.Error);return;}var message=input.Text;if(string.IsNullOrWhiteSpace(message))return;
-            var requested=SnapshotStoryWorkshop();var requestedRevision=storyWorkshopRevision;var requestedConfiguration=configuration;
+            var requested=SnapshotStoryWorkshop();var requestedRevision=storyWorkshopRevision;var requestedConfiguration=configuration;var requestedProvider=Provider();
             CancelRequest();var requestGeneration=++generation;cancellation=new CancellationTokenSource();var token=cancellation.Token;busy=true;UpdateButtons();activity.Start("Building the story with you…");
             try
             {
-                var result=await StoryWorkshopService.GenerateAsync(requested,message,token);
+                var result=await StoryWorkshopService.GenerateAsync(requested,message,requestedProvider,token);
                 if(closed || token.IsCancellationRequested || requestGeneration!=generation)return;RefreshAvailability();
                 if(!Editable() || requestGeneration!=generation || configuration!=requestedConfiguration || storyWorkshopRevision!=requestedRevision || SnapshotStoryWorkshop().Id!=requested.Id)
                 {SetStatus("The planning record or AI settings changed. Your message is still here; send it again when ready.");return;}
@@ -450,6 +460,11 @@ public partial class MainWindow
                 if(!closed && requestGeneration==generation){busy=false;activity.Stop();cancellation?.Dispose();cancellation=null;UpdateButtons();}
             }
         }
+        provider.SelectionChanged+=(_,__)=>
+        {
+            if(assigning || closed)return;
+            CancelRequest("AI provider changed; your message and planning notes are retained.");RefreshAvailability();
+        };
         send.Click+=async (_,__)=>await SendAsync();cancel.Click+=(_,__)=>{CancelRequest("Request cancelled. Your message is still here.");UpdateButtons();};
         input.TextChanged+=(_,__)=>UpdateButtons();input.PreviewKeyDown+=async (_,args)=>
         {if(args.Key==Key.Enter && (Keyboard.Modifiers&ModifierKeys.Control)!=0){args.Handled=true;await SendAsync();}};
@@ -465,7 +480,7 @@ public partial class MainWindow
         clearConversation.Click+=(_,__)=>
         {if(!Editable())return;var next=SnapshotStoryWorkshop();next.Conversation.Clear();CommitLocal(next,"Conversation cleared; character and story notes retained.");};
         languageSetup.Click+=(_,__)=>{CancelRequest("Language settings opened; send again afterwards.");LanguageSettings_Click(languageSetup,new RoutedEventArgs());RefreshAvailability();};
-        aiSetup.Click+=(_,__)=>{CancelRequest("AI settings opened; send again afterwards.");AiManager_Click(aiSetup,new RoutedEventArgs());RefreshAvailability();};
+        aiSetup.Click+=(_,__)=>{CancelRequest("AI settings opened; send again afterwards.");new AiSettingsWindow(w,Provider()).ShowDialog();RefreshAvailability();};
         close.Click+=(_,__)=>w.Close();
         void MetadataChanged()
         {if(closed || committing)return;CancelRequest("Planning changed; any pending reply was cancelled.");undo.Clear();RefreshAll();}

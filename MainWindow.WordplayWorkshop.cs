@@ -78,7 +78,15 @@ public partial class MainWindow
         var root=new Grid{Margin=new Thickness(16)};
         root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         root.RowDefinitions.Add(new RowDefinition());root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        root.Children.Add(new TextBlock{Text="Wordplay Workshop",FontSize=23,FontWeight=FontWeights.SemiBold});
+        var heading=new StackPanel();heading.Children.Add(new TextBlock{Text="Wordplay Workshop",FontSize=23,FontWeight=FontWeights.SemiBold});
+        var providerRow=new WrapPanel{Margin=new Thickness(0,7,0,0)};
+        providerRow.Children.Add(new TextBlock{Text="AI provider",VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,8,0)});
+        var provider=Named("WordplayProvider",new ComboBox{ItemsSource=AiManager.DirectProviders,SelectedItem=AiManager.GetDefaultProvider(),
+            Width=145,VerticalAlignment=VerticalAlignment.Center,ToolTip="Use this provider in this workshop. The application default is unchanged."});
+        providerRow.Children.Add(provider);
+        var providerDetails=Named("WordplayProviderDetails",new TextBlock{Foreground=Brushes.DimGray,VerticalAlignment=VerticalAlignment.Center,
+            TextWrapping=TextWrapping.Wrap,MaxWidth=620,Margin=new Thickness(12,3,0,3)});
+        providerRow.Children.Add(providerDetails);heading.Children.Add(providerRow);root.Children.Add(heading);
         var information=new TextBlock{Text="Pile up words, images and fragments, then explore their connections. The word pile, choices, results and favourites are saved in this .czd document. Nothing is generated until Explore.",
             TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DimGray,Margin=new Thickness(0,7,0,10)};
         Grid.SetRow(information,1);root.Children.Add(information);
@@ -137,11 +145,13 @@ public partial class MainWindow
         var activity=new WorkshopActivity(status,progress,elapsed);
         void SetStatus(string message,WorkshopStatusKind kind=WorkshopStatusKind.Neutral)=>activity.Set(message,kind);
 
-        var footerActions=new DockPanel();var settings=new WrapPanel();var languageSetup=Button("Language settings…");var aiSetup=Button("AI settings…");settings.Children.Add(languageSetup);settings.Children.Add(aiSetup);DockPanel.SetDock(settings,Dock.Left);footerActions.Children.Add(settings);
+        var footerActions=new DockPanel();var settings=new WrapPanel();var languageSetup=Button("Language settings…");var aiSetup=Named("WordplayAiSettings",Button("AI settings…"));settings.Children.Add(languageSetup);settings.Children.Add(aiSetup);DockPanel.SetDock(settings,Dock.Left);footerActions.Children.Add(settings);
         var generationActions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};var explore=Named("WordplayExplore",Button("Explore"));var cancel=Named("WordplayCancel",Button("Cancel request"));var close=Button("Close");close.IsCancel=true;
         generationActions.Children.Add(explore);generationActions.Children.Add(cancel);generationActions.Children.Add(close);footerActions.Children.Add(generationActions);footer.Children.Add(footerActions);Grid.SetRow(footer,3);root.Children.Add(footer);w.Content=root;
 
         bool Editable()=>!closed && ReferenceEquals(Editor.Document,document) && !Editor.IsReadOnly && Editor.IsEnabled;
+        string Provider()=>provider.SelectedItem as string??AiManager.DirectProviders[0];
+        bool TestTransport()=>WordplayWorkshopService.GeneratorOverride!=null || WordplayWorkshopService.ProviderGeneratorOverride!=null;
         WordplayConnection? Connection()=>connections.SelectedItem as WordplayConnection;
         WordplayExample? Example()=>examples.SelectedItem as WordplayExample;
         WordplayFavourite? Favourite()=>favourites.SelectedItem as WordplayFavourite;
@@ -235,8 +245,7 @@ public partial class MainWindow
         string Configuration()
         {
             var language=$"{languageSettings.AllowAiLanguageServices}|{languageSettings.LanguageTag}|{languageSettings.WritingMode}|{languageSettings.CustomProfileName}";
-            if(WordplayWorkshopService.GeneratorOverride!=null)return "Test provider|"+language;
-            var provider=AiManager.GetDefaultProvider();var profile=AiDirectService.GetProfile(provider);return provider+"|"+profile.Model+"|"+profile.HasKey+"|"+language;
+            return AiDirectService.ConfigurationFingerprint(Provider())+"|"+language;
         }
         void RefreshAvailability()
         {
@@ -244,12 +253,12 @@ public partial class MainWindow
             try
             {
                 var next=Configuration();if(configuration.Length>0 && configuration!=next)CancelRequest("AI settings changed. Existing ideas remain available; explore again when ready.");configuration=next;
+                var selectedProvider=Provider();var profile=AiDirectService.GetProfile(selectedProvider);
+                providerDetails.Text=profile.Model+" · "+(profile.HasKey?"API key configured":"API key not configured");
                 unavailable=!languageSettings.AllowAiLanguageServices?"Enable AI language services in Language settings before exploring.":null;
-                if(WordplayWorkshopService.GeneratorOverride==null)
+                if(!TestTransport())
                 {
-                    var provider=AiManager.GetDefaultProvider();
-                    if(provider=="Copilot")unavailable="Choose ChatGPT, Claude or Gemini in AI settings for direct exploration.";
-                    else if(!AiDirectService.GetProfile(provider).HasKey)unavailable=$"Configure a {provider} API key in AI settings before exploring.";
+                    if(!profile.HasKey)unavailable=$"Configure a {selectedProvider} API key in AI settings before exploring.";
                 }
             }
             catch(Exception error){unavailable="AI settings could not be read: "+error.Message;CancelRequest(unavailable,WorkshopStatusKind.Error);}UpdateButtons();
@@ -258,11 +267,11 @@ public partial class MainWindow
         {
             if(closed || busy || !Editable())return;RefreshAvailability();if(unavailable!=null){SetStatus(unavailable,WorkshopStatusKind.Error);return;}
             if(!PersistInputs())return;
-            var requested=SnapshotWordplayWorkshop();var requestedRevision=wordplayWorkshopRevision;var requestedConfiguration=configuration;
+            var requested=SnapshotWordplayWorkshop();var requestedRevision=wordplayWorkshopRevision;var requestedConfiguration=configuration;var requestedProvider=Provider();
             CancelRequest();var requestGeneration=++generation;cancellation=new CancellationTokenSource();var token=cancellation.Token;busy=true;UpdateButtons();activity.Start("Finding connections and fresh examples…");
             try
             {
-                var result=await WordplayWorkshopService.GenerateAsync(requested,token);
+                var result=await WordplayWorkshopService.GenerateAsync(requested,requestedProvider,token);
                 if(closed || token.IsCancellationRequested || requestGeneration!=generation)return;RefreshAvailability();
                 if(!Editable() || generation!=requestGeneration || configuration!=requestedConfiguration || wordplayWorkshopRevision!=requestedRevision || SnapshotWordplayWorkshop().Id!=requested.Id)
                 {SetStatus("The word pile, choices or AI settings changed. Explore again when ready.");return;}
@@ -276,6 +285,11 @@ public partial class MainWindow
             catch(Exception error){if(!closed && requestGeneration==generation)SetStatus("Could not explore the word pile: "+error.Message,WorkshopStatusKind.Error);}
             finally{if(!closed && requestGeneration==generation){busy=false;activity.Stop();cancellation?.Dispose();cancellation=null;UpdateButtons();}}
         }
+        provider.SelectionChanged+=(_,__)=>
+        {
+            if(assigning || closed)return;
+            CancelRequest("AI provider changed. Existing ideas remain available; explore when ready.");RefreshAvailability();
+        };
         foreach(var box in new[]{form,style,comic,device,subject,situation})box.SelectionChanged+=(_,__)=>{if(!assigning)PersistInputs();};
         seed.TextChanged+=(_,__)=>{if(!assigning)PersistInputs();UpdateButtons();};target.TextChanged+=(_,__)=>{if(!assigning)PersistInputs();};
         edit.TextChanged+=(_,__)=>UpdateButtons();
@@ -363,7 +377,7 @@ public partial class MainWindow
             finally{applying=false;UpdateButtons();}
         };
         languageSetup.Click+=(_,__)=>{CancelRequest("Language settings opened. Existing ideas remain available.");LanguageSettings_Click(languageSetup,new RoutedEventArgs());RefreshAvailability();};
-        aiSetup.Click+=(_,__)=>{CancelRequest("AI settings opened. Existing ideas remain available.");AiManager_Click(aiSetup,new RoutedEventArgs());RefreshAvailability();};close.Click+=(_,__)=>w.Close();
+        aiSetup.Click+=(_,__)=>{CancelRequest("AI settings opened. Existing ideas remain available.");new AiSettingsWindow(w,Provider()).ShowDialog();RefreshAvailability();};close.Click+=(_,__)=>w.Close();
         void MetadataChanged()
         {if(closed || committing)return;CancelRequest("The wordplay record changed. Any pending exploration was cancelled.");removed.Clear();RefreshViews();}
         void DocumentChanged(){if(!closed)w.Close();}

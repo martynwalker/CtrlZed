@@ -171,8 +171,7 @@ public partial class MainWindow
             if(FontFinderService.GeneratorOverride!=null)return "Test provider|"+language;
             try
             {
-                var profile=AiDirectService.GetProfile(provider);
-                return $"{provider}|{profile.Model}|{profile.HasKey}|{language}";
+                return AiDirectService.ConfigurationFingerprint(provider)+"|"+language;
             }
             catch{return provider+"|Unavailable|"+language;}
         }
@@ -406,7 +405,7 @@ public partial class MainWindow
         {
             CancelRequest();
             if(matchesUseAi)InvalidateMatches("AI settings opened. Ask AI again after changing the provider.");
-            AiManager_Click(aiSetup,new RoutedEventArgs());RefreshAvailability();
+            AiSettings_Click(aiSetup,new RoutedEventArgs());RefreshAvailability();
         };
         close.Click+=(_,__)=>w.Close();
         w.Activated+=(_,__)=>RefreshAvailability();
