@@ -230,7 +230,7 @@ public partial class MainWindow
         wordplayWorkshopWindow?.Close();SetDocumentPassword(null);dirty=false;New_Click(this,new RoutedEventArgs());
         RequireWordplay(!SnapshotWordplayWorkshop().HasContent && !SnapshotStoryWorkshop().HasContent && !dirty,"New retained an earlier document's workshop data.");
         var legacy=Path.Combine(directory,"legacy-without-workshops.czd");
-        using(var output=File.Create(legacy))using(var archive=new ZipArchive(output,ZipArchiveMode.Create))
+        using(var legacyOutput=File.Create(legacy))using(var archive=new ZipArchive(legacyOutput,ZipArchiveMode.Create))
         using(var text=archive.CreateEntry("document.rtf").Open())new TextRange(Editor.Document.ContentStart,Editor.Document.ContentEnd).Save(text,DataFormats.Rtf);
         SetWordplayFixture("Prepare private notes before a legacy document.");OpenPath(legacy);
         RequireWordplay(!SnapshotWordplayWorkshop().HasContent,"A legacy document inherited private wordplay.");
