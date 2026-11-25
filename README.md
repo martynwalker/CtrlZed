@@ -6,7 +6,9 @@ CtrlZed is a lightweight, keyboard-friendly Windows word processor. The project 
 
 ## Current baseline and latest prerelease
 
-The current accepted and development baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.**
+The current accepted baseline is **[Beta 52 (0.52.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.52.0-beta.52)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication. **Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.**
+
+The current development baseline is **[Beta 53 (0.53.0)](https://github.com/martynwalker/CtrlZed/releases/tag/v0.53.0-beta.53)**. Its [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528) on source `799eb1cb1b2f4de135a8b441da64d21cf76276d1`, including packaging and publication. **Beta 53 user acceptance is pending; Beta 52 remains accepted.**
 
 [Beta 51](https://github.com/martynwalker/CtrlZed/releases/tag/v0.51.0-beta.51) was the preceding accepted baseline, confirmed on 24 November 2026 after the [Windows gate](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) verified source `da6f33cbb2ba01b11a894e48d972e949a139aadc`.
 
@@ -18,12 +20,12 @@ The current accepted and development baseline is **[Beta 52 (0.52.0)](https://gi
 
 The [release record and remaining queue](docs/NEXT-RELEASE.md) distinguishes delivered work, automated verification, user acceptance and later ideas.
 
-### Beta 53 candidate — Wordplay Workshop
+### Beta 53 — Wordplay Workshop
 
 - **Review → Wordplay Workshop…** and the text context menu open a word-pile workbench. Form, style, comic flavour, device, subject/target and situation all default independently to General.
 - Explicit Explore requests six source-linked association directions and two fresh examples per direction. Review the connections, edit wording, copy it, keep a favourite or explicitly apply it to a captured manuscript destination.
 - The pile, settings, current results and favourite provenance save in native/protected `.czd` files and recovery, alongside the separate Story Workshop. Local work makes no AI requests; Explore sends the supplied pile and choices rather than the manuscript or other planning data.
-- Windows verification is in progress. See the [Wordplay Workshop guide](docs/WORDPLAY-WORKSHOP.md). Beta 52 is the accepted baseline.
+- The full Windows release gate passed, including source-linked responses, both workshops' persistence/recovery, edited favourites, Copy, rich Apply/Undo, export ownership and stale-response guards. See the [Wordplay Workshop guide](docs/WORDPLAY-WORKSHOP.md). Beta 52 is the accepted baseline.
 
 ### Beta 52 — Story Workshop
 

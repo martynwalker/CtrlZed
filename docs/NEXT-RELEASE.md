@@ -1,10 +1,12 @@
-# CtrlZed — Beta 53 candidate and release record
+# CtrlZed — Beta 53 and release record
 
 Updated 25 November 2026.
 
 ## Baselines and acceptance
 
-Beta 52 (`0.52.0-beta.52`) is the current accepted and development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Story Workshop screenshot was inspected. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.
+Beta 53 (`0.53.0-beta.53`) is the current development baseline on GitHub `main`. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528) on source `799eb1cb1b2f4de135a8b441da64d21cf76276d1`, including packaging and publication on 25 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Wordplay Workshop screenshot was inspected. Beta 53 user acceptance is pending; Beta 52 remains accepted.
+
+Beta 52 (`0.52.0-beta.52`) is the current accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330) on source `9a14abbacfcc5218660767463c557ff336987ad6`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Story Workshop screenshot was inspected. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026.
 
 Beta 51 (`0.51.0-beta.51`) was the preceding accepted baseline. The [full Windows release gate passed](https://github.com/martynwalker/CtrlZed/actions/runs/45439998902) on source `da6f33cbb2ba01b11a894e48d972e949a139aadc`, including packaging and publication on 24 November 2026. The release ZIP comes from that tested source; baseline promotion adds release documentation. The final Windows dialogue screenshot was inspected. Martyn confirmed Beta 51 and Character Voice as a pass on 24 November 2026.
 
@@ -24,14 +26,14 @@ Beta 46.2 was the previous accepted baseline. Martyn confirmed it as a pass on 2
 
 Beta 45.1 (`0.45.1-beta.45.1`) was the previous user-accepted baseline, confirmed as a pass by Martyn on 21 November 2026. Beta 46.2 builds forward from that source.
 
-## Beta 53 candidate — Wordplay Workshop
+## Implemented in Beta 53 — Wordplay Workshop
 
 - [x] Independent General-default axes for form, style, comic flavour, device, subject/target and physical/situational wordplay.
 - [x] Bounded per-document pile, options, generated directions and independent favourites, including native/protected/recovery support alongside Story Workshop.
 - [x] Explicit source-linked AI exploration, editable examples, favourite bank, Copy and guarded manuscript application.
-- [ ] Windows taxonomy, source evidence, UI, cancellation, native/recovery/export and existing release gates.
+- [x] Windows taxonomy, source evidence, UI, cancellation, native/recovery/export and existing release gates.
 
-Verification is in progress. Suggestions are creative possibilities; live wordplay quality remains the writer's judgement. Beta 52 is accepted. The low-priority Page Editing floating-picture issue #30 remains deferred.
+All Windows release checks passed. They cover independent creative choices, exact-source associations and strict responses, both workshops' native/protected/recovery records, rich manuscript application/Undo, edited favourite retention and provenance, offline saved-idea use, body exports, read-only controls and obsolete responses. Automated AI checks use deterministic examples; live wordplay quality remains the writer's judgement. Beta 52 is accepted. The low-priority Page Editing floating-picture issue #30 remains deferred.
 
 ## Implemented in Beta 52 — Story Workshop
 
@@ -200,7 +202,7 @@ The style checks exercise a renamed style in a copied set; paragraph settings on
 
 Martyn accepted Beta 45.1 as a pass on 21 November 2026. This records overall release acceptance; automated naming checks cover the naming rules and do not independently test every native Save-dialogue interaction.
 
-Status: Beta 52 Windows build, all functional regressions, packaging and publication passed in [run 45457086330](https://github.com/martynwalker/CtrlZed/actions/runs/45457086330). The tested source and release documentation are promoted to `main` as the development baseline. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026, making Beta 52 the accepted and development baseline. Beta 51 was accepted on 24 November 2026.
+Status: Beta 53 Windows build, all functional regressions, packaging and publication passed in [run 45589758528](https://github.com/martynwalker/CtrlZed/actions/runs/45589758528). The tested source and release documentation are promoted to `main` as the development baseline. Beta 53 awaits user acceptance. Martyn confirmed Beta 52 and Story Workshop as a first-time pass on 25 November 2026; Beta 52 remains the accepted baseline.
 
 ## Remaining queue
 
